@@ -1,0 +1,51 @@
+// Bergwacht Getränkekasse — Phase 1 Schema
+// guthaben in Cent (Int), darf negativ werden — KEIN CHECK-Constraint
+// Drink/Transaktion folgen in Phase 2 (siehe KONFIGURATION.md Update 4)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  firstName    String
+  lastName     String
+  passwordHash String?  // null bis Magic-Link eingelöst
+  guthaben     Int      @default(0) // in Cent
+  isAdmin      Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  inviteTokens InviteToken[]
+  sessions     Session[]
+}
+
+model InviteToken {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique // SHA-256 des Klartext-Tokens
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  redeemedAt DateTime?
+
+  @@index([userId])
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  @@index([userId])
+}

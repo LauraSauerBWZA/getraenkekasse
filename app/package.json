@@ -1,0 +1,21 @@
+{
+  "name": "getraenke-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bergwacht Zollernalb — Getränkekasse (Monorepo)",
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,magenta \"pnpm --filter backend dev\" \"pnpm --filter frontend dev\"",
+    "build": "pnpm --filter backend build && pnpm --filter frontend build",
+    "test": "pnpm --filter backend test",
+    "seed": "pnpm --filter backend seed",
+    "db:push": "pnpm --filter backend db:push",
+    "db:reset": "pnpm --filter backend db:reset"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.1.3"
+}

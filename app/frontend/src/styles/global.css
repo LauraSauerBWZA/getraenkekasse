@@ -1,0 +1,35 @@
+@import './design-tokens.css';
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background:
+    radial-gradient(80% 60% at 50% 0%, rgba(217,138,74,0.18) 0%, transparent 60%),
+    var(--bwza-bg);
+  color: var(--bwza-ink);
+  font-family: var(--bwza-font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+
+button { font-family: inherit; }
+
+/* Vertikale Skelett-Bühne (mobile-first, 390px Optik) */
+.bwza-stage {
+  min-height: 100%;
+  width: 100%;
+  max-width: var(--bwza-screen-w);
+  margin: 0 auto;
+  padding-top: 30px;
+  position: relative;
+}

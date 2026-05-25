@@ -1,0 +1,23 @@
+node_modules
+dist
+build
+.cache
+.vite
+coverage
+
+# Prisma / SQLite
+backend/data/*.db
+backend/data/*.db-journal
+backend/prisma/migrations/dev.db*
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# OS / Editor
+.DS_Store
+*.log
+.idea
+.vscode/*
+!.vscode/extensions.json

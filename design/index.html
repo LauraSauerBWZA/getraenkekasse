@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bergwacht Zollernalb · Getränkekasse</title>
+  <link rel="stylesheet" href="design-tokens.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --amber: oklch(78% 0.16 70);
+      --amber-deep: oklch(64% 0.16 55);
+      --amber-glow: oklch(85% 0.14 75);
+      --rescue: oklch(58% 0.18 25);
+      --ink: oklch(96% 0.01 80);
+      --ink-dim: oklch(78% 0.02 80);
+      --ink-mute: oklch(60% 0.02 80);
+      --glass: rgba(20, 16, 12, 0.55);
+      --glass-up: rgba(40, 30, 22, 0.55);
+      --glass-line: rgba(255, 220, 170, 0.14);
+      --glass-shine: rgba(255, 220, 170, 0.06);
+    }
+    html, body {
+      margin: 0; padding: 0;
+      background: #0c0a08;
+      color: var(--ink);
+      font-family: 'Inter', system-ui, sans-serif;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    .stage {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 32px 16px;
+      background:
+        radial-gradient(60% 50% at 50% 0%, oklch(20% 0.05 60 / 0.45), transparent 70%),
+        radial-gradient(80% 60% at 50% 100%, oklch(15% 0.04 55 / 0.6), transparent 70%),
+        url('assets/bar-bg.png') center / cover no-repeat,
+        #0c0a08;
+      background-attachment: fixed;
+    }
+    .stage::before {
+      content: ''; position: fixed; inset: 0;
+      background:
+        radial-gradient(120% 80% at 50% 110%, transparent 30%, rgba(0,0,0,0.55) 80%),
+        linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0) 40%);
+      pointer-events: none; z-index: 0;
+    }
+    .frame-wrap { position: relative; z-index: 1; }
+    /* scrollbar in screen */
+    .screen-scroll::-webkit-scrollbar { width: 0; }
+    /* prevent text selection while tapping */
+    button { font-family: inherit; -webkit-tap-highlight-color: transparent; }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="frame-wrap" id="root"></div>
+  </div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="ios-frame.jsx"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="components.jsx"></script>
+  <script type="text/babel" src="screens-user.jsx"></script>
+  <script type="text/babel" src="screens-admin.jsx"></script>
+  <script type="text/babel" src="app.jsx"></script>
+</body>
+</html>

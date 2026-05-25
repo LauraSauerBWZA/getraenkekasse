@@ -1,0 +1,108 @@
+/* ================================================================
+   Bergwacht Zollernalb · Getränkekasse — Design Tokens
+   Dark "bar after hours" aesthetic. All colors in OKLCH.
+   Drop this file into frontend/src/styles/ and import once in main.
+   ================================================================ */
+
+:root {
+  /* ── Color · primary palette ───────────────────────────────── */
+  --bwza-amber:        oklch(78% 0.16 70);    /* whiskey lamp light */
+  --bwza-amber-deep:   oklch(64% 0.16 55);    /* primary button base */
+  --bwza-amber-glow:   oklch(85% 0.14 75);    /* highlight, focus */
+  --bwza-rescue:       oklch(58% 0.18 25);    /* danger / negative / admin warn */
+  --bwza-rescue-soft:  oklch(72% 0.12 25);    /* destructive hover */
+  --bwza-success:      oklch(72% 0.13 145);   /* topup confirmations */
+
+  /* ── Color · neutrals (warm-tinted) ────────────────────────── */
+  --bwza-ink:          oklch(96% 0.01 80);    /* primary text */
+  --bwza-ink-dim:      oklch(78% 0.02 80);    /* secondary text */
+  --bwza-ink-mute:     oklch(60% 0.02 80);    /* tertiary text, hints */
+  --bwza-ink-faint:    oklch(45% 0.015 80);   /* disabled, dividers */
+
+  /* ── Glass surfaces (use alpha-on-dark) ───────────────────── */
+  --bwza-glass:         rgba(18, 14, 10, 0.62);
+  --bwza-glass-raise:   rgba(40, 28, 20, 0.55);
+  --bwza-glass-amber:   rgba(80, 48, 22, 0.55);
+  --bwza-glass-line:    rgba(255, 210, 160, 0.15);
+  --bwza-glass-line-up: rgba(255, 210, 160, 0.20);
+  --bwza-glass-shine:   rgba(255, 225, 180, 0.08);
+
+  /* ── Background base ─────────────────────────────────────── */
+  --bwza-bg:           #0c0a08;
+  --bwza-bg-warm:      oklch(20% 0.03 60);
+
+  /* ── Radii ───────────────────────────────────────────────── */
+  --bwza-radius-sm:  10px;
+  --bwza-radius-md:  16px;
+  --bwza-radius-lg:  22px;
+  --bwza-radius-xl:  28px;
+  --bwza-radius-pill: 9999px;
+
+  /* ── Shadows ─────────────────────────────────────────────── */
+  --bwza-shadow-card:   0 14px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,225,180,0.08);
+  --bwza-shadow-nav:    0 18px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,225,180,0.08);
+  --bwza-shadow-amber:  0 8px 24px rgba(217,138,74,0.40), inset 0 1px 0 rgba(255,255,255,0.45);
+  --bwza-shadow-rescue: 0 8px 24px rgba(216,90,70,0.35),  inset 0 1px 0 rgba(255,255,255,0.30);
+  --bwza-glow-amber:    0 0 30px rgba(217,138,74,0.25);
+
+  /* ── Backdrop blur ───────────────────────────────────────── */
+  --bwza-blur-glass:  blur(20px) saturate(140%);
+  --bwza-blur-nav:    blur(24px) saturate(160%);
+  --bwza-blur-sheet:  blur(30px) saturate(160%);
+
+  /* ── Typography ──────────────────────────────────────────── */
+  --bwza-font-display: 'Fraunces', Georgia, serif;
+  --bwza-font-ui:      'Inter', system-ui, -apple-system, sans-serif;
+  --bwza-font-mono:    'JetBrains Mono', ui-monospace, monospace;
+
+  /* type scale (mobile baseline @ 390px) */
+  --bwza-text-xxs:  10px;
+  --bwza-text-xs:   11px;
+  --bwza-text-sm:   12px;
+  --bwza-text-md:   13px;
+  --bwza-text-lg:   15px;
+  --bwza-text-xl:   18px;
+  --bwza-text-h3:   22px;
+  --bwza-text-h2:   28px;
+  --bwza-text-h1:   34px;
+  --bwza-text-num:  52px; /* balance hero number */
+
+  /* tracking */
+  --bwza-tracking-eyebrow: 1.4px;
+
+  /* ── Spacing scale ───────────────────────────────────────── */
+  --bwza-space-1:  4px;
+  --bwza-space-2:  8px;
+  --bwza-space-3:  12px;
+  --bwza-space-4:  16px;
+  --bwza-space-5:  20px;
+  --bwza-space-6:  24px;
+  --bwza-space-7:  32px;
+  --bwza-space-8:  48px;
+
+  /* ── Motion ──────────────────────────────────────────────── */
+  --bwza-ease:        cubic-bezier(.2,.7,.2,1);
+  --bwza-dur-fast:    120ms;
+  --bwza-dur:         180ms;
+  --bwza-dur-slow:    280ms;
+
+  /* ── Layout ──────────────────────────────────────────────── */
+  --bwza-tap:        44px;  /* min touch target */
+  --bwza-screen-w:   390px;
+  --bwza-screen-h:   844px;
+  --bwza-page-x:     18px;  /* horizontal padding */
+  --bwza-nav-h:      80px;  /* bottom-nav reserve */
+}
+
+/* Negative-balance utility for any numeric display */
+.bwza-neg { color: var(--bwza-rescue) !important; }
+
+/* Eyebrow / kicker label style */
+.bwza-eyebrow {
+  font-family: var(--bwza-font-ui);
+  font-size: var(--bwza-text-xxs);
+  letter-spacing: var(--bwza-tracking-eyebrow);
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--bwza-ink-dim);
+}
