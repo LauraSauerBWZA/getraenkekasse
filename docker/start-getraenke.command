@@ -1,17 +1,25 @@
 #!/bin/bash
 
-# ==========================================================
-# bwza-getraenke Sandbox starten
-# ==========================================================
+# ===================================================================
+#  bwza-getraenke Sandbox starten
+# ===================================================================
 # Vorbedingung: 'build-getraenke.command' wurde einmal ausgeführt.
 # Dieses Skript startet (oder erstellt neu) den Container und
-# öffnet Claude Code im Projekt-Workspace.
-# ==========================================================
+# öffnet eine Bash-Shell im Projekt-Workspace.
+#
+# Im Container kannst du dann:
+#   - Manuell arbeiten (pnpm dev, git, etc.)
+#   - Claude Code starten mit:  claude --dangerously-skip-permissions
+#
+# Port-Mappings:
+#   3001:3001 → Vite-Frontend
+#   4000:4000 → Express-Backend
+# ===================================================================
 
 echo ""
-echo "================================================="
+echo "==========================================================="
 echo "  bwza-getraenke Sandbox starten"
-echo "================================================="
+echo "==========================================================="
 echo ""
 
 CONTAINER="claude-bwza-getraenke"
@@ -47,11 +55,11 @@ else
     echo ""
     docker run -it \
         --name "$CONTAINER" \
-        -p 3000:3000 \
+        -p 3001:3001 \
         -p 4000:4000 \
         -v "$PROJECT_PATH:/home/claude/workspace" \
         "$IMAGE_AUTH" \
-        claude --dangerously-skip-permissions
+        bash
 fi
 
 echo ""

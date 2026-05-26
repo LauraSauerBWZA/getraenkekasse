@@ -43,3 +43,9 @@ coverage/
 
 # Vite cache
 .vite/
+
+# Prisma legt SQLite-DB unter prisma/data/ ab (relativ zu schema.prisma)
+app/backend/prisma/data/*.db
+app/backend/prisma/data/*.db-journal
+app/backend/prisma/data/*.db-wal
+app/backend/prisma/data/*.db-shm
