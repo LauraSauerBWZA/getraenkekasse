@@ -93,6 +93,18 @@ Aktuell läuft das via `pnpm dev`. Falls Restart-Probleme auftauchen (npm-Wrappe
 
 **`main`-only.** Keine Feature-Branches. Qualitäts-Mechanismus ist die Sub-Commit-Disziplin, nicht Branch-Disziplin.
 
+### Domänen-Konventionen (Geschäftslogik)
+
+Bei allen Code-Edits, die Beträge oder Getränke betreffen:
+
+- **Beträge in Cent als `Int`.** Niemals `Float` für Geldbeträge. Beispiel: `2,50 €` → `250` (Cent).
+- **`guthabenCent` darf negativ sein.** Keine DB-Constraint dagegen. Negatives Guthaben = Schulden, ist erlaubt.
+- **`preisAtKaufCent` einfrieren.** In `Transaktion` wird der Preis zum Kaufzeitpunkt eingefroren. Preisänderungen am Drink ändern nie historische Transaktionen.
+- **Soft-Disable statt Hard-Delete.** Drinks via `isActive=false` ausblenden, nicht löschen. Bestehende Transaktionen referenzieren weiterhin den `drinkId`.
+- **Drink-Kategorien fest:** `alkoholfrei`, `alkoholisch`, `sonstiges`. Kein „Heißgetränk", keine User-definierten Kategorien.
+- **Keine Lieblings-Sorte pro User.** Trinkjournal ist sortenagnostisch (nur Anzahl/Beträge). Sortenstatistik existiert nur App-weit aggregiert für Admin-Einkaufsplanung.
+- **Magic-Link Auth, kein Self-Signup.** User kommen ausschließlich via Admin-Invite ins System.
+
 ---
 
 ## 6. Tech-Stack (Kurz-Referenz)
@@ -114,8 +126,7 @@ Vollständige Spec: `KONFIGURATION.md`.
 - **Container-Pfad:** `/home/claude/workspace/` (gleicher Inhalt via Volume-Mount)
 - **Container-Name:** `claude-bwza-getraenke`
 - **Image:** `bwza-getraenke-auth`
-- **Port-Mappings:** `3000:3000` und `4000:4000`
-  - ⚠️ **Hinweis:** Vite-Dev läuft auf **3001**, nicht 3000. Port-Mapping ist nicht aktuell — Mac-Browser kann Frontend nicht erreichen. Wird in Phase B-Konsolidierung gefixt.
+- **Port-Mappings:** `3001:3001` (Frontend Vite) und `4000:4000` (Backend Express). Vite-Host ist auf `0.0.0.0` gesetzt, damit der Mac-Browser den Container erreicht.
 - **Start (Mac):** Doppelklick auf `docker/start-getraenke.command`
 - **Push aus Sandbox NICHT möglich** (kein SSH-Auth). Push immer vom Mac.
 
@@ -144,6 +155,14 @@ Symptome, die in Einsatzboard-Erfahrung auftraten:
 - Eigenmächtige Commits trotz STOPP-Anweisung
 - Sandbox-Browser-Cache der trotz Code-Änderung alte Version zeigt
 
+### Drift-Pattern aus Bergwacht-Phase 1
+
+In der Geschichte dieses Projekts gab es zwei widersprüchliche Phase-1-Specs (`01-grundgeruest.md` und `CODE_PROMPT_PHASE1.md`), die aus unterschiedlichen Chats entstanden waren. Claude Code musste eigenständig wählen.
+
+**Lehre:** Wenn du in `PROMPTS/` mehrere Specs findest, die dasselbe Thema adressieren — STOPP, nicht eigenmächtig wählen. Laura fragen.
+
+**Vermeidungs-Konvention:** In `PROMPTS/` liegt **eine** Spec pro Phase, benannt `0X-name.md`. Wenn jemand eine zweite Variante schreibt, gehört eine davon ins `archiv/` mit Warn-Header.
+
 ---
 
 ## 10. Wann diese Datei geändert wird
@@ -154,4 +173,25 @@ Symptome, die in Einsatzboard-Erfahrung auftraten:
 
 ---
 
-**Letzte Aktualisierung:** 2026-05-25 (Initial-Version nach Phase 1 mit rückwirkender Konsolidierung)
+## 11. Verweise
+
+Diese Datei (`CLAUDE.md`) regelt **wie** wir arbeiten. Für **was wir bauen** gilt:
+
+- **`KONFIGURATION.md`** — Tech-Stack, Datenmodell (User, Drink, Transaktion, Invite),
+  DSGVO-Position, Phasen-Roadmap (B1–B7), Domain, Identitäten.
+  Source of Truth für Geschäftslogik-Entscheidungen.
+
+- **`PROMPTS/0X-*.md`** — konkrete Spec der aktuell laufenden Phase.
+
+- **`design/README_DESIGN.md`** — Design-System (Dark-Bar-Ästhetik, Fonts, Tokens, Komponenten).
+  Source of Truth für visuelles Design.
+
+- **`design/design-tokens.css`** — Source of Truth für Farben (OKLCH), Spacings, Radius.
+
+- **`BERICHTE/`** — Berichte aus früheren Phasen (nicht in Git, lokal).
+
+Bei Konflikt zwischen diesen Quellen: höhere Tier in der Hierarchie (Sektion 2) gewinnt.
+
+---
+
+**Letzte Aktualisierung:** 2026-05-26 (Erweiterungen nach Phase-1-Smoke-Test: Domänen-Konventionen, Drift-Pattern-Lehre, Verweise, Setup-Fix-Hinweis aktualisiert)
