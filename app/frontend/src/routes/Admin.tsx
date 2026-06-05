@@ -1,13 +1,33 @@
-import { useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Glass, GlassButton, GlassInput } from '../components/primitives';
-import { api, ApiError } from '../lib/api';
+import { api, ApiError, type AdminInvite } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 interface InviteSuccess {
   firstName: string;
   email: string;
   inviteUrl: string | null;
+}
+
+const STATUS_LABEL: Record<AdminInvite['status'], string> = {
+  offen: 'offen',
+  eingeloest: 'eingelöst',
+  abgelaufen: 'abgelaufen',
+};
+
+const STATUS_COLOR: Record<AdminInvite['status'], string> = {
+  offen: 'oklch(70% 0.16 70)',
+  eingeloest: 'oklch(72% 0.14 145)',
+  abgelaufen: 'oklch(58% 0.18 25)',
+};
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('de-DE', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 export default function Admin() {
@@ -20,6 +40,23 @@ export default function Admin() {
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState<InviteSuccess | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const [invites, setInvites] = useState<AdminInvite[] | null>(null);
+  const [invitesError, setInvitesError] = useState<string | null>(null);
+
+  const loadInvites = useCallback(async () => {
+    setInvitesError(null);
+    try {
+      const r = await api.adminInvites();
+      setInvites(r.invites);
+    } catch (e) {
+      setInvitesError(e instanceof ApiError ? e.message : 'Liste konnte nicht geladen werden.');
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadInvites();
+  }, [loadInvites]);
 
   if (!user) return null;
 
@@ -45,6 +82,7 @@ export default function Admin() {
       setLastName('');
       setEmail('');
       setCopied(false);
+      void loadInvites();
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Invite fehlgeschlagen.');
     } finally {
@@ -196,6 +234,8 @@ export default function Admin() {
         </Glass>
       )}
 
+      <InviteList invites={invites} error={invitesError} />
+
       <div style={{ marginTop: 22 }}>
         <GlassButton variant="ghost" full onClick={() => navigate('/')}>
           Zurück
@@ -203,4 +243,136 @@ export default function Admin() {
       </div>
     </div>
   );
+}
+
+function InviteList({
+  invites,
+  error,
+}: {
+  invites: AdminInvite[] | null;
+  error: string | null;
+}) {
+  return (
+    <div style={{ marginTop: 28 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          marginBottom: 10,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: 'var(--bwza-font-display)',
+            fontSize: 20,
+            fontWeight: 600,
+            color: 'var(--bwza-ink)',
+            letterSpacing: -0.2,
+          }}
+        >
+          Ausgestellte Invites
+        </div>
+        {invites && (
+          <div style={{ fontSize: 11, color: 'var(--bwza-ink-mute)' }}>
+            {invites.length} {invites.length === 1 ? 'Eintrag' : 'Einträge'}
+          </div>
+        )}
+      </div>
+
+      {error ? (
+        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
+          <div style={{ fontSize: 12, color: 'var(--bwza-rescue-soft)' }}>{error}</div>
+        </Glass>
+      ) : invites === null ? (
+        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
+          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>Lädt …</div>
+        </Glass>
+      ) : invites.length === 0 ? (
+        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
+          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>
+            Noch keine Invites erstellt.
+          </div>
+        </Glass>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {invites.map((inv) => (
+            <InviteRow key={inv.id} invite={inv} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InviteRow({ invite }: { invite: AdminInvite }) {
+  const color = STATUS_COLOR[invite.status];
+  const dateLine =
+    invite.status === 'eingeloest' && invite.redeemedAt
+      ? `Eingelöst am ${formatDate(invite.redeemedAt)}`
+      : invite.status === 'abgelaufen'
+        ? `Abgelaufen am ${formatDate(invite.expiresAt)}`
+        : `Läuft ab am ${formatDate(invite.expiresAt)}`;
+
+  return (
+    <Glass
+      tone="dark"
+      style={{
+        borderRadius: 16,
+        padding: '12px 14px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+      }}
+    >
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div
+          style={{
+            fontFamily: 'var(--bwza-font-display)',
+            fontSize: 15,
+            fontWeight: 600,
+            color: 'var(--bwza-ink)',
+            letterSpacing: -0.1,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {invite.firstName} {invite.lastName}
+        </div>
+        <div
+          style={{
+            fontSize: 11,
+            color: 'var(--bwza-ink-mute)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {invite.email}
+        </div>
+        <div style={{ marginTop: 2, fontSize: 10.5, color: 'var(--bwza-ink-mute)' }}>
+          {dateLine}
+        </div>
+      </div>
+      <StatusChip color={color} label={STATUS_LABEL[invite.status]} />
+    </Glass>
+  );
+}
+
+function StatusChip({ color, label }: { color: string; label: string }) {
+  const style: CSSProperties = {
+    flexShrink: 0,
+    padding: '4px 10px',
+    borderRadius: 999,
+    fontSize: 10.5,
+    fontWeight: 700,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+    color,
+    border: `1px solid ${color}`,
+    background: 'rgba(0,0,0,0.30)',
+  };
+  return <span style={style}>{label}</span>;
 }
