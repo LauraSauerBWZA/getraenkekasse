@@ -31,7 +31,7 @@ adminRouter.post('/admin/invite', async (req, res) => {
   });
 
   const { clear, hash } = generateInviteToken();
-  await prisma.inviteToken.create({
+  await prisma.invite.create({
     data: {
       tokenHash: hash,
       userId: user.id,
@@ -52,7 +52,7 @@ adminRouter.post('/admin/invite', async (req, res) => {
 
 // GET /admin/invites — listet alle ausgestellten Invites mit abgeleitetem Status
 adminRouter.get('/admin/invites', async (_req, res) => {
-  const rows = await prisma.inviteToken.findMany({
+  const rows = await prisma.invite.findMany({
     orderBy: { createdAt: 'desc' },
     include: { user: { select: { email: true, firstName: true, lastName: true } } },
   });

@@ -28,7 +28,7 @@ async function main() {
   // Wenn das Passwort noch nicht gesetzt ist, einen frischen Invite erzeugen
   if (!user.passwordHash) {
     const { clear, hash } = generateInviteToken();
-    await prisma.inviteToken.create({
+    await prisma.invite.create({
       data: { tokenHash: hash, userId: user.id, expiresAt: inviteExpiry() },
     });
     const url = buildInviteUrl(clear);

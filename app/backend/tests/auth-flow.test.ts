@@ -41,7 +41,7 @@ beforeAll(async () => {
     data: { email: 'laura_sauer@gmx.de', firstName: 'Laura', lastName: 'Sauer', isAdmin: true },
   });
   const { clear, hash } = generateInviteToken();
-  await prisma.inviteToken.create({
+  await prisma.invite.create({
     data: { tokenHash: hash, userId: admin.id, expiresAt: inviteExpiry() },
   });
   // Klartext-Token an die Test-Suite weiterreichen

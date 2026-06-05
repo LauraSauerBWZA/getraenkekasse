@@ -51,7 +51,7 @@ authRouter.post('/auth/invite-redeem', async (req, res) => {
   const { token, password } = parsed.data;
   const tokenHash = hashToken(token);
 
-  const invite = await prisma.inviteToken.findUnique({
+  const invite = await prisma.invite.findUnique({
     where: { tokenHash },
     include: { user: true },
   });
@@ -68,12 +68,12 @@ authRouter.post('/auth/invite-redeem', async (req, res) => {
       where: { id: invite.userId },
       data: { passwordHash },
     });
-    await tx.inviteToken.update({
+    await tx.invite.update({
       where: { id: invite.id },
       data: { redeemedAt: new Date() },
     });
     // alle anderen offenen Invites für diesen User entwerten
-    await tx.inviteToken.updateMany({
+    await tx.invite.updateMany({
       where: { userId: invite.userId, redeemedAt: null, id: { not: invite.id } },
       data: { redeemedAt: new Date() },
     });
