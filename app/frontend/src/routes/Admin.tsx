@@ -1,11 +1,67 @@
+import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Glass, GlassButton } from '../components/primitives';
+import { Glass, GlassButton, GlassInput } from '../components/primitives';
+import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+
+interface InviteSuccess {
+  firstName: string;
+  email: string;
+  inviteUrl: string | null;
+}
 
 export default function Admin() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [success, setSuccess] = useState<InviteSuccess | null>(null);
+  const [copied, setCopied] = useState(false);
+
   if (!user) return null;
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
+      setErr('Bitte alle Felder ausfüllen.');
+      return;
+    }
+    setErr(null);
+    setBusy(true);
+    try {
+      const res = await api.adminInvite({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+      });
+      const inviteUrl = res.devToken
+        ? `${window.location.origin}/set-password?token=${encodeURIComponent(res.devToken)}`
+        : null;
+      setSuccess({ firstName: res.user.firstName, email: res.user.email, inviteUrl });
+      setFirstName('');
+      setLastName('');
+      setEmail('');
+      setCopied(false);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Invite fehlgeschlagen.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copyLink = async () => {
+    if (!success?.inviteUrl) return;
+    try {
+      await navigator.clipboard.writeText(success.inviteUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard nicht verfügbar (z.B. http ohne localhost) — Nutzer kann manuell markieren.
+    }
+  };
 
   return (
     <div className="bwza-stage" style={{ padding: '0 var(--bwza-page-x) 40px' }}>
@@ -21,19 +77,124 @@ export default function Admin() {
             marginTop: 4,
           }}
         >
-          Verwaltung
+          Mitglied einladen
         </div>
         <div style={{ marginTop: 6, fontSize: 13, color: 'var(--bwza-ink-dim)' }}>
-          Mitglieder einladen und verwalten.
+          Neue Mitglieder bekommen einen Magic-Link, mit dem sie ein Passwort setzen.
         </div>
       </div>
 
-      <Glass tone="dark" style={{ borderRadius: 22, padding: '18px 18px 20px' }}>
-        <div className="bwza-eyebrow">Platzhalter</div>
-        <div style={{ marginTop: 6, fontSize: 13, color: 'var(--bwza-ink-dim)' }}>
-          Hier folgt das Invite-Formular (B2a.3) und die Liste ausgestellter Invites (B2a.4).
+      <form onSubmit={submit}>
+        <Glass
+          tone="dark"
+          style={{
+            borderRadius: 22,
+            padding: '18px 16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          <GlassInput
+            label="Vorname"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            placeholder="Max"
+            autoFocus
+          />
+          <GlassInput
+            label="Nachname"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            placeholder="Mustermann"
+          />
+          <GlassInput
+            label="E-Mail"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="max@bergwacht-zollernalb.de"
+            error={err}
+          />
+        </Glass>
+
+        <div style={{ marginTop: 16 }}>
+          <GlassButton type="submit" full size="lg" disabled={busy}>
+            {busy ? 'Sende …' : 'Magic-Link erzeugen'}
+          </GlassButton>
         </div>
-      </Glass>
+      </form>
+
+      {success && (
+        <Glass
+          tone="amber"
+          style={{ borderRadius: 22, padding: '18px 16px', marginTop: 18 }}
+        >
+          <div className="bwza-eyebrow">Magic-Link erzeugt</div>
+          <div
+            style={{
+              marginTop: 6,
+              fontFamily: 'var(--bwza-font-display)',
+              fontSize: 18,
+              fontWeight: 600,
+              color: 'var(--bwza-ink)',
+              letterSpacing: -0.2,
+            }}
+          >
+            {success.firstName} ist eingeladen.
+          </div>
+          <div style={{ marginTop: 2, fontSize: 12, color: 'var(--bwza-ink-mute)' }}>
+            {success.email}
+          </div>
+
+          {success.inviteUrl ? (
+            <>
+              <div
+                style={{
+                  marginTop: 14,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: 0.3,
+                  color: 'var(--bwza-ink-dim)',
+                  paddingLeft: 2,
+                }}
+              >
+                MAGIC-LINK ZUM WEITERGEBEN
+              </div>
+              <div
+                style={{
+                  marginTop: 6,
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  background: 'rgba(0,0,0,0.30)',
+                  border: '1px solid var(--bwza-glass-line)',
+                  fontSize: 12,
+                  wordBreak: 'break-all',
+                  fontFamily: 'var(--bwza-font-ui)',
+                }}
+              >
+                <a
+                  href={success.inviteUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: 'var(--bwza-ink)', textDecoration: 'underline' }}
+                >
+                  {success.inviteUrl}
+                </a>
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <GlassButton variant="ghost" size="sm" full onClick={() => void copyLink()}>
+                  {copied ? 'Kopiert' : 'Link kopieren'}
+                </GlassButton>
+              </div>
+            </>
+          ) : (
+            <div style={{ marginTop: 12, fontSize: 12, color: 'var(--bwza-ink-mute)' }}>
+              Der Magic-Link wurde per E-Mail versendet.
+            </div>
+          )}
+        </Glass>
+      )}
 
       <div style={{ marginTop: 22 }}>
         <GlassButton variant="ghost" full onClick={() => navigate('/')}>

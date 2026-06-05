@@ -10,6 +10,18 @@ export interface ApiUser {
   isActive: boolean;
 }
 
+export interface AdminInvite {
+  id: string;
+  userId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  createdAt: string;
+  expiresAt: string;
+  redeemedAt: string | null;
+  status: 'offen' | 'eingeloest' | 'abgelaufen';
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string, public details?: unknown) {
     super(message);
@@ -50,6 +62,15 @@ export const api = {
       body: JSON.stringify({ token, password }),
     }),
   logout: () => request<{ ok: true }>('/auth/logout', { method: 'POST' }),
+  adminInvite: (input: { email: string; firstName: string; lastName: string }) =>
+    request<{
+      user: { id: string; email: string; firstName: string; lastName: string };
+      devToken?: string;
+    }>('/admin/invite', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  adminInvites: () => request<{ invites: AdminInvite[] }>('/admin/invites'),
 };
 
 export function formatGuthaben(cent: number): string {
