@@ -3,6 +3,7 @@ import { useAuth } from './lib/auth';
 import Login from './routes/Login';
 import SetPassword from './routes/SetPassword';
 import Dashboard from './routes/Dashboard';
+import Admin from './routes/Admin';
 
 function Protected({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -14,6 +15,12 @@ function Protected({ children }: { children: JSX.Element }) {
     );
   }
   if (!user) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function AdminOnly({ children }: { children: JSX.Element }) {
+  const { user } = useAuth();
+  if (!user?.isAdmin) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -32,6 +39,16 @@ export default function App() {
         element={
           <Protected>
             <Dashboard />
+          </Protected>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <Protected>
+            <AdminOnly>
+              <Admin />
+            </AdminOnly>
           </Protected>
         }
       />
