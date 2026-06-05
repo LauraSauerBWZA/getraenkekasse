@@ -49,3 +49,30 @@ adminRouter.post('/admin/invite', async (req, res) => {
     devToken: process.env.NODE_ENV === 'production' ? undefined : clear,
   });
 });
+
+// GET /admin/invites — listet alle ausgestellten Invites mit abgeleitetem Status
+adminRouter.get('/admin/invites', async (_req, res) => {
+  const rows = await prisma.inviteToken.findMany({
+    orderBy: { createdAt: 'desc' },
+    include: { user: { select: { email: true, firstName: true, lastName: true } } },
+  });
+
+  const now = new Date();
+  const invites = rows.map((row) => {
+    const status =
+      row.redeemedAt !== null ? 'eingeloest' : row.expiresAt < now ? 'abgelaufen' : 'offen';
+    return {
+      id: row.id,
+      userId: row.userId,
+      email: row.user.email,
+      firstName: row.user.firstName,
+      lastName: row.user.lastName,
+      createdAt: row.createdAt,
+      expiresAt: row.expiresAt,
+      redeemedAt: row.redeemedAt,
+      status,
+    };
+  });
+
+  return res.json({ invites });
+});
