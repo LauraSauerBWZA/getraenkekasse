@@ -49,3 +49,18 @@ model Session {
 
   @@index([userId])
 }
+
+// Drink-Katalog (Phase B2b). preisCent in Cent als Int.
+// kategorie: 'alkoholfrei' | 'alkoholisch' | 'sonstiges' — feste Liste,
+// validiert via src/domain/drink-kategorien.ts (Prisma-Enums sind auf SQLite nicht unterstützt).
+// Soft-Disable über isActive — Hard-Delete würde künftige Transaktions-Referenzen brechen.
+model Drink {
+  id         String   @id @default(cuid())
+  name       String
+  preisCent  Int
+  icon       String?
+  kategorie  String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
