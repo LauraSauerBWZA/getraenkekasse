@@ -22,6 +22,27 @@ export interface AdminInvite {
   status: 'offen' | 'eingeloest' | 'abgelaufen';
 }
 
+export const DRINK_KATEGORIEN = ['alkoholfrei', 'alkoholisch', 'sonstiges'] as const;
+export type DrinkKategorie = (typeof DRINK_KATEGORIEN)[number];
+
+export interface Drink {
+  id: string;
+  name: string;
+  preisCent: number;
+  icon: string | null;
+  kategorie: DrinkKategorie;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DrinkInput {
+  name: string;
+  preisCent: number;
+  icon?: string;
+  kategorie: DrinkKategorie;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string, public details?: unknown) {
     super(message);
@@ -71,6 +92,22 @@ export const api = {
       body: JSON.stringify(input),
     }),
   adminInvites: () => request<{ invites: AdminInvite[] }>('/admin/invites'),
+  adminDrinks: () => request<{ drinks: Drink[] }>('/admin/drinks'),
+  adminDrinkCreate: (input: DrinkInput) =>
+    request<{ drink: Drink }>('/admin/drinks', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  adminDrinkUpdate: (id: string, input: Partial<DrinkInput>) =>
+    request<{ drink: Drink }>(`/admin/drinks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+  adminDrinkSetActive: (id: string, isActive: boolean) =>
+    request<{ drink: Drink }>(`/admin/drinks/${id}/active`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isActive }),
+    }),
 };
 
 export function formatGuthaben(cent: number): string {

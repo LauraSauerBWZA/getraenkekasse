@@ -4,6 +4,7 @@ import Login from './routes/Login';
 import SetPassword from './routes/SetPassword';
 import Dashboard from './routes/Dashboard';
 import Admin from './routes/Admin';
+import AdminDrinks from './routes/AdminDrinks';
 
 function Protected({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -48,6 +49,16 @@ export default function App() {
           <Protected>
             <AdminOnly>
               <Admin />
+            </AdminOnly>
+          </Protected>
+        }
+      />
+      <Route
+        path="/admin/drinks"
+        element={
+          <Protected>
+            <AdminOnly>
+              <AdminDrinks />
             </AdminOnly>
           </Protected>
         }
