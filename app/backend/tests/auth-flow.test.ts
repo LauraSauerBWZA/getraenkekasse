@@ -110,3 +110,184 @@ describe('Auth-Happy-Path', () => {
     expect(r.status).toBe(401);
   });
 });
+
+// In dieselbe Datei integriert (statt eigenes Test-File), weil vitest mit
+// singleFork+isolate eine geteilte process.env hat — zwei Files würden den
+// DATABASE_URL-Race triggern. Wenn die Test-Suite wächst, lohnt globalSetup.
+describe('Admin-Drink-CRUD', () => {
+  // Member zum 403-Test: zweiten User anlegen + via Invite einloggen
+  const memberAgent = supertest.agent(app);
+  let memberToken: string;
+
+  it('Member-Setup: zweiten User via Invite einloggen', async () => {
+    const member = await prisma.user.create({
+      data: { email: 'max@example.com', firstName: 'Max', lastName: 'Mustermann', isAdmin: false },
+    });
+    const inv = generateInviteToken();
+    await prisma.invite.create({
+      data: { tokenHash: inv.hash, userId: member.id, expiresAt: inviteExpiry() },
+    });
+    memberToken = inv.clear;
+    const r = await memberAgent
+      .post('/auth/invite-redeem')
+      .send({ token: memberToken, password: 'Anderes-Pferd-Akku-7' });
+    expect(r.status).toBe(200);
+    expect(r.body.user.isAdmin).toBe(false);
+  });
+
+  it('lehnt nicht-eingeloggten Zugriff ab', async () => {
+    const anon = supertest.agent(app);
+    const r = await anon.get('/admin/drinks');
+    expect(r.status).toBe(401);
+  });
+
+  it('lehnt Nicht-Admin-Zugriff ab', async () => {
+    const r = await memberAgent.get('/admin/drinks');
+    expect(r.status).toBe(403);
+  });
+
+  it('liefert leere Liste vor erstem Anlegen', async () => {
+    const r = await agent.get('/admin/drinks');
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ drinks: [] });
+  });
+
+  it('legt Drink mit allen Feldern an', async () => {
+    const r = await agent.post('/admin/drinks').send({
+      name: 'Cola',
+      preisCent: 150,
+      icon: '🥤',
+      kategorie: 'alkoholfrei',
+    });
+    expect(r.status).toBe(201);
+    expect(r.body.drink).toMatchObject({
+      name: 'Cola',
+      preisCent: 150,
+      icon: '🥤',
+      kategorie: 'alkoholfrei',
+      isActive: true,
+    });
+    expect(r.body.drink.id).toBeTruthy();
+  });
+
+  it('legt Drink ohne Icon an (Icon optional)', async () => {
+    const r = await agent.post('/admin/drinks').send({
+      name: 'Wasser',
+      preisCent: 100,
+      kategorie: 'alkoholfrei',
+    });
+    expect(r.status).toBe(201);
+    expect(r.body.drink.icon).toBeNull();
+  });
+
+  it('weist negativen Preis zurück', async () => {
+    const r = await agent.post('/admin/drinks').send({
+      name: 'Negativ',
+      preisCent: -50,
+      kategorie: 'sonstiges',
+    });
+    expect(r.status).toBe(400);
+  });
+
+  it('weist nicht-ganzzahligen Preis zurück', async () => {
+    const r = await agent.post('/admin/drinks').send({
+      name: 'Bruch',
+      preisCent: 1.5,
+      kategorie: 'sonstiges',
+    });
+    expect(r.status).toBe(400);
+  });
+
+  it('weist leeren Namen zurück', async () => {
+    const r = await agent.post('/admin/drinks').send({
+      name: '   ',
+      preisCent: 100,
+      kategorie: 'alkoholfrei',
+    });
+    expect(r.status).toBe(400);
+  });
+
+  it('weist unbekannte Kategorie zurück', async () => {
+    const r = await agent.post('/admin/drinks').send({
+      name: 'Tee',
+      preisCent: 100,
+      kategorie: 'heissgetraenk',
+    });
+    expect(r.status).toBe(400);
+  });
+
+  it('listet alle Drinks sortiert nach Kategorie+Name', async () => {
+    await agent.post('/admin/drinks').send({
+      name: 'Bier',
+      preisCent: 200,
+      icon: '🍺',
+      kategorie: 'alkoholisch',
+    });
+    const r = await agent.get('/admin/drinks');
+    expect(r.status).toBe(200);
+    expect(r.body.drinks.map((d: { name: string }) => d.name)).toEqual([
+      'Cola',
+      'Wasser',
+      'Bier',
+    ]);
+  });
+
+  it('aktualisiert Preis eines bestehenden Drinks', async () => {
+    const list = await agent.get('/admin/drinks');
+    const cola = list.body.drinks.find((d: { name: string }) => d.name === 'Cola');
+    const r = await agent.patch(`/admin/drinks/${cola.id}`).send({ preisCent: 170 });
+    expect(r.status).toBe(200);
+    expect(r.body.drink.preisCent).toBe(170);
+    expect(r.body.drink.name).toBe('Cola');
+  });
+
+  it('lehnt leeren Patch-Body ab', async () => {
+    const list = await agent.get('/admin/drinks');
+    const cola = list.body.drinks.find((d: { name: string }) => d.name === 'Cola');
+    const r = await agent.patch(`/admin/drinks/${cola.id}`).send({});
+    expect(r.status).toBe(400);
+  });
+
+  it('löscht Icon, wenn leerer String gesetzt wird', async () => {
+    const list = await agent.get('/admin/drinks');
+    const cola = list.body.drinks.find((d: { name: string }) => d.name === 'Cola');
+    const r = await agent.patch(`/admin/drinks/${cola.id}`).send({ icon: '' });
+    expect(r.status).toBe(200);
+    expect(r.body.drink.icon).toBeNull();
+  });
+
+  it('antwortet 404 auf Patch unbekannter ID', async () => {
+    const r = await agent.patch('/admin/drinks/does-not-exist').send({ preisCent: 100 });
+    expect(r.status).toBe(404);
+  });
+
+  it('deaktiviert Drink (Soft-Disable)', async () => {
+    const list = await agent.get('/admin/drinks');
+    const bier = list.body.drinks.find((d: { name: string }) => d.name === 'Bier');
+    const r = await agent.patch(`/admin/drinks/${bier.id}/active`).send({ isActive: false });
+    expect(r.status).toBe(200);
+    expect(r.body.drink.isActive).toBe(false);
+  });
+
+  it('listet inaktive Drinks weiterhin im Admin-Endpoint', async () => {
+    const r = await agent.get('/admin/drinks');
+    const bier = r.body.drinks.find((d: { name: string }) => d.name === 'Bier');
+    expect(bier).toBeDefined();
+    expect(bier.isActive).toBe(false);
+  });
+
+  it('reaktiviert Drink', async () => {
+    const list = await agent.get('/admin/drinks');
+    const bier = list.body.drinks.find((d: { name: string }) => d.name === 'Bier');
+    const r = await agent.patch(`/admin/drinks/${bier.id}/active`).send({ isActive: true });
+    expect(r.status).toBe(200);
+    expect(r.body.drink.isActive).toBe(true);
+  });
+
+  it('weist Active-Patch mit unpassendem Typ ab', async () => {
+    const list = await agent.get('/admin/drinks');
+    const cola = list.body.drinks.find((d: { name: string }) => d.name === 'Cola');
+    const r = await agent.patch(`/admin/drinks/${cola.id}/active`).send({ isActive: 'ja' });
+    expect(r.status).toBe(400);
+  });
+});
