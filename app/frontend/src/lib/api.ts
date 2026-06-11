@@ -138,6 +138,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ drinkId }),
     }),
+  // Storno einer eigenen Transaktion (Mitglied: nur eigene KAUF im 5-Min-Fenster,
+  // Auto-Notiz vom Backend; Admin: jederzeit alles, Pflicht-Notiz im Body).
+  storno: (transaktionId: string, notiz?: string) =>
+    request<{ transaktion: Transaktion; guthabenCent: number }>(
+      `/transaktionen/${transaktionId}/storno`,
+      {
+        method: 'POST',
+        body: JSON.stringify(notiz ? { notiz } : {}),
+      },
+    ),
 };
 
 export function formatGuthaben(cent: number): string {

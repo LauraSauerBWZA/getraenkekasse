@@ -8,8 +8,13 @@ import {
   formatGuthaben,
   type Drink,
   type DrinkKategorie,
+  type Transaktion,
 } from '../lib/api';
 import { useAuth } from '../lib/auth';
+
+// Spiegel der Backend-Konstante (routes/buchen.ts). Reine UI-Anzeige —
+// Backend bleibt die Wahrheit (lehnt Stornos nach Ablauf serverseitig ab).
+const STORNO_FENSTER_MS = 5 * 60 * 1000;
 
 const KATEGORIE_LABEL: Record<DrinkKategorie, string> = {
   alkoholfrei: 'Alkoholfrei',
@@ -24,12 +29,18 @@ function formatPreis(cent: number): string {
   }) + ' €';
 }
 
+interface LastBooking {
+  transaktion: Transaktion;
+  drink: Drink;
+}
+
 export default function Buchen() {
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
   const [drinks, setDrinks] = useState<Drink[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pending, setPending] = useState<Drink | null>(null);
+  const [lastBooking, setLastBooking] = useState<LastBooking | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -86,6 +97,17 @@ export default function Buchen() {
           </span>
         </div>
       </div>
+
+      {lastBooking && (
+        <LastBookingCard
+          booking={lastBooking}
+          onUndone={(newGuthaben) => {
+            setUser({ ...user, guthabenCent: newGuthaben });
+            setLastBooking(null);
+          }}
+          onWindowExpired={() => setLastBooking(null)}
+        />
+      )}
 
       {loadError ? (
         <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
@@ -144,8 +166,9 @@ export default function Buchen() {
           drink={pending}
           guthabenCent={user.guthabenCent}
           onClose={() => setPending(null)}
-          onBooked={(newGuthaben) => {
+          onBooked={(newGuthaben, transaktion) => {
             setUser({ ...user, guthabenCent: newGuthaben });
+            setLastBooking({ transaktion, drink: pending });
             setPending(null);
           }}
         />
@@ -229,7 +252,7 @@ function ConfirmSheet({
   drink: Drink;
   guthabenCent: number;
   onClose: () => void;
-  onBooked: (newGuthabenCent: number) => void;
+  onBooked: (newGuthabenCent: number, transaktion: Transaktion) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -242,7 +265,7 @@ function ConfirmSheet({
     setBusy(true);
     try {
       const r = await api.buchen(drink.id);
-      onBooked(r.guthabenCent);
+      onBooked(r.guthabenCent, r.transaktion);
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Buchung fehlgeschlagen.');
       setBusy(false);
@@ -374,5 +397,136 @@ function ConfirmSheet({
         </Glass>
       </div>
     </div>
+  );
+}
+
+// „Letzte Buchung"-Karte mit Rückgängig-Affordance. Bleibt nur sichtbar,
+// solange das Storno-Fenster offen ist — danach blendet sich die Karte
+// selbst aus (via onWindowExpired). Backend bleibt die Wahrheit und würde
+// ein zu spätes Storno serverseitig abweisen. Bei Navigation weg + zurück
+// ist die Karte weg — vollständiger Verlauf-Screen folgt B4.
+function LastBookingCard({
+  booking,
+  onUndone,
+  onWindowExpired,
+}: {
+  booking: LastBooking;
+  onUndone: (newGuthabenCent: number) => void;
+  onWindowExpired: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  const createdAtMs = useMemo(
+    () => new Date(booking.transaktion.createdAt).getTime(),
+    [booking.transaktion.createdAt],
+  );
+
+  useEffect(() => {
+    // Sekündlicher Tick reicht — wir zeigen Minuten an, brauchen aber eine
+    // saubere Live-Aktualisierung des Rest-Zählers nahe Ablauf.
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const ablaufMs = createdAtMs + STORNO_FENSTER_MS;
+  const restMs = ablaufMs - now;
+
+  useEffect(() => {
+    if (restMs <= 0) onWindowExpired();
+  }, [restMs, onWindowExpired]);
+
+  if (restMs <= 0) return null;
+
+  const restMinuten = Math.max(0, Math.ceil(restMs / 60_000));
+
+  const undo = async () => {
+    setErr(null);
+    setBusy(true);
+    try {
+      const r = await api.storno(booking.transaktion.id);
+      onUndone(r.guthabenCent);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Rückgängig fehlgeschlagen.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Glass
+      tone="dark"
+      style={{
+        borderRadius: 16,
+        padding: '12px 14px',
+        marginBottom: 18,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+      }}
+    >
+      <div
+        aria-hidden
+        style={{
+          width: 40,
+          height: 40,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 22,
+          background: 'rgba(0,0,0,0.30)',
+          borderRadius: 12,
+          border: '1px solid var(--bwza-glass-line)',
+        }}
+      >
+        {booking.drink.icon ?? '·'}
+      </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: 0.6,
+            color: 'var(--bwza-ink-dim)',
+            textTransform: 'uppercase',
+          }}
+        >
+          Letzte Buchung
+        </div>
+        <div
+          style={{
+            fontFamily: 'var(--bwza-font-display)',
+            fontSize: 15,
+            fontWeight: 600,
+            color: 'var(--bwza-ink)',
+            letterSpacing: -0.1,
+            marginTop: 2,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {booking.drink.name}{' '}
+          <span style={{ color: 'var(--bwza-ink-mute)', fontWeight: 500 }}>
+            · {formatPreis(booking.drink.preisCent)}
+          </span>
+        </div>
+        <div style={{ marginTop: 2, fontSize: 11, color: 'var(--bwza-ink-mute)' }}>
+          Noch {restMinuten} Min rückgängig
+        </div>
+        {err && (
+          <div style={{ marginTop: 4, fontSize: 11, color: 'var(--bwza-rescue-soft)' }}>{err}</div>
+        )}
+      </div>
+      <GlassButton
+        variant="ghost"
+        size="sm"
+        onClick={() => void undo()}
+        disabled={busy}
+      >
+        {busy ? '…' : 'Rückgängig'}
+      </GlassButton>
+    </Glass>
   );
 }
