@@ -402,3 +402,186 @@ describe('Buchungs-Flow', () => {
     expect(me.body.user.guthabenCent).toBe(0);
   });
 });
+
+// Knüpft am Buchungs-Flow-Block an: memberAgent (Max) hat aus den vorigen Tests
+// drei KAUF-Transaktionen (Cola 150 + 2× Bier à 200 = -550) und Live-Guthaben -550.
+describe('Storno-Flow', () => {
+  // Helper: aktuelle Transaktionen von Max in chronologischer Reihenfolge.
+  // Wir greifen direkt auf Prisma zu, weil es noch keinen Verlauf-Endpoint gibt.
+  async function maxTxs() {
+    const me = await memberAgent.get('/auth/me');
+    return prisma.transaktion.findMany({
+      where: { userId: me.body.user.id },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  it('lehnt Storno ohne Login ab', async () => {
+    const anon = supertest.agent(app);
+    const txs = await maxTxs();
+    const r = await anon.post(`/transaktionen/${txs[0].id}/storno`).send({});
+    expect(r.status).toBe(401);
+  });
+
+  it('liefert 404 bei unbekannter Transaktions-ID', async () => {
+    const r = await memberAgent.post('/transaktionen/gibts-nicht/storno').send({});
+    expect(r.status).toBe(404);
+  });
+
+  it('Mitglied storniert eigene KAUF im Fenster — Auto-Notiz + Guthaben zurück', async () => {
+    const txs = await maxTxs();
+    // Letzte Bier-Buchung (zweites Bier, betragCent=-200) → -550 → -350 nach Storno
+    const letztesBier = txs.filter((t) => t.typ === 'KAUF' && t.betragCent === -200).at(-1)!;
+    const r = await memberAgent.post(`/transaktionen/${letztesBier.id}/storno`).send({});
+    expect(r.status).toBe(201);
+    expect(r.body.transaktion).toMatchObject({
+      typ: 'STORNO',
+      stornoVonId: letztesBier.id,
+      betragCent: 200,
+      userId: letztesBier.userId,
+      erstelltVonId: letztesBier.userId,
+    });
+    expect(r.body.transaktion.notiz).toMatch(/5-min/i);
+    expect(r.body.guthabenCent).toBe(-350);
+  });
+
+  it('lehnt Doppel-Storno auf bereits stornierte Transaktion ab', async () => {
+    const txs = await maxTxs();
+    const stornierteId = txs.find((t) => t.typ === 'STORNO')!.stornoVonId!;
+    const r = await memberAgent.post(`/transaktionen/${stornierteId}/storno`).send({});
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/bereits storniert/i);
+  });
+
+  it('lehnt Storno einer STORNO-Transaktion ab (keine Storno-Stornos)', async () => {
+    const txs = await maxTxs();
+    const stornoTx = txs.find((t) => t.typ === 'STORNO')!;
+    const r = await memberAgent.post(`/transaktionen/${stornoTx.id}/storno`).send({});
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/storno-transaktion/i);
+  });
+
+  it('Mitglied: außerhalb des 5-Min-Fensters → 403', async () => {
+    // erstes Bier (älter, betragCent=-200) künstlich auf createdAt vor 6 Min setzen
+    const txs = await maxTxs();
+    const erstesBier = txs.find((t) => t.typ === 'KAUF' && t.betragCent === -200)!;
+    const vorSechsMin = new Date(Date.now() - 6 * 60 * 1000);
+    await prisma.transaktion.update({
+      where: { id: erstesBier.id },
+      data: { createdAt: vorSechsMin },
+    });
+
+    const r = await memberAgent.post(`/transaktionen/${erstesBier.id}/storno`).send({});
+    expect(r.status).toBe(403);
+    expect(r.body.error).toMatch(/fenster/i);
+  });
+
+  it('Mitglied: fremde Transaktion → 403', async () => {
+    // Admin (Laura) hat keine eigenen KAUF-Transaktionen. Wir geben ihr eine,
+    // damit Max sie nicht stornieren darf.
+    const adminMe = await agent.get('/auth/me');
+    const fremdeTx = await prisma.transaktion.create({
+      data: {
+        typ: 'KAUF',
+        userId: adminMe.body.user.id,
+        erstelltVonId: adminMe.body.user.id,
+        betragCent: -100,
+        preisAtKaufCent: 100,
+      },
+    });
+
+    const r = await memberAgent.post(`/transaktionen/${fremdeTx.id}/storno`).send({});
+    expect(r.status).toBe(403);
+    expect(r.body.error).toMatch(/fremde transaktion/i);
+  });
+
+  it('Admin storniert jederzeit — auch außerhalb des Fensters, andere Mitglieder', async () => {
+    // erstes Bier (Max) ist seit dem 5-Min-Test auf createdAt -6 Min. Admin
+    // storniert es trotzdem.
+    const txs = await maxTxs();
+    const erstesBier = txs.find(
+      (t) => t.typ === 'KAUF' && t.betragCent === -200,
+    )!;
+    const r = await agent
+      .post(`/transaktionen/${erstesBier.id}/storno`)
+      .send({ notiz: 'Versehentliche Buchung, Korrektur durch Verwalter.' });
+    expect(r.status).toBe(201);
+    expect(r.body.transaktion).toMatchObject({
+      typ: 'STORNO',
+      stornoVonId: erstesBier.id,
+      betragCent: 200,
+      notiz: 'Versehentliche Buchung, Korrektur durch Verwalter.',
+    });
+    // erstelltVonId muss die Admin-ID sein, nicht der betroffene User
+    const adminMe = await agent.get('/auth/me');
+    expect(r.body.transaktion.erstelltVonId).toBe(adminMe.body.user.id);
+    expect(r.body.transaktion.userId).toBe(erstesBier.userId);
+    // Max-Guthaben jetzt -150 (war -350 nach erstem Mitglied-Storno, +200 vom Admin-Storno)
+    expect(r.body.guthabenCent).toBe(-150);
+  });
+
+  it('Admin ohne Notiz → 400', async () => {
+    // Cola-KAUF (-150) ist noch unstorniert — Admin probiert ohne Notiz
+    const txs = await maxTxs();
+    const cola = txs.find((t) => t.typ === 'KAUF' && t.betragCent === -150)!;
+    const r = await agent.post(`/transaktionen/${cola.id}/storno`).send({});
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/notiz/i);
+  });
+
+  it('Admin mit Whitespace-only Notiz → 400', async () => {
+    const txs = await maxTxs();
+    const cola = txs.find((t) => t.typ === 'KAUF' && t.betragCent === -150)!;
+    const r = await agent
+      .post(`/transaktionen/${cola.id}/storno`)
+      .send({ notiz: '   ' });
+    expect(r.status).toBe(400);
+  });
+
+  it('Admin storniert EIGENE frische KAUF OHNE Notiz → 201 (Self-Storno-Pfad)', async () => {
+    // Admin (Laura) kann auch selbst Drinks buchen (§4). Wenn sie eine frische
+    // eigene KAUF im Fenster zurückrollt, gilt derselbe frictionless Undo wie
+    // bei Mitgliedern — keine Notiz nötig, Auto-Notiz vom Backend.
+    const adminMe = await agent.get('/auth/me');
+    const eigeneTx = await prisma.transaktion.create({
+      data: {
+        typ: 'KAUF',
+        userId: adminMe.body.user.id,
+        erstelltVonId: adminMe.body.user.id,
+        betragCent: -120,
+        preisAtKaufCent: 120,
+      },
+    });
+
+    const r = await agent.post(`/transaktionen/${eigeneTx.id}/storno`).send({});
+    expect(r.status).toBe(201);
+    expect(r.body.transaktion).toMatchObject({
+      typ: 'STORNO',
+      stornoVonId: eigeneTx.id,
+      betragCent: 120,
+      userId: adminMe.body.user.id,
+      erstelltVonId: adminMe.body.user.id,
+    });
+    expect(r.body.transaktion.notiz).toMatch(/5-min/i);
+    // Admin-Guthaben: hatten zwischenzeitlich -100 von „Mitglied: fremde Tx"
+    // (preisAtKaufCent=100, betragCent=-100), dann -120 eigene + +120 Storno = -100
+    expect(r.body.guthabenCent).toBe(-100);
+  });
+
+  it('Admin storniert FREMDE frische KAUF OHNE Notiz → weiterhin 400', async () => {
+    // Gegenprobe: derselbe „ohne Notiz"-Call wie oben, aber auf eine fremde
+    // KAUF — muss weiterhin scheitern, weil dann der Admin-Pflicht-Pfad greift.
+    // Wir nutzen Max' noch unstornierte Cola.
+    const txs = await maxTxs();
+    const cola = txs.find((t) => t.typ === 'KAUF' && t.betragCent === -150)!;
+    expect(cola.userId).not.toBe((await agent.get('/auth/me')).body.user.id);
+    const r = await agent.post(`/transaktionen/${cola.id}/storno`).send({});
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/notiz/i);
+  });
+
+  it('Live-Guthaben nach allen Stornos konsistent mit /auth/me', async () => {
+    const me = await memberAgent.get('/auth/me');
+    expect(me.body.user.guthabenCent).toBe(-150);
+  });
+});
