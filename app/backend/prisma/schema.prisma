@@ -1,6 +1,7 @@
-// Bergwacht Getränkekasse — Phase 1 Schema
-// guthaben in Cent (Int), darf negativ werden — KEIN CHECK-Constraint
-// Drink/Transaktion folgen in Phase 2 (siehe KONFIGURATION.md Update 4)
+// Bergwacht Getränkekasse — Schema
+// Beträge in Cent (Int), negativ erlaubt — KEIN CHECK-Constraint.
+// Guthaben wird live aus Transaktionen summiert (KONFIGURATION.md §6.1),
+// kein gespeichertes Feld am User („cannot be wrong by design").
 
 generator client {
   provider = "prisma-client-js"
@@ -17,14 +18,15 @@ model User {
   firstName    String
   lastName     String
   passwordHash String?  // null bis Magic-Link eingelöst
-  guthaben     Int      @default(0) // in Cent
   isAdmin      Boolean  @default(false)
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  invites      Invite[]
-  sessions     Session[]
+  invites                Invite[]
+  sessions               Session[]
+  transaktionen          Transaktion[] @relation("UserTransaktionen")
+  erstellteTransaktionen Transaktion[] @relation("ErstellerTransaktionen")
 }
 
 model Invite {
@@ -63,4 +65,37 @@ model Drink {
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  transaktionen Transaktion[]
+}
+
+// Mitglieder-Ebene (KONFIGURATION.md §5.3). Audit-Trail — niemals löschen.
+// typ: KAUF | AUFLADUNG_PAYPAL | AUFLADUNG_BARGELD | KORREKTUR | STORNO,
+// validiert via src/domain/transaktion-typ.ts.
+// betragCent: negativ bei KAUF, positiv bei Aufladung. preisAtKaufCent friert
+// den Drink-Preis bei KAUF ein — spätere Preisänderungen am Drink ändern keine
+// historischen Buchungen. stornoVonId verweist (B2d) auf die stornierte
+// Ursprungs-Transaktion. erstelltVonId = wer hat sie ausgelöst (bei
+// Selbstbuchung = userId selbst, bei Admin-Aktion = der Admin).
+// kassenTransaktionId folgt erst in B2e — die Zielentität existiert noch nicht.
+model Transaktion {
+  id               String      @id @default(cuid())
+  userId           String
+  user             User        @relation("UserTransaktionen", fields: [userId], references: [id], onDelete: Cascade)
+  typ              String
+  betragCent       Int
+  drinkId          String?
+  drink            Drink?      @relation(fields: [drinkId], references: [id])
+  preisAtKaufCent  Int?
+  stornoVonId      String?     @unique
+  stornoVon        Transaktion? @relation("StornoVerweis", fields: [stornoVonId], references: [id])
+  stornoDurch      Transaktion? @relation("StornoVerweis")
+  notiz            String?
+  erstelltVonId    String
+  erstelltVon      User        @relation("ErstellerTransaktionen", fields: [erstelltVonId], references: [id])
+  createdAt        DateTime    @default(now())
+
+  @@index([userId])
+  @@index([drinkId])
+  @@index([erstelltVonId])
 }

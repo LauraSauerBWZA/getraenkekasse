@@ -5,16 +5,19 @@ import { hashPassword, verifyPassword } from '../auth/password.js';
 import { hashToken } from '../auth/tokens.js';
 import { COOKIE_NAME, cookieOptions, sessionExpiry, signJwt } from '../auth/jwt.js';
 import { requireAuth } from '../auth/middleware.js';
+import { computeGuthabenCent } from '../domain/guthaben.js';
 import { logger } from '../logger.js';
 
 export const authRouter = Router();
 
-function publicUser(u: {
+// guthabenCent wird live aus Transaktionen summiert — API-Contract bleibt
+// (Feldname „guthabenCent"), nur die Quelle hat sich von gespeichert zu
+// berechnet gewandelt (KONFIGURATION.md §6.1).
+async function publicUser(u: {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
-  guthaben: number;
   isAdmin: boolean;
   isActive: boolean;
 }) {
@@ -23,7 +26,7 @@ function publicUser(u: {
     email: u.email,
     firstName: u.firstName,
     lastName: u.lastName,
-    guthabenCent: u.guthaben,
+    guthabenCent: await computeGuthabenCent(u.id),
     isAdmin: u.isAdmin,
     isActive: u.isActive,
   };
@@ -82,7 +85,7 @@ authRouter.post('/auth/invite-redeem', async (req, res) => {
 
   await openSession(res, user.id, user.isAdmin);
   logger.info({ userId: user.id }, 'Invite eingelöst, Session geöffnet.');
-  return res.json({ user: publicUser(user) });
+  return res.json({ user: await publicUser(user) });
 });
 
 // ─── POST /auth/login ────────────────────────────────────────────────
@@ -108,14 +111,14 @@ authRouter.post('/auth/login', async (req, res) => {
   if (!ok) return fail();
 
   await openSession(res, user.id, user.isAdmin);
-  return res.json({ user: publicUser(user) });
+  return res.json({ user: await publicUser(user) });
 });
 
 // ─── GET /auth/me ────────────────────────────────────────────────────
 authRouter.get('/auth/me', requireAuth, async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.auth!.sub } });
   if (!user) return res.status(404).json({ error: 'User nicht gefunden.' });
-  return res.json({ user: publicUser(user) });
+  return res.json({ user: await publicUser(user) });
 });
 
 // ─── POST /auth/logout ───────────────────────────────────────────────
