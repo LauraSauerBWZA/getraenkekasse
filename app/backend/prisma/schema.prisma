@@ -12,6 +12,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// isLeitung: read-only Kassen-Einsicht (Spec §4). Schema seit B2e.1, Logik B2j.
+// paypalMeLink: paypal.me-URL des Verwalters. Schema seit B2e.1, Logik B2k
+// (Multi-Verwalter-Verteilung). Bei Nicht-Admins irrelevant.
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -19,14 +22,18 @@ model User {
   lastName     String
   passwordHash String?  // null bis Magic-Link eingelöst
   isAdmin      Boolean  @default(false)
+  isLeitung    Boolean  @default(false)
+  paypalMeLink String?
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  invites                Invite[]
-  sessions               Session[]
-  transaktionen          Transaktion[] @relation("UserTransaktionen")
-  erstellteTransaktionen Transaktion[] @relation("ErstellerTransaktionen")
+  invites                            Invite[]
+  sessions                           Session[]
+  transaktionen                      Transaktion[]       @relation("UserTransaktionen")
+  erstellteTransaktionen             Transaktion[]       @relation("ErstellerTransaktionen")
+  kassenTransaktionenAlsVerwalter    KassenTransaktion[] @relation("VerwalterKassenTransaktionen")
+  erstellteKassenTransaktionen       KassenTransaktion[] @relation("ErstellerKassenTransaktionen")
 }
 
 model Invite {
@@ -77,25 +84,60 @@ model Drink {
 // historischen Buchungen. stornoVonId verweist (B2d) auf die stornierte
 // Ursprungs-Transaktion. erstelltVonId = wer hat sie ausgelöst (bei
 // Selbstbuchung = userId selbst, bei Admin-Aktion = der Admin).
-// kassenTransaktionId folgt erst in B2e — die Zielentität existiert noch nicht.
+// kassenTransaktionId koppelt eine Aufladung an die Kassen-Einzahlung
+// (seit B2e.1) — bei KAUF/KORREKTUR/STORNO bleibt das Feld null.
 model Transaktion {
-  id               String      @id @default(cuid())
-  userId           String
-  user             User        @relation("UserTransaktionen", fields: [userId], references: [id], onDelete: Cascade)
-  typ              String
-  betragCent       Int
-  drinkId          String?
-  drink            Drink?      @relation(fields: [drinkId], references: [id])
-  preisAtKaufCent  Int?
-  stornoVonId      String?     @unique
-  stornoVon        Transaktion? @relation("StornoVerweis", fields: [stornoVonId], references: [id])
-  stornoDurch      Transaktion? @relation("StornoVerweis")
-  notiz            String?
-  erstelltVonId    String
-  erstelltVon      User        @relation("ErstellerTransaktionen", fields: [erstelltVonId], references: [id])
-  createdAt        DateTime    @default(now())
+  id                  String             @id @default(cuid())
+  userId              String
+  user                User               @relation("UserTransaktionen", fields: [userId], references: [id], onDelete: Cascade)
+  typ                 String
+  betragCent          Int
+  drinkId             String?
+  drink               Drink?             @relation(fields: [drinkId], references: [id])
+  preisAtKaufCent     Int?
+  stornoVonId         String?            @unique
+  stornoVon           Transaktion?       @relation("StornoVerweis", fields: [stornoVonId], references: [id])
+  stornoDurch         Transaktion?       @relation("StornoVerweis")
+  notiz               String?
+  erstelltVonId       String
+  erstelltVon         User               @relation("ErstellerTransaktionen", fields: [erstelltVonId], references: [id])
+  kassenTransaktionId String?            @unique
+  kassenTransaktion   KassenTransaktion? @relation("MitgliedKassenKopplung", fields: [kassenTransaktionId], references: [id])
+  createdAt           DateTime           @default(now())
 
   @@index([userId])
   @@index([drinkId])
   @@index([erstelltVonId])
+}
+
+// Kassen-Ebene (KONFIGURATION.md §5.6). Audit-Trail — niemals löschen.
+// typ: EINZAHLUNG | EINLAGE_BOX | EINKAUF | ENTNAHME | AUSLAGE | SPENDE | KORREKTUR,
+// konto: VERWALTER | BOX — validiert via src/domain/kassen-typ.ts + kassen-konto.ts.
+// verwalterId: gesetzt bei konto=VERWALTER (welcher Topf), null bei konto=BOX.
+// notiz: PFLICHT bei JEDER Bewegung (§6.8) — die Spalte ist NOT NULL, weil
+// String ohne `?` in Prisma required ist.
+// transaktionId: gekoppelte Mitglieder-Aufladung (bei EINZAHLUNG), sonst null.
+// einlageGegenId: bei EINLAGE_BOX die Gegenbuchung (reflexiv), sonst null.
+// In B2e nur die EINZAHLUNG/VERWALTER-Schreibseite + KORREKTUR-Gegenbuchung
+// für Storno; die anderen Typen + BOX kommen ohne Migration in B2i.
+model KassenTransaktion {
+  id              String             @id @default(cuid())
+  typ             String
+  konto           String
+  verwalterId     String?
+  verwalter       User?              @relation("VerwalterKassenTransaktionen", fields: [verwalterId], references: [id])
+  betragCent      Int
+  notiz           String
+  transaktionId   String?            @unique
+  transaktion     Transaktion?       @relation("MitgliedKassenKopplung")
+  einlageGegenId  String?            @unique
+  einlageGegen    KassenTransaktion? @relation("EinlageGegen", fields: [einlageGegenId], references: [id])
+  einlageDurch    KassenTransaktion? @relation("EinlageGegen")
+  erstelltVonId   String
+  erstelltVon     User               @relation("ErstellerKassenTransaktionen", fields: [erstelltVonId], references: [id])
+  createdAt       DateTime           @default(now())
+
+  @@index([verwalterId])
+  @@index([erstelltVonId])
+  @@index([konto])
 }
