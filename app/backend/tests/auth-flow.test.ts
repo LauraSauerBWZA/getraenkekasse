@@ -777,3 +777,143 @@ describe('Bargeld-Aufladung', () => {
     expect(await prisma.transaktion.count()).toBe(txVor);
   });
 });
+
+// B2e.4 — Aufladungs-Storno mit Kassen-Rückbuchung (§6.3). Stand nach B2e.3:
+// Max hat zwei AUFLADUNG_BARGELD-Zeilen (+1000, +500), Live-Guthaben 1350.
+// Lauras VERWALTER-Topf hat +1000 + +500 = +1500 von den beiden Einzahlungen.
+describe('Aufladungs-Storno', () => {
+  async function verwalterTopf(verwalterId: string): Promise<number> {
+    const agg = await prisma.kassenTransaktion.aggregate({
+      _sum: { betragCent: true },
+      where: { konto: 'VERWALTER', verwalterId },
+    });
+    return agg._sum.betragCent ?? 0;
+  }
+
+  it('Admin storniert Bargeld-Aufladung → STORNO + Gegen-KORREKTUR atomar', async () => {
+    const adminMe = await agent.get('/auth/me');
+    const memberMe = await memberAgent.get('/auth/me');
+    const lauraId = adminMe.body.user.id;
+    const maxId = memberMe.body.user.id;
+
+    const topfVor = await verwalterTopf(lauraId);
+    const maxGuthabenVor = memberMe.body.user.guthabenCent;
+
+    // Wir greifen die ERSTE Bargeld-Aufladung (+1000) und stornieren sie
+    const aufladung = await prisma.transaktion.findFirst({
+      where: { userId: maxId, typ: 'AUFLADUNG_BARGELD', betragCent: 1000 },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(aufladung).toBeTruthy();
+    expect(aufladung!.kassenTransaktionId).toBeTruthy();
+
+    const r = await agent
+      .post(`/transaktionen/${aufladung!.id}/storno`)
+      .send({ notiz: 'Doppelt eingetragen, korrigiere.' });
+    expect(r.status).toBe(201);
+
+    // STORNO-Zeile auf Mitglieder-Seite
+    expect(r.body.transaktion).toMatchObject({
+      typ: 'STORNO',
+      stornoVonId: aufladung!.id,
+      userId: maxId,
+      betragCent: -1000,
+      notiz: 'Doppelt eingetragen, korrigiere.',
+      erstelltVonId: lauraId,
+    });
+
+    // Gegen-KORREKTUR-Zeile auf Kassen-Seite
+    expect(r.body.kassenGegenbuchung).toMatchObject({
+      typ: 'KORREKTUR',
+      konto: 'VERWALTER',
+      verwalterId: lauraId,
+      betragCent: -1000,
+      erstelltVonId: lauraId,
+    });
+    expect(r.body.kassenGegenbuchung.notiz).toMatch(/storno-rückbuchung/i);
+
+    // Mitglied-Guthaben zurück
+    expect(r.body.guthabenCent).toBe(maxGuthabenVor - 1000);
+
+    // Verwalter-Topf zurück
+    expect(await verwalterTopf(lauraId)).toBe(topfVor - 1000);
+  });
+
+  it('Mitglied: Selbst-Undo greift nur bei KAUF — Aufladung ohne Admin-Recht → 403', async () => {
+    // Max versucht seine zweite Bargeld-Aufladung (+500) selbst zu stornieren.
+    // Auch wenn sie userId=Max hat und im Fenster wäre: typ='AUFLADUNG_BARGELD'
+    // greift NICHT in den Self-Storno-Pfad (der prüft typ='KAUF').
+    const memberMe = await memberAgent.get('/auth/me');
+    const aufladung = await prisma.transaktion.findFirst({
+      where: {
+        userId: memberMe.body.user.id,
+        typ: 'AUFLADUNG_BARGELD',
+        betragCent: 500,
+      },
+    });
+    expect(aufladung).toBeTruthy();
+    const r = await memberAgent.post(`/transaktionen/${aufladung!.id}/storno`).send({});
+    expect(r.status).toBe(403);
+    expect(r.body.error).toMatch(/eigene käufe/i);
+  });
+
+  it('Admin storniert die zweite Bargeld-Aufladung mit Kassen-Gegenbuchung', async () => {
+    const adminMe = await agent.get('/auth/me');
+    const memberMe = await memberAgent.get('/auth/me');
+    const lauraId = adminMe.body.user.id;
+    const maxId = memberMe.body.user.id;
+
+    const topfVor = await verwalterTopf(lauraId);
+    const aufladung = await prisma.transaktion.findFirst({
+      where: { userId: maxId, typ: 'AUFLADUNG_BARGELD', betragCent: 500 },
+    });
+    const r = await agent
+      .post(`/transaktionen/${aufladung!.id}/storno`)
+      .send({ notiz: 'Auch falsch eingetragen.' });
+    expect(r.status).toBe(201);
+    expect(r.body.kassenGegenbuchung).toMatchObject({
+      typ: 'KORREKTUR',
+      verwalterId: lauraId,
+      betragCent: -500,
+    });
+    expect(await verwalterTopf(lauraId)).toBe(topfVor - 500);
+    // Max wieder auf -150 (Stand vor allen Bargeld-Aufladungen)
+    expect(r.body.guthabenCent).toBe(-150);
+  });
+
+  it('KAUF-Storno legt KEINE Kassen-Gegenbuchung an', async () => {
+    // Eine neue eigene Cola-Buchung von Laura im Fenster, sofort selbst-undo
+    const adminMe = await agent.get('/auth/me');
+    const eigeneCola = await prisma.transaktion.create({
+      data: {
+        typ: 'KAUF',
+        userId: adminMe.body.user.id,
+        erstelltVonId: adminMe.body.user.id,
+        betragCent: -150,
+        preisAtKaufCent: 150,
+      },
+    });
+    const kasseVor = await prisma.kassenTransaktion.count();
+    const r = await agent.post(`/transaktionen/${eigeneCola.id}/storno`).send({});
+    expect(r.status).toBe(201);
+    expect(r.body.kassenGegenbuchung).toBeNull();
+    expect(await prisma.kassenTransaktion.count()).toBe(kasseVor);
+  });
+
+  it('lehnt Doppel-Storno einer Aufladung weiter ab', async () => {
+    // Die erste Aufladung wurde im ersten Test storniert
+    const memberMe = await memberAgent.get('/auth/me');
+    const aufladung = await prisma.transaktion.findFirst({
+      where: {
+        userId: memberMe.body.user.id,
+        typ: 'AUFLADUNG_BARGELD',
+        betragCent: 1000,
+      },
+    });
+    const r = await agent
+      .post(`/transaktionen/${aufladung!.id}/storno`)
+      .send({ notiz: 'Erneuter Versuch.' });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/bereits storniert/i);
+  });
+});

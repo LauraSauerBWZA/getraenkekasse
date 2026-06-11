@@ -151,15 +151,46 @@ buchenRouter.post('/transaktionen/:id/storno', async (req, res) => {
       .json({ error: `Das ${STORNO_FENSTER_MINUTEN}-Minuten-Fenster ist abgelaufen.` });
   }
 
-  const storno = await prisma.transaktion.create({
-    data: {
-      typ: 'STORNO',
-      userId: original.userId,
-      erstelltVonId,
-      stornoVonId: original.id,
-      betragCent: -original.betragCent,
-      notiz,
-    },
+  // Bei Aufladungs-Storno (§6.3 Absatz 3) muss zusätzlich die gekoppelte
+  // Kassen-Einzahlung per Gegen-KORREKTUR rückgebucht werden, atomar mit der
+  // Mitglieder-STORNO-Zeile. Idiom-Wechsel auf $transaction, weil ab hier
+  // jeder Aufladungs-Storno zwei Zeilen gegen verschiedene Tabellen schreibt.
+  const istAufladung =
+    original.typ === 'AUFLADUNG_BARGELD' || original.typ === 'AUFLADUNG_PAYPAL';
+  const brauchtKassenGegenbuchung = istAufladung && original.kassenTransaktionId !== null;
+
+  const { storno, kassenGegen } = await prisma.$transaction(async (tx) => {
+    const stornoZeile = await tx.transaktion.create({
+      data: {
+        typ: 'STORNO',
+        userId: original.userId,
+        erstelltVonId,
+        stornoVonId: original.id,
+        betragCent: -original.betragCent,
+        notiz,
+      },
+    });
+
+    let gegen: Awaited<ReturnType<typeof tx.kassenTransaktion.create>> | null = null;
+    if (brauchtKassenGegenbuchung) {
+      const originalKasse = await tx.kassenTransaktion.findUnique({
+        where: { id: original.kassenTransaktionId! },
+      });
+      if (originalKasse) {
+        gegen = await tx.kassenTransaktion.create({
+          data: {
+            typ: 'KORREKTUR',
+            konto: originalKasse.konto,
+            verwalterId: originalKasse.verwalterId,
+            betragCent: -originalKasse.betragCent,
+            notiz: `Storno-Rückbuchung zu KassenTransaktion ${originalKasse.id}: ${notiz}`,
+            erstelltVonId,
+          },
+        });
+      }
+    }
+
+    return { storno: stornoZeile, kassenGegen: gegen };
   });
 
   const guthabenCent = await computeGuthabenCent(original.userId);
@@ -171,8 +202,13 @@ buchenRouter.post('/transaktionen/:id/storno', async (req, res) => {
       stornoId: storno.id,
       originalId: original.id,
       betragCent: storno.betragCent,
+      kassenGegenId: kassenGegen?.id ?? null,
     },
     'Storno gebucht.',
   );
-  return res.status(201).json({ transaktion: storno, guthabenCent });
+  return res.status(201).json({
+    transaktion: storno,
+    kassenGegenbuchung: kassenGegen,
+    guthabenCent,
+  });
 });
