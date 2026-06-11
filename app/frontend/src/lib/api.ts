@@ -43,6 +43,28 @@ export interface DrinkInput {
   kategorie: DrinkKategorie;
 }
 
+export const TRANSAKTION_TYPEN = [
+  'KAUF',
+  'AUFLADUNG_PAYPAL',
+  'AUFLADUNG_BARGELD',
+  'KORREKTUR',
+  'STORNO',
+] as const;
+export type TransaktionTyp = (typeof TRANSAKTION_TYPEN)[number];
+
+export interface Transaktion {
+  id: string;
+  userId: string;
+  typ: TransaktionTyp;
+  betragCent: number;
+  drinkId: string | null;
+  preisAtKaufCent: number | null;
+  stornoVonId: string | null;
+  notiz: string | null;
+  erstelltVonId: string;
+  createdAt: string;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string, public details?: unknown) {
     super(message);
@@ -107,6 +129,14 @@ export const api = {
     request<{ drink: Drink }>(`/admin/drinks/${id}/active`, {
       method: 'PATCH',
       body: JSON.stringify({ isActive }),
+    }),
+  // Member: nur aktive Drinks zum Buchen
+  drinks: () => request<{ drinks: Drink[] }>('/drinks'),
+  // Member: Drink kaufen → liefert Transaktion + neues Live-Guthaben zurück
+  buchen: (drinkId: string) =>
+    request<{ transaktion: Transaktion; guthabenCent: number }>('/transaktionen/kauf', {
+      method: 'POST',
+      body: JSON.stringify({ drinkId }),
     }),
 };
 
