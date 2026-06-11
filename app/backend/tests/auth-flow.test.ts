@@ -633,3 +633,147 @@ describe('Admin-Mitgliederliste', () => {
     await prisma.user.delete({ where: { id: inactive.id } });
   });
 });
+
+// B2e.3 — Bargeld-Aufladung. Voraussetzung: Max hat aktuell -150 (aus den
+// vorigen Storno-Tests), Laura -100.
+describe('Bargeld-Aufladung', () => {
+  let maxId: string;
+  let lauraId: string;
+
+  it('Setup: User-IDs holen', async () => {
+    const r = await agent.get('/admin/users');
+    maxId = r.body.users.find((u: { email: string }) => u.email === 'max@example.com').id;
+    lauraId = r.body.users.find((u: { email: string }) => u.email === 'laura_sauer@gmx.de').id;
+    expect(maxId).toBeTruthy();
+    expect(lauraId).toBeTruthy();
+  });
+
+  it('lehnt Aufladung ohne Login ab', async () => {
+    const anon = supertest.agent(app);
+    const r = await anon.post('/admin/aufladung/bargeld').send({
+      userId: maxId,
+      betragCent: 1000,
+      vermerk: 'Test',
+    });
+    expect(r.status).toBe(401);
+  });
+
+  it('lehnt Aufladung ohne Admin-Recht ab', async () => {
+    const r = await memberAgent.post('/admin/aufladung/bargeld').send({
+      userId: maxId,
+      betragCent: 1000,
+      vermerk: 'Test',
+    });
+    expect(r.status).toBe(403);
+  });
+
+  it('lehnt fehlenden Vermerk ab', async () => {
+    const r = await agent
+      .post('/admin/aufladung/bargeld')
+      .send({ userId: maxId, betragCent: 1000 });
+    expect(r.status).toBe(400);
+  });
+
+  it('lehnt Whitespace-Vermerk ab', async () => {
+    const r = await agent
+      .post('/admin/aufladung/bargeld')
+      .send({ userId: maxId, betragCent: 1000, vermerk: '   ' });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/vermerk/i);
+  });
+
+  it('lehnt nicht-positive Beträge ab', async () => {
+    const r1 = await agent
+      .post('/admin/aufladung/bargeld')
+      .send({ userId: maxId, betragCent: 0, vermerk: 'Test' });
+    expect(r1.status).toBe(400);
+    const r2 = await agent
+      .post('/admin/aufladung/bargeld')
+      .send({ userId: maxId, betragCent: -100, vermerk: 'Test' });
+    expect(r2.status).toBe(400);
+  });
+
+  it('lehnt nicht-ganzzahligen Betrag ab', async () => {
+    const r = await agent
+      .post('/admin/aufladung/bargeld')
+      .send({ userId: maxId, betragCent: 12.34, vermerk: 'Test' });
+    expect(r.status).toBe(400);
+  });
+
+  it('lehnt unbekannten User ab', async () => {
+    const r = await agent
+      .post('/admin/aufladung/bargeld')
+      .send({ userId: 'gibts-nicht', betragCent: 1000, vermerk: 'Test' });
+    expect(r.status).toBe(404);
+  });
+
+  it('lehnt deaktivierten User ab', async () => {
+    const inactive = await prisma.user.create({
+      data: {
+        email: 'inactive2@example.com',
+        firstName: 'Off',
+        lastName: 'Line',
+        isActive: false,
+      },
+    });
+    const r = await agent
+      .post('/admin/aufladung/bargeld')
+      .send({ userId: inactive.id, betragCent: 1000, vermerk: 'Test' });
+    expect(r.status).toBe(400);
+    await prisma.user.delete({ where: { id: inactive.id } });
+  });
+
+  it('lädt Max 10,00 € auf und legt beide Zeilen atomar verknüpft an', async () => {
+    // Max vor Aufladung: -150
+    const r = await agent
+      .post('/admin/aufladung/bargeld')
+      .send({ userId: maxId, betragCent: 1000, vermerk: 'Bar gegeben am 11.06.' });
+    expect(r.status).toBe(201);
+
+    expect(r.body.transaktion).toMatchObject({
+      typ: 'AUFLADUNG_BARGELD',
+      userId: maxId,
+      erstelltVonId: lauraId,
+      betragCent: 1000,
+      notiz: 'Bar gegeben am 11.06.',
+    });
+    expect(r.body.transaktion.kassenTransaktionId).toBeTruthy();
+
+    expect(r.body.kassenTransaktion).toMatchObject({
+      typ: 'EINZAHLUNG',
+      konto: 'VERWALTER',
+      verwalterId: lauraId,
+      betragCent: 1000,
+      notiz: 'Bar gegeben am 11.06.',
+      erstelltVonId: lauraId,
+    });
+    expect(r.body.kassenTransaktion.transaktionId).toBe(r.body.transaktion.id);
+    expect(r.body.transaktion.kassenTransaktionId).toBe(r.body.kassenTransaktion.id);
+
+    // Max-Guthaben: -150 + 1000 = 850
+    expect(r.body.guthabenCent).toBe(850);
+
+    // DB-Konsistenz-Check über /auth/me
+    const me = await memberAgent.get('/auth/me');
+    expect(me.body.user.guthabenCent).toBe(850);
+  });
+
+  it('mehrere Aufladungen summieren sich korrekt', async () => {
+    const r = await agent
+      .post('/admin/aufladung/bargeld')
+      .send({ userId: maxId, betragCent: 500, vermerk: 'Zweite Bar-Einzahlung' });
+    expect(r.status).toBe(201);
+    expect(r.body.guthabenCent).toBe(1350);
+  });
+
+  it('Atomarität: ungültiger User rollt nichts in der DB an', async () => {
+    const kasseVor = await prisma.kassenTransaktion.count();
+    const txVor = await prisma.transaktion.count();
+    const r = await agent
+      .post('/admin/aufladung/bargeld')
+      .send({ userId: 'gibts-nicht', betragCent: 999, vermerk: 'Test' });
+    expect(r.status).toBe(404);
+    expect(await prisma.kassenTransaktion.count()).toBe(kasseVor);
+    expect(await prisma.transaktion.count()).toBe(txVor);
+  });
+});

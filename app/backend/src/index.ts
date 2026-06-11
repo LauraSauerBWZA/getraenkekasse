@@ -8,6 +8,7 @@ import { authRouter } from './routes/auth.js';
 import { adminRouter } from './routes/admin.js';
 import { drinksRouter } from './routes/drinks.js';
 import { buchenRouter } from './routes/buchen.js';
+import { aufladungRouter } from './routes/aufladung.js';
 
 export function buildApp() {
   const app = express();
@@ -26,6 +27,7 @@ export function buildApp() {
   app.use(buchenRouter);
   app.use(adminRouter);
   app.use(drinksRouter);
+  app.use(aufladungRouter);
 
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     logger.error({ err }, 'Unbehandelter Fehler.');
