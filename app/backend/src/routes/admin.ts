@@ -4,6 +4,7 @@ import { prisma } from '../db.js';
 import { requireAdmin, requireAuth } from '../auth/middleware.js';
 import { generateInviteToken, inviteExpiry } from '../auth/tokens.js';
 import { buildInviteUrl, email } from '../email/adapter.js';
+import { computeGuthabenCent } from '../domain/guthaben.js';
 import { logger } from '../logger.js';
 
 export const adminRouter = Router();
@@ -48,6 +49,33 @@ adminRouter.post('/admin/invite', async (req, res) => {
     // Klartext-Token nur im Dev-Response zurückgeben, damit Tests/manuelles Onboarding einfacher sind
     devToken: process.env.NODE_ENV === 'production' ? undefined : clear,
   });
+});
+
+// GET /admin/users — listet aktive Mitglieder für Admin-Auswahl (z.B. Bargeld-
+// Aufladung). Minimale Variante in B2e.2 — die reiche Übersicht mit Such-/
+// Filter-Affordances + Inline-Korrektur kommt in B2g. Live-`guthabenCent` aus
+// `computeGuthabenCent` pro User (§6.1).
+adminRouter.get('/admin/users', async (_req, res) => {
+  const users = await prisma.user.findMany({
+    where: { isActive: true },
+    orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      isAdmin: true,
+    },
+  });
+
+  const mitglieder = await Promise.all(
+    users.map(async (u) => ({
+      ...u,
+      guthabenCent: await computeGuthabenCent(u.id),
+    })),
+  );
+
+  return res.json({ users: mitglieder });
 });
 
 // GET /admin/invites — listet alle ausgestellten Invites mit abgeleitetem Status

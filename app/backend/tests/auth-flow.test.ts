@@ -585,3 +585,51 @@ describe('Storno-Flow', () => {
     expect(me.body.user.guthabenCent).toBe(-150);
   });
 });
+
+// B2e.2 — Admin-Mitgliederliste für die Bargeld-Aufladung. Stand nach Storno-
+// Flow-Block: Laura (Admin) mit Guthaben -100 (eine fremde Tx aus dem Storno-
+// Test, die nicht zurückgerollt wurde), Max mit -150.
+describe('Admin-Mitgliederliste', () => {
+  it('lehnt Listing ohne Login ab', async () => {
+    const anon = supertest.agent(app);
+    const r = await anon.get('/admin/users');
+    expect(r.status).toBe(401);
+  });
+
+  it('lehnt Listing ohne Admin-Recht ab', async () => {
+    const r = await memberAgent.get('/admin/users');
+    expect(r.status).toBe(403);
+  });
+
+  it('liefert aktive Mitglieder sortiert nach Vorname mit Live-Guthaben', async () => {
+    const r = await agent.get('/admin/users');
+    expect(r.status).toBe(200);
+    expect(Array.isArray(r.body.users)).toBe(true);
+    const namen = r.body.users.map((u: { firstName: string }) => u.firstName);
+    expect(namen).toEqual([...namen].sort());
+    // Laura + Max sind drin
+    const laura = r.body.users.find((u: { email: string }) => u.email === 'laura_sauer@gmx.de');
+    const max = r.body.users.find((u: { email: string }) => u.email === 'max@example.com');
+    expect(laura).toBeDefined();
+    expect(max).toBeDefined();
+    expect(laura.isAdmin).toBe(true);
+    expect(max.isAdmin).toBe(false);
+    expect(laura.guthabenCent).toBe(-100);
+    expect(max.guthabenCent).toBe(-150);
+  });
+
+  it('blendet deaktivierte User aus', async () => {
+    // Test-User hinzufügen, deaktivieren, prüfen dass er fehlt
+    const inactive = await prisma.user.create({
+      data: {
+        email: 'inactive@example.com',
+        firstName: 'Inactive',
+        lastName: 'User',
+        isActive: false,
+      },
+    });
+    const r = await agent.get('/admin/users');
+    expect(r.body.users.find((u: { id: string }) => u.id === inactive.id)).toBeUndefined();
+    await prisma.user.delete({ where: { id: inactive.id } });
+  });
+});
