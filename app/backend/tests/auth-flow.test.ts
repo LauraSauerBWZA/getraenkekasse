@@ -34,6 +34,10 @@ const supertest = (await import('supertest')).default;
 
 const app = buildApp();
 const agent = supertest.agent(app);
+// Member-Agent (Max Mustermann) wird im Admin-Drink-CRUD-Block via Invite
+// eingeloggt und im Buchungs-Flow-Block weiterverwendet — daher Modul-Scope.
+const memberAgent = supertest.agent(app);
+let memberToken: string;
 
 beforeAll(async () => {
   // Admin Laura + Magic-Link einseeden
@@ -115,9 +119,8 @@ describe('Auth-Happy-Path', () => {
 // singleFork+isolate eine geteilte process.env hat — zwei Files würden den
 // DATABASE_URL-Race triggern. Wenn die Test-Suite wächst, lohnt globalSetup.
 describe('Admin-Drink-CRUD', () => {
-  // Member zum 403-Test: zweiten User anlegen + via Invite einloggen
-  const memberAgent = supertest.agent(app);
-  let memberToken: string;
+  // memberAgent + memberToken sind im Modul-Scope deklariert (oben), damit
+  // der Buchungs-Flow-Block sie weiterverwenden kann.
 
   it('Member-Setup: zweiten User via Invite einloggen', async () => {
     const member = await prisma.user.create({
@@ -289,5 +292,113 @@ describe('Admin-Drink-CRUD', () => {
     const cola = list.body.drinks.find((d: { name: string }) => d.name === 'Cola');
     const r = await agent.patch(`/admin/drinks/${cola.id}/active`).send({ isActive: 'ja' });
     expect(r.status).toBe(400);
+  });
+});
+
+// Buchungs-Flow läuft als Member (memberAgent ist seit dem Admin-CRUD-Setup
+// als Max Mustermann eingeloggt). Die Tests setzen oben gebaute Drinks voraus
+// (Cola/Wasser aktiv, Bier wurde im Active-Patch zurück auf aktiv gesetzt).
+describe('Buchungs-Flow', () => {
+  let colaId: string;
+  let bierId: string;
+
+  it('lehnt Drink-Listing ohne Login ab', async () => {
+    const anon = supertest.agent(app);
+    const r = await anon.get('/drinks');
+    expect(r.status).toBe(401);
+  });
+
+  it('liefert für Mitglieder nur aktive Drinks (Member-Endpoint, kein Admin-Gate)', async () => {
+    // Cola deaktivieren, dann sicherstellen, dass sie verschwindet
+    const listAll = await agent.get('/admin/drinks');
+    const cola = listAll.body.drinks.find((d: { name: string }) => d.name === 'Cola');
+    colaId = cola.id;
+    bierId = listAll.body.drinks.find((d: { name: string }) => d.name === 'Bier').id;
+    await agent.patch(`/admin/drinks/${colaId}/active`).send({ isActive: false });
+
+    const r = await memberAgent.get('/drinks');
+    expect(r.status).toBe(200);
+    const names = r.body.drinks.map((d: { name: string }) => d.name);
+    expect(names).not.toContain('Cola');
+    expect(names).toContain('Wasser');
+    expect(names).toContain('Bier');
+
+    // Cola wieder aktivieren für die folgenden Tests
+    await agent.patch(`/admin/drinks/${colaId}/active`).send({ isActive: true });
+  });
+
+  it('lehnt Buchung ohne Login ab', async () => {
+    const anon = supertest.agent(app);
+    const r = await anon.post('/transaktionen/kauf').send({ drinkId: colaId });
+    expect(r.status).toBe(401);
+  });
+
+  it('lehnt Buchung mit unbekanntem Drink ab', async () => {
+    const r = await memberAgent.post('/transaktionen/kauf').send({ drinkId: 'gibts-nicht' });
+    expect(r.status).toBe(404);
+  });
+
+  it('lehnt Buchung eines inaktiven Drinks ab', async () => {
+    await agent.patch(`/admin/drinks/${colaId}/active`).send({ isActive: false });
+    const r = await memberAgent.post('/transaktionen/kauf').send({ drinkId: colaId });
+    expect(r.status).toBe(400);
+    await agent.patch(`/admin/drinks/${colaId}/active`).send({ isActive: true });
+  });
+
+  it('lehnt Buchung mit fehlendem drinkId ab', async () => {
+    const r = await memberAgent.post('/transaktionen/kauf').send({});
+    expect(r.status).toBe(400);
+  });
+
+  it('bucht Cola: Transaktion mit eingefrorenem Preis + neues Guthaben', async () => {
+    // Cola-Preis vorher: 170 (durch Admin-Patch oben), aber wir setzen sicherheitshalber
+    await agent.patch(`/admin/drinks/${colaId}`).send({ preisCent: 150 });
+
+    const r = await memberAgent.post('/transaktionen/kauf').send({ drinkId: colaId });
+    expect(r.status).toBe(201);
+    expect(r.body.transaktion).toMatchObject({
+      typ: 'KAUF',
+      drinkId: colaId,
+      preisAtKaufCent: 150,
+      betragCent: -150,
+    });
+    expect(r.body.transaktion.userId).toBeTruthy();
+    expect(r.body.transaktion.erstelltVonId).toBe(r.body.transaktion.userId);
+    expect(r.body.guthabenCent).toBe(-150);
+  });
+
+  it('friert den Preis ein — Drink-Preisänderung beeinflusst Bestandsbuchung nicht', async () => {
+    // Buchung gerade mit preisAtKaufCent=150. Jetzt Drink-Preis auf 999 ändern.
+    await agent.patch(`/admin/drinks/${colaId}`).send({ preisCent: 999 });
+
+    // Bestehende Transaktion muss weiterhin preisAtKaufCent=150 haben
+    const tx = await prisma.transaktion.findFirst({
+      where: { drinkId: colaId, typ: 'KAUF' },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(tx?.preisAtKaufCent).toBe(150);
+    expect(tx?.betragCent).toBe(-150);
+  });
+
+  it('summiert mehrere Buchungen korrekt zum Live-Guthaben', async () => {
+    // Aktueller Stand: -150 von der Cola-Buchung. Bier (200) buchen → -350.
+    const r1 = await memberAgent.post('/transaktionen/kauf').send({ drinkId: bierId });
+    expect(r1.status).toBe(201);
+    expect(r1.body.guthabenCent).toBe(-350);
+
+    // Noch ein Bier → -550
+    const r2 = await memberAgent.post('/transaktionen/kauf').send({ drinkId: bierId });
+    expect(r2.status).toBe(201);
+    expect(r2.body.guthabenCent).toBe(-550);
+
+    // /auth/me liefert dasselbe Guthaben (Konsistenz Live-Summe)
+    const me = await memberAgent.get('/auth/me');
+    expect(me.status).toBe(200);
+    expect(me.body.user.guthabenCent).toBe(-550);
+  });
+
+  it('Admin-Guthaben bleibt 0 (eigene Buchungen unabhängig)', async () => {
+    const me = await agent.get('/auth/me');
+    expect(me.body.user.guthabenCent).toBe(0);
   });
 });

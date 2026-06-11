@@ -7,6 +7,7 @@ import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { adminRouter } from './routes/admin.js';
 import { drinksRouter } from './routes/drinks.js';
+import { buchenRouter } from './routes/buchen.js';
 
 export function buildApp() {
   const app = express();
@@ -22,6 +23,7 @@ export function buildApp() {
 
   app.use(healthRouter);
   app.use(authRouter);
+  app.use(buchenRouter);
   app.use(adminRouter);
   app.use(drinksRouter);
 
