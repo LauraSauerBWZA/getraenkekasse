@@ -282,6 +282,52 @@ export default function Admin() {
         </svg>
       </Glass>
 
+      <Glass
+        tone="dark"
+        onClick={() => navigate('/admin/aufladung-bargeld')}
+        style={{
+          borderRadius: 18,
+          padding: '14px 16px',
+          marginTop: 10,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}
+      >
+        <div>
+          <div className="bwza-eyebrow">💶 Kasse</div>
+          <div
+            style={{
+              fontFamily: 'var(--bwza-font-display)',
+              fontSize: 17,
+              fontWeight: 600,
+              color: 'var(--bwza-ink)',
+              marginTop: 2,
+              letterSpacing: -0.2,
+            }}
+          >
+            Bargeld-Aufladung
+          </div>
+          <div style={{ marginTop: 2, fontSize: 11, color: 'var(--bwza-ink-mute)' }}>
+            Einzahlung eines Mitglieds eintragen
+          </div>
+        </div>
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          style={{ color: 'var(--bwza-ink-dim)', flexShrink: 0 }}
+          aria-hidden
+        >
+          <path d="M9 18l6-6-6-6" />
+        </svg>
+      </Glass>
+
       <div style={{ marginTop: 22 }}>
         <GlassButton variant="ghost" full onClick={() => navigate('/')}>
           Zurück

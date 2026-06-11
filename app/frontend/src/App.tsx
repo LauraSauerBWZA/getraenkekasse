@@ -5,6 +5,7 @@ import SetPassword from './routes/SetPassword';
 import Dashboard from './routes/Dashboard';
 import Admin from './routes/Admin';
 import AdminDrinks from './routes/AdminDrinks';
+import AdminAufladungBargeld from './routes/AdminAufladungBargeld';
 import Buchen from './routes/Buchen';
 
 function Protected({ children }: { children: JSX.Element }) {
@@ -68,6 +69,16 @@ export default function App() {
           <Protected>
             <AdminOnly>
               <AdminDrinks />
+            </AdminOnly>
+          </Protected>
+        }
+      />
+      <Route
+        path="/admin/aufladung-bargeld"
+        element={
+          <Protected>
+            <AdminOnly>
+              <AdminAufladungBargeld />
             </AdminOnly>
           </Protected>
         }

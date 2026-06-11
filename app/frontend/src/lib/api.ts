@@ -62,6 +62,29 @@ export interface Transaktion {
   stornoVonId: string | null;
   notiz: string | null;
   erstelltVonId: string;
+  kassenTransaktionId: string | null;
+  createdAt: string;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  isAdmin: boolean;
+  guthabenCent: number;
+}
+
+export interface KassenTransaktion {
+  id: string;
+  typ: string;
+  konto: string;
+  verwalterId: string | null;
+  betragCent: number;
+  notiz: string;
+  transaktionId: string | null;
+  einlageGegenId: string | null;
+  erstelltVonId: string;
   createdAt: string;
 }
 
@@ -141,13 +164,26 @@ export const api = {
   // Storno einer eigenen Transaktion (Mitglied: nur eigene KAUF im 5-Min-Fenster,
   // Auto-Notiz vom Backend; Admin: jederzeit alles, Pflicht-Notiz im Body).
   storno: (transaktionId: string, notiz?: string) =>
-    request<{ transaktion: Transaktion; guthabenCent: number }>(
-      `/transaktionen/${transaktionId}/storno`,
-      {
-        method: 'POST',
-        body: JSON.stringify(notiz ? { notiz } : {}),
-      },
-    ),
+    request<{
+      transaktion: Transaktion;
+      kassenGegenbuchung: KassenTransaktion | null;
+      guthabenCent: number;
+    }>(`/transaktionen/${transaktionId}/storno`, {
+      method: 'POST',
+      body: JSON.stringify(notiz ? { notiz } : {}),
+    }),
+  // Admin: aktive Mitglieder für Auswahl (z.B. Bargeld-Aufladung)
+  adminUsers: () => request<{ users: AdminUser[] }>('/admin/users'),
+  // Admin: Bargeld-Aufladung — erzeugt gekoppelte Mitglieder- und Kassen-Buchung
+  adminAufladungBargeld: (input: { userId: string; betragCent: number; vermerk: string }) =>
+    request<{
+      transaktion: Transaktion;
+      kassenTransaktion: KassenTransaktion;
+      guthabenCent: number;
+    }>('/admin/aufladung/bargeld', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
 };
 
 export function formatGuthaben(cent: number): string {
