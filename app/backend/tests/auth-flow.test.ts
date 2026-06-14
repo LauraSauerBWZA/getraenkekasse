@@ -1375,3 +1375,74 @@ describe('Guthaben-Korrektur (Admin)', () => {
     expect(korrektur.stornierbar).toBe(true);
   });
 });
+
+// B2i.1 — Kassen-Summary + Historie. Kennzahlen werden gegen direkte DB-
+// Aggregate geprüft (robust gegenüber dem langen Shared-State der Suite, statt
+// fragiler Hardcodes).
+describe('Kassen-Summary + Historie (Admin)', () => {
+  let lauraId: string;
+
+  it('Setup: Laura-Id', async () => {
+    lauraId = (await agent.get('/auth/me')).body.user.id;
+  });
+
+  it('lehnt Summary ohne Login / ohne Admin ab', async () => {
+    const anon = supertest.agent(app);
+    expect((await anon.get('/admin/kasse/summary')).status).toBe(401);
+    expect((await memberAgent.get('/admin/kasse/summary')).status).toBe(403);
+  });
+
+  it('summary: Kennzahlen konsistent mit DB-Aggregaten', async () => {
+    const r = await agent.get('/admin/kasse/summary');
+    expect(r.status).toBe(200);
+
+    const allKassen = await prisma.kassenTransaktion.aggregate({ _sum: { betragCent: true } });
+    const boxAgg = await prisma.kassenTransaktion.aggregate({
+      _sum: { betragCent: true },
+      where: { konto: 'BOX' },
+    });
+    const mitg = await prisma.transaktion.aggregate({ _sum: { betragCent: true } });
+
+    expect(r.body.vereinsvermoegenCent).toBe(allKassen._sum.betragCent ?? 0);
+    expect(r.body.boxCent).toBe(boxAgg._sum.betragCent ?? 0);
+    expect(r.body.mitgliederGuthabenSummeCent).toBe(mitg._sum.betragCent ?? 0);
+    expect(r.body.deckungCent).toBe(
+      r.body.vereinsvermoegenCent - r.body.mitgliederGuthabenSummeCent,
+    );
+
+    // Summe aller Töpfe + Box = Vereinsvermögen
+    const topfSum = r.body.toepfe.reduce(
+      (s: number, t: { betragCent: number }) => s + t.betragCent,
+      0,
+    );
+    expect(topfSum + r.body.boxCent).toBe(r.body.vereinsvermoegenCent);
+
+    // Laura ist als Topf gelistet, Wert = direktes Aggregat
+    const lauraTopf = r.body.toepfe.find(
+      (t: { verwalterId: string }) => t.verwalterId === lauraId,
+    );
+    expect(lauraTopf).toBeTruthy();
+    expect(lauraTopf.firstName).toBe('Laura');
+    const direct = await prisma.kassenTransaktion.aggregate({
+      _sum: { betragCent: true },
+      where: { konto: 'VERWALTER', verwalterId: lauraId },
+    });
+    expect(lauraTopf.betragCent).toBe(direct._sum.betragCent ?? 0);
+  });
+
+  it('historie: jüngste zuerst, Verwalter-Name bei VERWALTER-Buchungen', async () => {
+    const r = await agent.get('/admin/kasse/historie');
+    expect(r.status).toBe(200);
+    expect(Array.isArray(r.body.buchungen)).toBe(true);
+
+    const zeiten = r.body.buchungen.map((b: { createdAt: string }) =>
+      new Date(b.createdAt).getTime(),
+    );
+    expect(zeiten).toEqual([...zeiten].sort((a: number, b: number) => b - a));
+
+    const einzahlung = r.body.buchungen.find((b: { typ: string }) => b.typ === 'EINZAHLUNG');
+    expect(einzahlung).toBeTruthy();
+    expect(einzahlung.konto).toBe('VERWALTER');
+    expect(einzahlung.verwalterName).toMatch(/Laura/);
+  });
+});
