@@ -7,6 +7,8 @@ import Admin from './routes/Admin';
 import AdminDrinks from './routes/AdminDrinks';
 import AdminAufladungBargeld from './routes/AdminAufladungBargeld';
 import AdminAufladungAnfragen from './routes/AdminAufladungAnfragen';
+import AdminMitglieder from './routes/AdminMitglieder';
+import AdminMitgliedDetail from './routes/AdminMitgliedDetail';
 import Buchen from './routes/Buchen';
 import Aufladen from './routes/Aufladen';
 
@@ -99,6 +101,26 @@ export default function App() {
           <Protected>
             <AdminOnly>
               <AdminAufladungAnfragen />
+            </AdminOnly>
+          </Protected>
+        }
+      />
+      <Route
+        path="/admin/mitglieder"
+        element={
+          <Protected>
+            <AdminOnly>
+              <AdminMitglieder />
+            </AdminOnly>
+          </Protected>
+        }
+      />
+      <Route
+        path="/admin/mitglieder/:id"
+        element={
+          <Protected>
+            <AdminOnly>
+              <AdminMitgliedDetail />
             </AdminOnly>
           </Protected>
         }

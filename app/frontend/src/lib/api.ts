@@ -122,6 +122,31 @@ export interface AdminAnfrage extends AufladungsAnfrage {
   user: { id: string; firstName: string; lastName: string; email: string };
 }
 
+// Mitglied-Detail (B2g): Stammdaten + Live-Saldo.
+export interface AdminUserDetail {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  isAdmin: boolean;
+  isLeitung: boolean;
+  isActive: boolean;
+  guthabenCent: number;
+}
+
+// Eine Zeile der Transaktionshistorie im Mitglied-Detail (B2g).
+export interface DetailTransaktion {
+  id: string;
+  typ: TransaktionTyp;
+  betragCent: number;
+  notiz: string | null;
+  drinkName: string | null;
+  stornoVonId: string | null;
+  createdAt: string;
+  storniert: boolean;
+  stornierbar: boolean;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string, public details?: unknown) {
     super(message);
@@ -208,6 +233,15 @@ export const api = {
     }),
   // Admin: aktive Mitglieder für Auswahl (z.B. Bargeld-Aufladung)
   adminUsers: () => request<{ users: AdminUser[] }>('/admin/users'),
+  // Admin: Mitglied-Detail (Stammdaten + Live-Saldo + Transaktionshistorie)
+  adminUserDetail: (id: string) =>
+    request<{ user: AdminUserDetail; transaktionen: DetailTransaktion[] }>(`/admin/users/${id}`),
+  // Admin: manuelle Guthaben-Korrektur (nur Mitglieder-Transaktion) → neuer Saldo
+  adminKorrektur: (input: { userId: string; betragCent: number; notiz: string }) =>
+    request<{ transaktion: Transaktion; guthabenCent: number }>('/admin/korrektur', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
   // Admin: Bargeld-Aufladung — erzeugt gekoppelte Mitglieder- und Kassen-Buchung
   adminAufladungBargeld: (input: { userId: string; betragCent: number; vermerk: string }) =>
     request<{
