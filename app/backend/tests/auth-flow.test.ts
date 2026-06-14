@@ -1197,3 +1197,78 @@ describe('PayPal-Anfrage (Admin bestätigt/lehnt)', () => {
     expect(await verwalterTopf(lauraId)).toBe(topfVor - 2000);
   });
 });
+
+// B2g.1 — Mitglied-Detail (Stammdaten + Live-Saldo + Historie + stornierbar).
+// Stand nach allen vorigen Blöcken: Max-Guthaben -150, mit reicher Historie
+// (KAUF/STORNO/AUFLADUNG_BARGELD/AUFLADUNG_PAYPAL, teils storniert).
+describe('Mitglied-Detail (Admin)', () => {
+  let maxId: string;
+
+  it('Setup: Max-Id', async () => {
+    maxId = (await memberAgent.get('/auth/me')).body.user.id;
+  });
+
+  it('lehnt Detail ohne Login / ohne Admin ab', async () => {
+    const anon = supertest.agent(app);
+    expect((await anon.get(`/admin/users/${maxId}`)).status).toBe(401);
+    expect((await memberAgent.get(`/admin/users/${maxId}`)).status).toBe(403);
+  });
+
+  it('antwortet 404 bei unbekannter ID', async () => {
+    const r = await agent.get('/admin/users/gibts-nicht');
+    expect(r.status).toBe(404);
+  });
+
+  it('liefert Stammdaten + Live-Saldo + Historie (jüngste zuerst)', async () => {
+    const r = await agent.get(`/admin/users/${maxId}`);
+    expect(r.status).toBe(200);
+    expect(r.body.user).toMatchObject({
+      id: maxId,
+      email: 'max@example.com',
+      firstName: 'Max',
+      isAdmin: false,
+      guthabenCent: -150,
+    });
+    expect(Array.isArray(r.body.transaktionen)).toBe(true);
+    expect(r.body.transaktionen.length).toBeGreaterThan(0);
+
+    // createdAt absteigend sortiert
+    const zeiten = r.body.transaktionen.map((t: { createdAt: string }) =>
+      new Date(t.createdAt).getTime(),
+    );
+    const sortiert = [...zeiten].sort((a, b) => b - a);
+    expect(zeiten).toEqual(sortiert);
+  });
+
+  it('markiert eine stornierte Aufladung als storniert + nicht stornierbar', async () => {
+    const r = await agent.get(`/admin/users/${maxId}`);
+    const paypal = r.body.transaktionen.find(
+      (t: { typ: string; betragCent: number }) =>
+        t.typ === 'AUFLADUNG_PAYPAL' && t.betragCent === 2000,
+    );
+    expect(paypal).toBeTruthy();
+    expect(paypal.storniert).toBe(true);
+    expect(paypal.stornierbar).toBe(false);
+  });
+
+  it('eine STORNO-Zeile ist selbst nicht stornierbar', async () => {
+    const r = await agent.get(`/admin/users/${maxId}`);
+    const storno = r.body.transaktionen.find((t: { typ: string }) => t.typ === 'STORNO');
+    expect(storno).toBeTruthy();
+    expect(storno.stornierbar).toBe(false);
+  });
+
+  it('liefert den Drink-Namen bei KAUF + bietet eine offene KAUF zum Stornieren', async () => {
+    const r = await agent.get(`/admin/users/${maxId}`);
+    const kaufMitDrink = r.body.transaktionen.find(
+      (t: { typ: string; drinkName: string | null }) => t.typ === 'KAUF' && t.drinkName,
+    );
+    expect(kaufMitDrink).toBeTruthy();
+    expect(typeof kaufMitDrink.drinkName).toBe('string');
+    // mindestens eine noch nicht stornierte KAUF (z.B. Cola -150) ist stornierbar
+    const offen = r.body.transaktionen.find(
+      (t: { typ: string; stornierbar: boolean }) => t.typ === 'KAUF' && t.stornierbar,
+    );
+    expect(offen).toBeTruthy();
+  });
+});

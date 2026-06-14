@@ -104,3 +104,56 @@ adminRouter.get('/admin/invites', async (_req, res) => {
 
   return res.json({ invites });
 });
+
+// GET /admin/users/:id — Mitglied-Detail (B2g): Stammdaten + Live-guthabenCent
+// + Transaktionshistorie (jüngste zuerst). Pro Transaktion zusätzlich:
+//   - drinkName: Name des gebuchten Drinks (nur bei KAUF, sonst null)
+//   - storniert: es existiert bereits eine STORNO-Zeile mit stornoVonId=dieser
+//   - stornierbar: typ!=='STORNO' && !storniert — damit die UI Doppel-Stornos
+//     und Storno-von-STORNO gar nicht erst anbietet (Backend blockt es ohnehin).
+adminRouter.get('/admin/users/:id', async (req, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.params.id },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      isAdmin: true,
+      isLeitung: true,
+      isActive: true,
+    },
+  });
+  if (!user) return res.status(404).json({ error: 'Mitglied nicht gefunden.' });
+
+  const txs = await prisma.transaktion.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: 'desc' },
+    include: { drink: { select: { name: true } } },
+  });
+
+  // Menge der Original-IDs, auf die schon eine STORNO-Zeile verweist.
+  const stornierteIds = new Set(
+    txs
+      .filter((t) => t.typ === 'STORNO' && t.stornoVonId)
+      .map((t) => t.stornoVonId as string),
+  );
+
+  const transaktionen = txs.map((t) => {
+    const storniert = stornierteIds.has(t.id);
+    return {
+      id: t.id,
+      typ: t.typ,
+      betragCent: t.betragCent,
+      notiz: t.notiz,
+      drinkName: t.drink?.name ?? null,
+      stornoVonId: t.stornoVonId,
+      createdAt: t.createdAt,
+      storniert,
+      stornierbar: t.typ !== 'STORNO' && !storniert,
+    };
+  });
+
+  const guthabenCent = await computeGuthabenCent(user.id);
+  return res.json({ user: { ...user, guthabenCent }, transaktionen });
+});
