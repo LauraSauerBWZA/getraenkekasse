@@ -49,3 +49,4 @@ app/backend/prisma/data/*.db
 app/backend/prisma/data/*.db-journal
 app/backend/prisma/data/*.db-wal
 app/backend/prisma/data/*.db-shm
+.claude/
