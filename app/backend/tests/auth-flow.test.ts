@@ -1010,3 +1010,190 @@ describe('PayPal-Anfrage (Mitglied)', () => {
     expect(r.body.anfragen).toEqual([]);
   });
 });
+
+// B2f.3 — Admin bestätigt/lehnt PayPal-Anfragen. Stand aus B2f.2: Max hat zwei
+// OFFENE Anfragen (2000 zuerst gestellt, dann 500), beide Laura zugewiesen.
+// Max-Guthaben -150, Lauras Verwalter-Topf 0 (nach den B2e.4-Stornos).
+describe('PayPal-Anfrage (Admin bestätigt/lehnt)', () => {
+  let lauraId: string;
+  let maxId: string;
+
+  async function verwalterTopf(verwalterId: string): Promise<number> {
+    const agg = await prisma.kassenTransaktion.aggregate({
+      _sum: { betragCent: true },
+      where: { konto: 'VERWALTER', verwalterId },
+    });
+    return agg._sum.betragCent ?? 0;
+  }
+
+  async function offeneAnfrage(betragCent: number) {
+    return prisma.aufladungsAnfrage.findFirst({
+      where: { betragCent, status: 'OFFEN' },
+    });
+  }
+
+  it('Setup: IDs holen', async () => {
+    lauraId = (await agent.get('/auth/me')).body.user.id;
+    maxId = (await memberAgent.get('/auth/me')).body.user.id;
+  });
+
+  it('lehnt Anfragen-Liste ohne Login / ohne Admin ab', async () => {
+    const anon = supertest.agent(app);
+    expect((await anon.get('/admin/aufladung/anfragen')).status).toBe(401);
+    expect((await memberAgent.get('/admin/aufladung/anfragen')).status).toBe(403);
+  });
+
+  it('liefert offene Anfragen mit Mitglied-Daten, älteste zuerst', async () => {
+    const r = await agent.get('/admin/aufladung/anfragen');
+    expect(r.status).toBe(200);
+    const maxAnfragen = r.body.anfragen.filter(
+      (a: { user: { id: string } }) => a.user.id === maxId,
+    );
+    expect(maxAnfragen.length).toBe(2);
+    // älteste zuerst → 2000 (zuerst gestellt) vor 500
+    expect(maxAnfragen[0].betragCent).toBe(2000);
+    expect(maxAnfragen[1].betragCent).toBe(500);
+    expect(maxAnfragen[0].user).toMatchObject({ firstName: 'Max', email: 'max@example.com' });
+    expect(maxAnfragen[0].status).toBe('OFFEN');
+  });
+
+  it('lehnt Bestätigen ohne Admin-Recht ab', async () => {
+    const anfrage = await offeneAnfrage(2000);
+    const r = await memberAgent.post(`/admin/aufladung/anfragen/${anfrage!.id}/bestaetigen`).send({});
+    expect(r.status).toBe(403);
+  });
+
+  it('antwortet 404 auf Bestätigen unbekannter Anfrage', async () => {
+    const r = await agent.post('/admin/aufladung/anfragen/gibts-nicht/bestaetigen').send({});
+    expect(r.status).toBe(404);
+  });
+
+  it('bestätigt die 2000er-Anfrage: gekoppelte Buchung, Guthaben + Topf steigen', async () => {
+    const anfrage = await offeneAnfrage(2000);
+    const topfVor = await verwalterTopf(lauraId);
+
+    const r = await agent
+      .post(`/admin/aufladung/anfragen/${anfrage!.id}/bestaetigen`)
+      .send({ adminNotiz: 'PayPal am 14.06. erhalten' });
+    expect(r.status).toBe(201);
+
+    // Anfrage terminal + verlinkt
+    expect(r.body.anfrage).toMatchObject({
+      status: 'BESTAETIGT',
+      decidedById: lauraId,
+      adminNotiz: 'PayPal am 14.06. erhalten',
+    });
+    expect(r.body.anfrage.decidedAt).toBeTruthy();
+    expect(r.body.anfrage.transaktionId).toBe(r.body.transaktion.id);
+
+    // Mitglieder-Transaktion
+    expect(r.body.transaktion).toMatchObject({
+      typ: 'AUFLADUNG_PAYPAL',
+      userId: maxId,
+      erstelltVonId: lauraId,
+      betragCent: 2000,
+    });
+    expect(r.body.transaktion.kassenTransaktionId).toBe(r.body.kassenTransaktion.id);
+
+    // Kassen-EINZAHLUNG auf den zugewiesenen Verwalter-Topf
+    expect(r.body.kassenTransaktion).toMatchObject({
+      typ: 'EINZAHLUNG',
+      konto: 'VERWALTER',
+      verwalterId: lauraId,
+      betragCent: 2000,
+      erstelltVonId: lauraId,
+    });
+
+    // Max-Guthaben -150 → 1850, Lauras Topf +2000
+    expect(r.body.guthabenCent).toBe(1850);
+    const me = await memberAgent.get('/auth/me');
+    expect(me.body.user.guthabenCent).toBe(1850);
+    expect(await verwalterTopf(lauraId)).toBe(topfVor + 2000);
+  });
+
+  it('verhindert doppelte Entscheidung (schon bestätigte Anfrage)', async () => {
+    const bestaetigt = await prisma.aufladungsAnfrage.findFirst({
+      where: { betragCent: 2000, status: 'BESTAETIGT' },
+    });
+    const r = await agent
+      .post(`/admin/aufladung/anfragen/${bestaetigt!.id}/bestaetigen`)
+      .send({});
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/bereits entschieden/i);
+  });
+
+  it('lehnt die 500er-Anfrage ab: kein Booking, Status ABGELEHNT', async () => {
+    const anfrage = await offeneAnfrage(500);
+    const kasseVor = await prisma.kassenTransaktion.count();
+    const guthabenVor = (await memberAgent.get('/auth/me')).body.user.guthabenCent;
+
+    const r = await agent
+      .post(`/admin/aufladung/anfragen/${anfrage!.id}/ablehnen`)
+      .send({ adminNotiz: 'Keine Zahlung eingegangen' });
+    expect(r.status).toBe(200);
+    expect(r.body.anfrage).toMatchObject({
+      status: 'ABGELEHNT',
+      decidedById: lauraId,
+      adminNotiz: 'Keine Zahlung eingegangen',
+      transaktionId: null,
+    });
+
+    // keine Buchung
+    expect(await prisma.kassenTransaktion.count()).toBe(kasseVor);
+    const me = await memberAgent.get('/auth/me');
+    expect(me.body.user.guthabenCent).toBe(guthabenVor);
+  });
+
+  it('verhindert Ablehnen einer schon entschiedenen Anfrage', async () => {
+    const abgelehnt = await prisma.aufladungsAnfrage.findFirst({
+      where: { betragCent: 500, status: 'ABGELEHNT' },
+    });
+    const r = await agent
+      .post(`/admin/aufladung/anfragen/${abgelehnt!.id}/ablehnen`)
+      .send({});
+    expect(r.status).toBe(400);
+  });
+
+  it('nach Entscheidung sind keine offenen Anfragen von Max mehr in der Liste', async () => {
+    const r = await agent.get('/admin/aufladung/anfragen');
+    const maxOffen = r.body.anfragen.filter((a: { user: { id: string } }) => a.user.id === maxId);
+    expect(maxOffen).toEqual([]);
+  });
+
+  // Verifiziert die generische B2e.4-Storno-Rückbuchung für AUFLADUNG_PAYPAL.
+  it('Storno der bestätigten PayPal-Aufladung bucht die Kassen-Einzahlung zurück', async () => {
+    const topfVor = await verwalterTopf(lauraId);
+    const guthabenVor = (await memberAgent.get('/auth/me')).body.user.guthabenCent;
+
+    // Die bei der Bestätigung erzeugte AUFLADUNG_PAYPAL-Transaktion (+2000)
+    const paypalTx = await prisma.transaktion.findFirst({
+      where: { userId: maxId, typ: 'AUFLADUNG_PAYPAL', betragCent: 2000 },
+    });
+    expect(paypalTx).toBeTruthy();
+    expect(paypalTx!.kassenTransaktionId).toBeTruthy();
+
+    const r = await agent
+      .post(`/transaktionen/${paypalTx!.id}/storno`)
+      .send({ notiz: 'PayPal-Zahlung zurückgezogen.' });
+    expect(r.status).toBe(201);
+
+    expect(r.body.transaktion).toMatchObject({
+      typ: 'STORNO',
+      stornoVonId: paypalTx!.id,
+      betragCent: -2000,
+      erstelltVonId: lauraId,
+    });
+    // Gegen-KORREKTUR auf demselben Verwalter-Topf
+    expect(r.body.kassenGegenbuchung).toMatchObject({
+      typ: 'KORREKTUR',
+      konto: 'VERWALTER',
+      verwalterId: lauraId,
+      betragCent: -2000,
+    });
+    expect(r.body.kassenGegenbuchung.notiz).toMatch(/storno-rückbuchung/i);
+
+    // Guthaben + Topf wieder zurück
+    expect(r.body.guthabenCent).toBe(guthabenVor - 2000);
+    expect(await verwalterTopf(lauraId)).toBe(topfVor - 2000);
+  });
+});
