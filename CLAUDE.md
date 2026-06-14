@@ -6,12 +6,12 @@ Dieses Dokument ist die **dauerhafte Konvention** für jede Claude-Code-Session 
 
 ## 1. Verhaltens-Regeln (immer)
 
-1. **Niemals eigenmächtig committen.** Vor jedem `git commit` Lauras explizite Freigabe im Chat abwarten.
+1. **Code committet sein Bündel selbst**, sobald die eigenen Checks (Tests + Typecheck + Build) grün sind und der Bündel-Bericht geschrieben ist. Kein Commit-Freigabe-Ritual.
 2. **Vor jedem Commit `git status` zeigen.** Damit Laura sieht, was wirklich gestaged ist.
 3. **Vor jedem Push `git log -1` zeigen.** Damit Laura sieht, was wirklich gepusht wird (Berichts-Skepsis: nicht der Selbstbericht, sondern das echte Log zählt).
-4. **Push macht nur Laura vom Mac.** Niemals `git push` aus dem Container ausführen.
+4. **Push ist ausschließlich Lauras Aktion.** Claude Code pusht NIE autonom. Push ist via SSH-Deploy-Key jetzt auch aus dem Container möglich, wird aber nur von Laura ausgelöst — nach Review + Browser-Test.
 5. **Bei Unklarheit: STOPP, fragen.** Niemals eigene Entscheidungen treffen bei widersprüchlichen Quellen oder fehlenden Specs.
-6. **Pro Sub-Commit STOPP für Browser-Test.** Nach jedem in sich abgeschlossenen Edit auf Lauras Test + Freigabe warten, bevor committen.
+6. **Kein STOPP pro Sub-Commit.** Autonome Bauphase; Laura reviewt + browser-testet asynchron vor dem Push.
 
 ---
 
@@ -37,13 +37,10 @@ Bei Widersprüchen gewinnt die **höhere Tier**.
 Jede Phase folgt diesem Muster:
 
 1. **Schritt 0 — Recherche** (nur lesen, kein Edit). Bericht in `BERICHTE/PHASE_BX_SCHRITT0.md`.
-2. **Laura entscheidet** auf Basis der Recherche.
-3. **Sub-Commits einzeln umsetzen.** Pro Sub-Commit:
+2. **Sub-Commits autonom umsetzen.** Pro Sub-Commit:
    - Edit ausführen
-   - Diff-Bericht in `BERICHTE/PHASE_BXa_DIFF.md`
-   - 5-10 Zeilen Zusammenfassung im Chat
-   - **STOPP**, auf Freigabe warten
-   - Erst nach Freigabe: `git commit`
+   - (autonom weiter, kein STOPP)
+3. **Am Phasenende**: Tests/Typecheck/Build grün → Code committet die Sub-Commits selbst (sinnvolle Granularität, dokumentiert) → Bündel-Bericht mit echtem `git status`/`git diff --cached`/`git log` → **STOPP ohne Push**. Laura reviewt + browser-testet + pusht asynchron.
 4. **Nach Phase-Abschluss**: `BERICHTE/PHASE_BX_ABSCHLUSS.md` mit Commit-Hashes + Zusammenfassung.
 
 **Sub-Commit-Disziplin:** Jeder Sub-Commit ist eine logische Aussage, die ohne „und" formulierbar ist. Wenn eine Phase 3 logische Einheiten hat, sind das 3 Sub-Commits.
@@ -128,16 +125,15 @@ Vollständige Spec: `KONFIGURATION.md`.
 - **Image:** `bwza-getraenke-auth`
 - **Port-Mappings:** `3001:3001` (Frontend Vite) und `4000:4000` (Backend Express). Vite-Host ist auf `0.0.0.0` gesetzt, damit der Mac-Browser den Container erreicht.
 - **Start (Mac):** Doppelklick auf `docker/start-getraenke.command`
-- **Push aus Sandbox NICHT möglich** (kein SSH-Auth). Push immer vom Mac.
+- **Push aus dem Container** via SSH-Deploy-Key eingerichtet (privater Key im Container). Technisch möglich, aber **nur Laura löst den Push aus** — Claude Code pusht nie selbst.
 
 ---
 
 ## 8. Verbotene Verhalten
 
-- Niemals `git push` aus der Sandbox.
+- Claude Code pusht nie selbst (Push = Laura).
 - Niemals Code-Entscheidungen bei widersprüchlichen Specs eigenmächtig treffen.
 - Niemals Dateien in `archiv/` als Quelle für aktuelle Entscheidungen verwenden.
-- Niemals committen ohne explizite Freigabe von Laura.
 - Niemals `git push --force` (auch nicht durch Laura — wird besprochen).
 
 ---
@@ -149,6 +145,8 @@ Berichte über die eigene Arbeit nicht ungeprüft glauben. Vor jedem Commit/Push
 - `git status` zeigen (was ist wirklich gestaged?)
 - `git diff --cached` zeigen (was wird wirklich committet?)
 - Nach Commit: `git log -1` zeigen (was wurde wirklich committet?)
+
+**Im autonomen Workflow umso wichtiger:** Da Code jetzt selbst committet, ist der Bündel-Bericht die einzige Kontroll-Schnittstelle vor dem Push. Er **muss** das echte `git status` + `git diff --cached`/`git log` enthalten, damit Laura die Selbst-Commits vor dem Push gegen die Realität prüfen kann.
 
 Symptome, die in Einsatzboard-Erfahrung auftraten:
 - Bericht „fertig", Code aber unstaged
@@ -194,4 +192,4 @@ Bei Konflikt zwischen diesen Quellen: höhere Tier in der Hierarchie (Sektion 2)
 
 ---
 
-**Letzte Aktualisierung:** 2026-05-26 (Erweiterungen nach Phase-1-Smoke-Test: Domänen-Konventionen, Drift-Pattern-Lehre, Verweise, Setup-Fix-Hinweis aktualisiert)
+**Letzte Aktualisierung:** 2026-06-14 (autonomer Workflow ab Phase B2f: Code committet sein Bündel selbst nach grünen Checks, Push bleibt Lauras Aktion; §1.1/§1.4/§1.6, §3, §7, §8, §9 angepasst)
