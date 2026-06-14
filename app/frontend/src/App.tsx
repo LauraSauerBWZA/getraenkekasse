@@ -6,6 +6,7 @@ import Dashboard from './routes/Dashboard';
 import Admin from './routes/Admin';
 import AdminDrinks from './routes/AdminDrinks';
 import AdminAufladungBargeld from './routes/AdminAufladungBargeld';
+import AdminAufladungAnfragen from './routes/AdminAufladungAnfragen';
 import Buchen from './routes/Buchen';
 import Aufladen from './routes/Aufladen';
 
@@ -88,6 +89,16 @@ export default function App() {
           <Protected>
             <AdminOnly>
               <AdminAufladungBargeld />
+            </AdminOnly>
+          </Protected>
+        }
+      />
+      <Route
+        path="/admin/aufladung-anfragen"
+        element={
+          <Protected>
+            <AdminOnly>
+              <AdminAufladungAnfragen />
             </AdminOnly>
           </Protected>
         }
