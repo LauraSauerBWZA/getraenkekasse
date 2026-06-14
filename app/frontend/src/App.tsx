@@ -9,6 +9,7 @@ import AdminAufladungBargeld from './routes/AdminAufladungBargeld';
 import AdminAufladungAnfragen from './routes/AdminAufladungAnfragen';
 import AdminMitglieder from './routes/AdminMitglieder';
 import AdminMitgliedDetail from './routes/AdminMitgliedDetail';
+import AdminKasse from './routes/AdminKasse';
 import Buchen from './routes/Buchen';
 import Aufladen from './routes/Aufladen';
 
@@ -121,6 +122,16 @@ export default function App() {
           <Protected>
             <AdminOnly>
               <AdminMitgliedDetail />
+            </AdminOnly>
+          </Protected>
+        }
+      />
+      <Route
+        path="/admin/kasse"
+        element={
+          <Protected>
+            <AdminOnly>
+              <AdminKasse />
             </AdminOnly>
           </Protected>
         }

@@ -147,6 +147,39 @@ export interface DetailTransaktion {
   stornierbar: boolean;
 }
 
+// Kassen-Screen (B2i).
+export interface KassenTopf {
+  verwalterId: string;
+  firstName: string;
+  lastName: string;
+  betragCent: number;
+}
+
+export interface KassenSummary {
+  toepfe: KassenTopf[];
+  boxCent: number;
+  vereinsvermoegenCent: number;
+  mitgliederGuthabenSummeCent: number;
+  deckungCent: number;
+}
+
+export interface KassenHistorieEintrag {
+  id: string;
+  typ: string;
+  konto: string;
+  verwalterId: string | null;
+  verwalterName: string | null;
+  betragCent: number;
+  notiz: string;
+  transaktionId: string | null;
+  einlageGegenId: string | null;
+  createdAt: string;
+}
+
+// Einzeilige Kassen-Aktionen (EINLAGE_BOX hat einen eigenen Endpoint).
+export type KassenBuchungTyp = 'EINKAUF' | 'ENTNAHME' | 'AUSLAGE' | 'SPENDE' | 'KORREKTUR';
+export type KassenKonto = 'VERWALTER' | 'BOX';
+
 export class ApiError extends Error {
   constructor(public status: number, message: string, public details?: unknown) {
     super(message);
@@ -242,6 +275,28 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+  // Admin: Kassen-Kennzahlen (Töpfe, Box, Vermögen, Deckung)
+  adminKasseSummary: () => request<KassenSummary>('/admin/kasse/summary'),
+  // Admin: Kassen-Historie (alle Bewegungen chronologisch)
+  adminKasseHistorie: () =>
+    request<{ buchungen: KassenHistorieEintrag[] }>('/admin/kasse/historie'),
+  // Admin: einzeilige Kassen-Buchung (EINKAUF/ENTNAHME/AUSLAGE/SPENDE/KORREKTUR)
+  adminKasseBuchung: (input: {
+    typ: KassenBuchungTyp;
+    konto: KassenKonto;
+    betragCent: number;
+    vermerk: string;
+  }) =>
+    request<{ kassenTransaktion: KassenTransaktion }>('/admin/kasse/buchung', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  // Admin: Einlage in die Box (zweizeilig gekoppelt)
+  adminKasseEinlage: (input: { betragCent: number; vermerk: string }) =>
+    request<{ verwalterZeile: KassenTransaktion; boxZeile: KassenTransaktion }>(
+      '/admin/kasse/einlage',
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
   // Admin: Bargeld-Aufladung — erzeugt gekoppelte Mitglieder- und Kassen-Buchung
   adminAufladungBargeld: (input: { userId: string; betragCent: number; vermerk: string }) =>
     request<{
