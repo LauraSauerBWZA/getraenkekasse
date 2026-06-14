@@ -1446,3 +1446,188 @@ describe('Kassen-Summary + Historie (Admin)', () => {
     expect(einzahlung.verwalterName).toMatch(/Laura/);
   });
 });
+
+// B2i.2 — Kassen-Aktionen. Delta-basiert (Summary vor/nach), robust gegenüber
+// dem Shared-State der Suite.
+describe('Kassen-Aktionen (Admin)', () => {
+  let lauraId: string;
+
+  interface Summary {
+    toepfe: { verwalterId: string; betragCent: number }[];
+    boxCent: number;
+    vereinsvermoegenCent: number;
+    mitgliederGuthabenSummeCent: number;
+    deckungCent: number;
+  }
+  async function summary(): Promise<Summary> {
+    return (await agent.get('/admin/kasse/summary')).body;
+  }
+  function topf(s: Summary, id: string): number {
+    return s.toepfe.find((t) => t.verwalterId === id)?.betragCent ?? 0;
+  }
+
+  it('Setup: Laura-Id', async () => {
+    lauraId = (await agent.get('/auth/me')).body.user.id;
+  });
+
+  it('lehnt Buchung/Einlage ohne Login / ohne Admin ab', async () => {
+    const anon = supertest.agent(app);
+    const body = { typ: 'EINKAUF', konto: 'VERWALTER', betragCent: 100, vermerk: 'x' };
+    expect((await anon.post('/admin/kasse/buchung').send(body)).status).toBe(401);
+    expect((await memberAgent.post('/admin/kasse/buchung').send(body)).status).toBe(403);
+    expect((await anon.post('/admin/kasse/einlage').send({ betragCent: 100, vermerk: 'x' })).status).toBe(401);
+    expect(
+      (await memberAgent.post('/admin/kasse/einlage').send({ betragCent: 100, vermerk: 'x' })).status,
+    ).toBe(403);
+  });
+
+  it('lehnt fehlenden / leeren Vermerk ab', async () => {
+    const r1 = await agent
+      .post('/admin/kasse/buchung')
+      .send({ typ: 'EINKAUF', konto: 'VERWALTER', betragCent: 100 });
+    expect(r1.status).toBe(400);
+    const r2 = await agent
+      .post('/admin/kasse/buchung')
+      .send({ typ: 'EINKAUF', konto: 'VERWALTER', betragCent: 100, vermerk: '  ' });
+    expect(r2.status).toBe(400);
+  });
+
+  it('EINKAUF (eigener Topf): senkt Topf + Vereinsvermögen, Mitglieder-Summe gleich', async () => {
+    const vor = await summary();
+    const r = await agent
+      .post('/admin/kasse/buchung')
+      .send({ typ: 'EINKAUF', konto: 'VERWALTER', betragCent: 3000, vermerk: 'Getränkemarkt 14.06.' });
+    expect(r.status).toBe(201);
+    expect(r.body.kassenTransaktion).toMatchObject({
+      typ: 'EINKAUF',
+      konto: 'VERWALTER',
+      verwalterId: lauraId,
+      betragCent: -3000,
+      notiz: 'Getränkemarkt 14.06.',
+    });
+    const nach = await summary();
+    expect(topf(nach, lauraId)).toBe(topf(vor, lauraId) - 3000);
+    expect(nach.vereinsvermoegenCent).toBe(vor.vereinsvermoegenCent - 3000);
+    expect(nach.mitgliederGuthabenSummeCent).toBe(vor.mitgliederGuthabenSummeCent);
+    expect(nach.deckungCent).toBe(vor.deckungCent - 3000);
+  });
+
+  it('EINKAUF (aus Box): senkt Box + Vereinsvermögen, verwalterId null', async () => {
+    const vor = await summary();
+    const r = await agent
+      .post('/admin/kasse/buchung')
+      .send({ typ: 'EINKAUF', konto: 'BOX', betragCent: 500, vermerk: 'Kasten aus der Box' });
+    expect(r.status).toBe(201);
+    expect(r.body.kassenTransaktion.verwalterId).toBeNull();
+    const nach = await summary();
+    expect(nach.boxCent).toBe(vor.boxCent - 500);
+    expect(nach.vereinsvermoegenCent).toBe(vor.vereinsvermoegenCent - 500);
+  });
+
+  it('ENTNAHME (vereinsfremd): senkt das gewählte Konto', async () => {
+    const vor = await summary();
+    const r = await agent
+      .post('/admin/kasse/buchung')
+      .send({ typ: 'ENTNAHME', konto: 'VERWALTER', betragCent: 800, vermerk: 'Waschstraße Einsatzfahrzeug' });
+    expect(r.status).toBe(201);
+    expect(r.body.kassenTransaktion.betragCent).toBe(-800);
+    const nach = await summary();
+    expect(topf(nach, lauraId)).toBe(topf(vor, lauraId) - 800);
+  });
+
+  it('AUSLAGE nur auf eigenen Topf (BOX → 400), darf Topf negativ machen', async () => {
+    const bad = await agent
+      .post('/admin/kasse/buchung')
+      .send({ typ: 'AUSLAGE', konto: 'BOX', betragCent: 100, vermerk: 'x' });
+    expect(bad.status).toBe(400);
+
+    const vor = await summary();
+    const r = await agent
+      .post('/admin/kasse/buchung')
+      .send({ typ: 'AUSLAGE', konto: 'VERWALTER', betragCent: 1200, vermerk: 'Privat vorgestreckt' });
+    expect(r.status).toBe(201);
+    expect(r.body.kassenTransaktion.betragCent).toBe(-1200);
+    const nach = await summary();
+    expect(topf(nach, lauraId)).toBe(topf(vor, lauraId) - 1200);
+  });
+
+  it('SPENDE: erhöht das gewählte Konto', async () => {
+    const vor = await summary();
+    const r = await agent
+      .post('/admin/kasse/buchung')
+      .send({ typ: 'SPENDE', konto: 'BOX', betragCent: 2500, vermerk: 'Spende Gast' });
+    expect(r.status).toBe(201);
+    expect(r.body.kassenTransaktion.betragCent).toBe(2500);
+    const nach = await summary();
+    expect(nach.boxCent).toBe(vor.boxCent + 2500);
+    expect(nach.vereinsvermoegenCent).toBe(vor.vereinsvermoegenCent + 2500);
+  });
+
+  it('KORREKTUR: signiert (± erlaubt), 0 → 400', async () => {
+    const null0 = await agent
+      .post('/admin/kasse/buchung')
+      .send({ typ: 'KORREKTUR', konto: 'BOX', betragCent: 0, vermerk: 'x' });
+    expect(null0.status).toBe(400);
+
+    const vor = await summary();
+    const rPlus = await agent
+      .post('/admin/kasse/buchung')
+      .send({ typ: 'KORREKTUR', konto: 'BOX', betragCent: 700, vermerk: 'Box nachgezählt +' });
+    expect(rPlus.status).toBe(201);
+    expect(rPlus.body.kassenTransaktion.betragCent).toBe(700);
+    const rMinus = await agent
+      .post('/admin/kasse/buchung')
+      .send({ typ: 'KORREKTUR', konto: 'BOX', betragCent: -300, vermerk: 'Box nachgezählt -' });
+    expect(rMinus.status).toBe(201);
+    expect(rMinus.body.kassenTransaktion.betragCent).toBe(-300);
+    const nach = await summary();
+    expect(nach.boxCent).toBe(vor.boxCent + 700 - 300);
+  });
+
+  it('lehnt nicht-positive Magnitude bei EINKAUF ab', async () => {
+    const r0 = await agent
+      .post('/admin/kasse/buchung')
+      .send({ typ: 'EINKAUF', konto: 'VERWALTER', betragCent: 0, vermerk: 'x' });
+    expect(r0.status).toBe(400);
+    const rNeg = await agent
+      .post('/admin/kasse/buchung')
+      .send({ typ: 'EINKAUF', konto: 'VERWALTER', betragCent: -100, vermerk: 'x' });
+    expect(rNeg.status).toBe(400);
+  });
+
+  it('EINLAGE_BOX: Topf −X, Box +X, Vereinsvermögen GLEICH, Zeilen verknüpft', async () => {
+    const vor = await summary();
+    const r = await agent
+      .post('/admin/kasse/einlage')
+      .send({ betragCent: 4000, vermerk: 'In die Box gelegt' });
+    expect(r.status).toBe(201);
+
+    expect(r.body.verwalterZeile).toMatchObject({
+      typ: 'EINLAGE_BOX',
+      konto: 'VERWALTER',
+      verwalterId: lauraId,
+      betragCent: -4000,
+    });
+    expect(r.body.boxZeile).toMatchObject({
+      typ: 'EINLAGE_BOX',
+      konto: 'BOX',
+      verwalterId: null,
+      betragCent: 4000,
+    });
+    // wechselseitige Verknüpfung
+    expect(r.body.verwalterZeile.einlageGegenId).toBe(r.body.boxZeile.id);
+    expect(r.body.boxZeile.einlageGegenId).toBe(r.body.verwalterZeile.id);
+
+    const nach = await summary();
+    expect(topf(nach, lauraId)).toBe(topf(vor, lauraId) - 4000);
+    expect(nach.boxCent).toBe(vor.boxCent + 4000);
+    expect(nach.vereinsvermoegenCent).toBe(vor.vereinsvermoegenCent); // nur Umschichtung
+  });
+
+  it('Deckung bleibt = Vereinsvermögen − Mitglieder-Summe nach allen Buchungen', async () => {
+    const s = await summary();
+    expect(s.deckungCent).toBe(s.vereinsvermoegenCent - s.mitgliederGuthabenSummeCent);
+    const topfSum = s.toepfe.reduce((acc: number, t: { betragCent: number }) => acc + t.betragCent, 0);
+    expect(topfSum + s.boxCent).toBe(s.vereinsvermoegenCent);
+  });
+});

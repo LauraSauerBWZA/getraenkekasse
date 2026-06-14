@@ -1,7 +1,9 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { prisma } from '../db.js';
 import { requireAdmin, requireAuth } from '../auth/middleware.js';
 import { computeMitgliederGuthabenSummeCent } from '../domain/guthaben.js';
+import { logger } from '../logger.js';
 
 export const kasseRouter = Router();
 
@@ -98,4 +100,131 @@ kasseRouter.get('/admin/kasse/historie', async (_req, res) => {
   }));
 
   return res.json({ buchungen });
+});
+
+// POST /admin/kasse/buchung — einzeilige Kassen-Aktion (§6.8). Ein generischer
+// Endpoint für die fünf einzeiligen Typen; EINLAGE_BOX (zweizeilig) hat seinen
+// eigenen Endpoint unten.
+//
+// Betrags-Konvention (Frontend tippt immer einen Euro-Betrag ein):
+//   - EINKAUF/ENTNAHME/AUSLAGE: client schickt positive Magnitude → Backend
+//     speichert NEGATIV (Abfluss).
+//   - SPENDE: positive Magnitude → POSITIV (Zufluss).
+//   - KORREKTUR: SIGNIERTER Betrag (±), ≠ 0, wird so gespeichert.
+// Konto-Wahl VERWALTER/BOX frei, AUSNAHME AUSLAGE: nur VERWALTER (Privattasche).
+// verwalterId = der eingeloggte Admin bei konto=VERWALTER, sonst null.
+// vermerk Pflicht (§6.8).
+const EINZEILIGE_TYPEN = ['EINKAUF', 'ENTNAHME', 'AUSLAGE', 'SPENDE', 'KORREKTUR'] as const;
+
+const buchungSchema = z.object({
+  typ: z.enum(EINZEILIGE_TYPEN),
+  konto: z.enum(['VERWALTER', 'BOX']),
+  betragCent: z.number().int(),
+  vermerk: z.string(),
+});
+
+kasseRouter.post('/admin/kasse/buchung', async (req, res) => {
+  const parsed = buchungSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res
+      .status(400)
+      .json({ error: 'Ungültige Eingaben.', details: parsed.error.flatten() });
+  }
+  const { typ, konto, betragCent } = parsed.data;
+  const vermerk = parsed.data.vermerk.trim();
+  if (!vermerk) return res.status(400).json({ error: 'Vermerk ist Pflicht.' });
+
+  // AUSLAGE = Privattasche → immer eigener Verwalter-Topf.
+  if (typ === 'AUSLAGE' && konto !== 'VERWALTER') {
+    return res.status(400).json({ error: 'Auslage geht immer auf den eigenen Verwalter-Topf.' });
+  }
+
+  // Vorzeichen / Magnitude je Typ.
+  let storedBetrag: number;
+  if (typ === 'KORREKTUR') {
+    if (betragCent === 0) {
+      return res.status(400).json({ error: 'Korrektur-Betrag darf nicht 0 sein.' });
+    }
+    storedBetrag = betragCent;
+  } else {
+    if (betragCent <= 0) {
+      return res.status(400).json({ error: 'Betrag muss positiv sein.' });
+    }
+    storedBetrag = typ === 'SPENDE' ? betragCent : -betragCent;
+  }
+
+  const adminId = req.auth!.sub;
+  const verwalterId = konto === 'VERWALTER' ? adminId : null;
+
+  const kassenTransaktion = await prisma.kassenTransaktion.create({
+    data: { typ, konto, verwalterId, betragCent: storedBetrag, notiz: vermerk, erstelltVonId: adminId },
+  });
+
+  logger.info(
+    { typ, konto, verwalterId, betragCent: storedBetrag, adminId, kassenTransaktionId: kassenTransaktion.id },
+    'Kassen-Buchung gebucht.',
+  );
+  return res.status(201).json({ kassenTransaktion });
+});
+
+// POST /admin/kasse/einlage — EINLAGE_BOX: der Verwalter legt gehaltenes Geld in
+// die Box. Zwei gekoppelte Zeilen in EINER $transaction (Muster wie die
+// Aufladungs-Kopplung): VERWALTER −X (eigener Topf) + BOX +X, wechselseitig über
+// einlageGegenId verknüpft. Vereinsvermögen bleibt gleich — nur Umschichtung.
+const einlageSchema = z.object({
+  betragCent: z.number().int().positive(),
+  vermerk: z.string(),
+});
+
+kasseRouter.post('/admin/kasse/einlage', async (req, res) => {
+  const parsed = einlageSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res
+      .status(400)
+      .json({ error: 'Ungültige Eingaben.', details: parsed.error.flatten() });
+  }
+  const vermerk = parsed.data.vermerk.trim();
+  if (!vermerk) return res.status(400).json({ error: 'Vermerk ist Pflicht.' });
+
+  const adminId = req.auth!.sub;
+  const betragCent = parsed.data.betragCent;
+
+  const result = await prisma.$transaction(async (tx) => {
+    const verwalterZeile = await tx.kassenTransaktion.create({
+      data: {
+        typ: 'EINLAGE_BOX',
+        konto: 'VERWALTER',
+        verwalterId: adminId,
+        betragCent: -betragCent,
+        notiz: vermerk,
+        erstelltVonId: adminId,
+      },
+    });
+    const boxZeile = await tx.kassenTransaktion.create({
+      data: {
+        typ: 'EINLAGE_BOX',
+        konto: 'BOX',
+        betragCent: betragCent,
+        notiz: vermerk,
+        erstelltVonId: adminId,
+        einlageGegenId: verwalterZeile.id,
+      },
+    });
+    const verwalterVerkn = await tx.kassenTransaktion.update({
+      where: { id: verwalterZeile.id },
+      data: { einlageGegenId: boxZeile.id },
+    });
+    return { verwalterZeile: verwalterVerkn, boxZeile };
+  });
+
+  logger.info(
+    {
+      adminId,
+      betragCent,
+      verwalterZeileId: result.verwalterZeile.id,
+      boxZeileId: result.boxZeile.id,
+    },
+    'Einlage in die Box gebucht.',
+  );
+  return res.status(201).json(result);
 });
