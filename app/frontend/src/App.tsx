@@ -7,6 +7,7 @@ import Admin from './routes/Admin';
 import AdminDrinks from './routes/AdminDrinks';
 import AdminAufladungBargeld from './routes/AdminAufladungBargeld';
 import Buchen from './routes/Buchen';
+import Aufladen from './routes/Aufladen';
 
 function Protected({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -50,6 +51,14 @@ export default function App() {
         element={
           <Protected>
             <Buchen />
+          </Protected>
+        }
+      />
+      <Route
+        path="/aufladen"
+        element={
+          <Protected>
+            <Aufladen />
           </Protected>
         }
       />

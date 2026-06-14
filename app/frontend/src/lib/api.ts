@@ -88,6 +88,40 @@ export interface KassenTransaktion {
   createdAt: string;
 }
 
+export const AUFLADUNGS_STATUS = ['OFFEN', 'BESTAETIGT', 'ABGELEHNT'] as const;
+export type AufladungsStatus = (typeof AUFLADUNGS_STATUS)[number];
+
+// Öffentliche Verwalter-Sicht (kein passwordHash o.ä.), wie vom Backend geliefert.
+export interface VerwalterPublic {
+  id: string;
+  firstName: string;
+  lastName: string;
+  paypalMeLink: string | null;
+}
+
+export interface AufladungsAnfrage {
+  id: string;
+  userId: string;
+  betragCent: number;
+  status: AufladungsStatus;
+  zugewiesenerVerwalterId: string;
+  requestedAt: string;
+  decidedAt: string | null;
+  decidedById: string | null;
+  adminNotiz: string | null;
+  transaktionId: string | null;
+}
+
+// /aufladung/meine liefert die eigene Anfrage inkl. zugewiesenem Verwalter.
+export interface MeineAnfrage extends AufladungsAnfrage {
+  zugewiesenerVerwalter: VerwalterPublic;
+}
+
+// Admin-Liste liefert die Anfrage inkl. Mitglied-Daten.
+export interface AdminAnfrage extends AufladungsAnfrage {
+  user: { id: string; firstName: string; lastName: string; email: string };
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string, public details?: unknown) {
     super(message);
@@ -184,7 +218,48 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+
+  // Mitglied: zuständigen Verwalter (Name + paypal.me-Link) für den Aufladen-Tab
+  aufladungZustaendigerVerwalter: () =>
+    request<{ verwalter: VerwalterPublic | null }>('/aufladung/zustaendiger-verwalter'),
+  // Mitglied: PayPal-Aufladungs-Anfrage stellen → offene Anfrage + Verwalter
+  aufladungPaypal: (betragCent: number) =>
+    request<{ anfrage: AufladungsAnfrage; verwalter: VerwalterPublic }>('/aufladung/paypal', {
+      method: 'POST',
+      body: JSON.stringify({ betragCent }),
+    }),
+  // Mitglied: eigene Anfragen (neueste zuerst) inkl. zugewiesenem Verwalter
+  aufladungMeine: () => request<{ anfragen: MeineAnfrage[] }>('/aufladung/meine'),
+  // Admin: offene PayPal-Anfragen
+  adminAufladungAnfragen: () =>
+    request<{ anfragen: AdminAnfrage[] }>('/admin/aufladung/anfragen'),
+  // Admin: Anfrage bestätigen → gekoppelte Buchung + neues Mitglied-Guthaben
+  adminAufladungBestaetigen: (id: string, adminNotiz?: string) =>
+    request<{
+      anfrage: AufladungsAnfrage;
+      transaktion: Transaktion;
+      kassenTransaktion: KassenTransaktion;
+      guthabenCent: number;
+    }>(`/admin/aufladung/anfragen/${id}/bestaetigen`, {
+      method: 'POST',
+      body: JSON.stringify(adminNotiz ? { adminNotiz } : {}),
+    }),
+  // Admin: Anfrage ablehnen (keine Buchung)
+  adminAufladungAblehnen: (id: string, adminNotiz?: string) =>
+    request<{ anfrage: AufladungsAnfrage }>(`/admin/aufladung/anfragen/${id}/ablehnen`, {
+      method: 'POST',
+      body: JSON.stringify(adminNotiz ? { adminNotiz } : {}),
+    }),
 };
+
+// paypal.me-Deep-Link: https://paypal.me/{link}/{betrag} (KONFIGURATION §6.5).
+// Betrag mit Punkt-Dezimaltrenner (paypal.me-Format), ganze Beträge ohne
+// Nachkommastellen. Keine PayPal-API — nur der Link (§11).
+export function paypalMeUrl(link: string, cent: number): string {
+  const euro = cent / 100;
+  const betrag = Number.isInteger(euro) ? String(euro) : euro.toFixed(2);
+  return `https://paypal.me/${link}/${betrag}`;
+}
 
 export function formatGuthaben(cent: number): string {
   const sign = cent < 0 ? '− ' : '';
