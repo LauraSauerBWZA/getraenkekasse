@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import type { User } from '@prisma/client';
 import { prisma } from '../db.js';
 import { requireAdmin, requireAuth } from '../auth/middleware.js';
 import { computeGuthabenCent } from '../domain/guthaben.js';
@@ -7,7 +8,111 @@ import { logger } from '../logger.js';
 
 export const aufladungRouter = Router();
 
-aufladungRouter.use(requireAuth, requireAdmin);
+// Nur Auth global; das Admin-Gate sitzt pro Route (requireAdmin), weil dieser
+// Router sowohl Mitglieder-Endpoints (PayPal-Anfrage stellen, zuständigen
+// Verwalter-Link lesen, eigene Anfragen) als auch Admin-Endpoints (Bargeld,
+// PayPal bestätigen/ablehnen) bündelt.
+aufladungRouter.use(requireAuth);
+
+// Zuständiger Verwalter für die nächste PayPal-Aufladung.
+//
+// B2f-Scope: schlicht „der/ein Admin". Die echte Lastverteilung nach geringster
+// gehaltener Summe inkl. offener Anfragen (KONFIGURATION §6.9) ist B2k und
+// ersetzt genau diese Funktion. Auswahl hier deterministisch und degeneriert
+// sauber zum Einzel-Verwalter-Fall:
+//   1. nur aktive Admins,
+//   2. bevorzugt einen mit hinterlegtem paypalMeLink (sonst kein Link zum
+//      Überweisen),
+//   3. unter denen alphabetisch nach Vorname (= späterer §6.9-Tie-Break).
+// Liefert null, wenn es gar keinen aktiven Admin gibt.
+async function ermittleZustaendigenVerwalter(): Promise<User | null> {
+  const admins = await prisma.user.findMany({
+    where: { isAdmin: true, isActive: true },
+    orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+  });
+  if (admins.length === 0) return null;
+  return admins.find((a) => a.paypalMeLink) ?? admins[0];
+}
+
+// Verwalter-Sicht fürs Frontend — nur was zum Anzeigen/Verlinken nötig ist,
+// kein passwordHash o.ä.
+function verwalterPublic(v: User) {
+  return {
+    id: v.id,
+    firstName: v.firstName,
+    lastName: v.lastName,
+    paypalMeLink: v.paypalMeLink,
+  };
+}
+
+// GET /aufladung/zustaendiger-verwalter — wen sieht das Mitglied im Aufladen-
+// Tab? Liefert den zuständigen Verwalter (Name + paypalMeLink) oder null.
+// Reines Anzeigen verbraucht KEINE Zuteilung (die passiert erst beim Abschicken,
+// §6.9) — in B2f ohnehin zustandslos, aber so bleibt das Verhalten B2k-konform.
+aufladungRouter.get('/aufladung/zustaendiger-verwalter', async (_req, res) => {
+  const verwalter = await ermittleZustaendigenVerwalter();
+  return res.json({ verwalter: verwalter ? verwalterPublic(verwalter) : null });
+});
+
+// POST /aufladung/paypal — Mitglied stellt eine PayPal-Aufladungs-Anfrage.
+// Legt eine AufladungsAnfrage mit status=OFFEN an und weist sie dem aktuell
+// zuständigen Verwalter zu (§6.5 Schritt 4). KEINE Buchung — die entsteht erst
+// bei der Admin-Bestätigung (B2f.3). Gibt den Verwalter mit zurück, damit das
+// Frontend den paypal.me-Link öffnen kann.
+const paypalAnfrageSchema = z.object({
+  betragCent: z.number().int().positive(),
+});
+
+aufladungRouter.post('/aufladung/paypal', async (req, res) => {
+  const parsed = paypalAnfrageSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res
+      .status(400)
+      .json({ error: 'Ungültige Eingaben.', details: parsed.error.flatten() });
+  }
+
+  const verwalter = await ermittleZustaendigenVerwalter();
+  if (!verwalter) {
+    return res
+      .status(409)
+      .json({ error: 'Aktuell ist kein Verwalter für PayPal-Aufladungen verfügbar.' });
+  }
+
+  const userId = req.auth!.sub;
+  const betragCent = parsed.data.betragCent;
+
+  const anfrage = await prisma.aufladungsAnfrage.create({
+    data: {
+      userId,
+      betragCent,
+      status: 'OFFEN',
+      zugewiesenerVerwalterId: verwalter.id,
+    },
+  });
+
+  logger.info(
+    { userId, anfrageId: anfrage.id, betragCent, zugewiesenerVerwalterId: verwalter.id },
+    'PayPal-Aufladungs-Anfrage gestellt.',
+  );
+
+  return res.status(201).json({ anfrage, verwalter: verwalterPublic(verwalter) });
+});
+
+// GET /aufladung/meine — eigene Aufladungs-Anfragen des Mitglieds, neueste
+// zuerst. Frontend hebt die offenen hervor (Status-Anzeige, §7.1). Enthält den
+// zugewiesenen Verwalter-Namen, damit das Mitglied weiß, an wen es überwiesen
+// hat / überweisen soll.
+aufladungRouter.get('/aufladung/meine', async (req, res) => {
+  const userId = req.auth!.sub;
+  const anfragen = await prisma.aufladungsAnfrage.findMany({
+    where: { userId },
+    orderBy: { requestedAt: 'desc' },
+    include: {
+      zugewiesenerVerwalter: { select: { id: true, firstName: true, lastName: true, paypalMeLink: true } },
+    },
+  });
+  return res.json({ anfragen });
+});
 
 // POST /admin/aufladung/bargeld — Verwalter trägt eine Bargeld-Einzahlung
 // eines Mitglieds ein. Erzeugt zwei wechselseitig verknüpfte Buchungen
@@ -24,7 +129,7 @@ const bargeldSchema = z.object({
   vermerk: z.string(),
 });
 
-aufladungRouter.post('/admin/aufladung/bargeld', async (req, res) => {
+aufladungRouter.post('/admin/aufladung/bargeld', requireAdmin, async (req, res) => {
   const parsed = bargeldSchema.safeParse(req.body);
   if (!parsed.success) {
     return res

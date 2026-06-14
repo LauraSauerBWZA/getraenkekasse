@@ -917,3 +917,96 @@ describe('Aufladungs-Storno', () => {
     expect(r.body.error).toMatch(/bereits storniert/i);
   });
 });
+
+// B2f.2 — PayPal-Aufladungs-Anfrage stellen (Mitglied) + zuständiger-Verwalter-
+// Link. Stand: ein einziger Admin (Laura) → zuständig ist immer Laura (Single-
+// Verwalter-Fall, §6.9-Degeneration). Max ist als memberAgent eingeloggt.
+describe('PayPal-Anfrage (Mitglied)', () => {
+  let lauraId: string;
+  let maxId: string;
+
+  it('Setup: IDs holen + Lauras paypal.me-Link setzen', async () => {
+    lauraId = (await agent.get('/auth/me')).body.user.id;
+    maxId = (await memberAgent.get('/auth/me')).body.user.id;
+    // Pflege-UI ist B2k — fürs Anzeigen hier direkt am User setzen.
+    await prisma.user.update({ where: { id: lauraId }, data: { paypalMeLink: 'laura-test' } });
+    expect(lauraId).toBeTruthy();
+    expect(maxId).toBeTruthy();
+  });
+
+  it('lehnt zuständiger-Verwalter ohne Login ab', async () => {
+    const anon = supertest.agent(app);
+    const r = await anon.get('/aufladung/zustaendiger-verwalter');
+    expect(r.status).toBe(401);
+  });
+
+  it('liefert den zuständigen Verwalter mit paypal.me-Link', async () => {
+    const r = await memberAgent.get('/aufladung/zustaendiger-verwalter');
+    expect(r.status).toBe(200);
+    expect(r.body.verwalter).toMatchObject({
+      id: lauraId,
+      firstName: 'Laura',
+      paypalMeLink: 'laura-test',
+    });
+    // keine sensiblen Felder
+    expect(r.body.verwalter.passwordHash).toBeUndefined();
+  });
+
+  it('lehnt Anfrage ohne Login ab', async () => {
+    const anon = supertest.agent(app);
+    const r = await anon.post('/aufladung/paypal').send({ betragCent: 1000 });
+    expect(r.status).toBe(401);
+  });
+
+  it('lehnt nicht-positive / nicht-ganzzahlige Beträge ab', async () => {
+    for (const bad of [0, -500, 12.34]) {
+      const r = await memberAgent.post('/aufladung/paypal').send({ betragCent: bad });
+      expect(r.status).toBe(400);
+    }
+  });
+
+  it('lehnt fehlenden Betrag ab', async () => {
+    const r = await memberAgent.post('/aufladung/paypal').send({});
+    expect(r.status).toBe(400);
+  });
+
+  it('legt eine offene Anfrage an, zugewiesen an den zuständigen Verwalter', async () => {
+    const r = await memberAgent.post('/aufladung/paypal').send({ betragCent: 2000 });
+    expect(r.status).toBe(201);
+    expect(r.body.anfrage).toMatchObject({
+      userId: maxId,
+      betragCent: 2000,
+      status: 'OFFEN',
+      zugewiesenerVerwalterId: lauraId,
+      decidedAt: null,
+      decidedById: null,
+      transaktionId: null,
+    });
+    expect(r.body.verwalter).toMatchObject({ id: lauraId, paypalMeLink: 'laura-test' });
+    // Keine Buchung beim Stellen — Guthaben unverändert (Max steht bei -150).
+    const me = await memberAgent.get('/auth/me');
+    expect(me.body.user.guthabenCent).toBe(-150);
+  });
+
+  it('listet eigene Anfragen (neueste zuerst) inkl. Verwalter-Name', async () => {
+    // Zweite Anfrage, damit Sortierung prüfbar ist.
+    await memberAgent.post('/aufladung/paypal').send({ betragCent: 500 });
+    const r = await memberAgent.get('/aufladung/meine');
+    expect(r.status).toBe(200);
+    expect(Array.isArray(r.body.anfragen)).toBe(true);
+    expect(r.body.anfragen.length).toBeGreaterThanOrEqual(2);
+    // neueste zuerst → die 500er-Anfrage ganz oben
+    expect(r.body.anfragen[0].betragCent).toBe(500);
+    expect(r.body.anfragen[0].zugewiesenerVerwalter).toMatchObject({
+      id: lauraId,
+      firstName: 'Laura',
+    });
+  });
+
+  it('zeigt einem anderen Mitglied NICHT die fremden Anfragen', async () => {
+    // Admin Laura hat selbst noch keine Anfrage gestellt.
+    const r = await agent.get('/aufladung/meine');
+    expect(r.status).toBe(200);
+    expect(r.body.anfragen).toEqual([]);
+  });
+});

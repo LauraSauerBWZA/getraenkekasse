@@ -25,9 +25,13 @@ export function buildApp() {
   app.use(healthRouter);
   app.use(authRouter);
   app.use(buchenRouter);
+  // aufladungRouter VOR adminRouter: adminRouter setzt sein requireAdmin global
+  // an Mount '/' und würde sonst die Mitglieder-Endpoints (/aufladung/*) mit 403
+  // abfangen, bevor sie hier ankommen. Die Admin-Routen in aufladungRouter haben
+  // ihr eigenes requireAdmin pro Route.
+  app.use(aufladungRouter);
   app.use(adminRouter);
   app.use(drinksRouter);
-  app.use(aufladungRouter);
 
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     logger.error({ err }, 'Unbehandelter Fehler.');
