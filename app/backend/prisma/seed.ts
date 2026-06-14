@@ -57,6 +57,18 @@ async function main() {
     console.log(`ℹ️  Admin existiert bereits: ${user.email}`);
   }
 
+  // paypal.me-Link für die PayPal-Aufladung (B2f). Nur setzen, wenn noch leer —
+  // einen real gepflegten Link (B2k-Profil-UI) niemals überschreiben. Der Wert
+  // ist ein DEV-PLATZHALTER, damit der Aufladen-Tab im Browser-Test sofort einen
+  // Link zeigt; Laura ersetzt ihn in B2k durch ihren echten paypal.me-Namen.
+  if (!user.paypalMeLink) {
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: { paypalMeLink: 'laurasauer' },
+    });
+    console.log(`💸 paypal.me-Platzhalter gesetzt: paypal.me/${user.paypalMeLink} (in B2k ersetzen)`);
+  }
+
   // Wenn das Passwort noch nicht gesetzt ist, einen frischen Invite erzeugen
   if (!user.passwordHash) {
     const { clear, hash } = generateInviteToken();

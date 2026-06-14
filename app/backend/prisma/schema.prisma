@@ -34,6 +34,9 @@ model User {
   erstellteTransaktionen             Transaktion[]       @relation("ErstellerTransaktionen")
   kassenTransaktionenAlsVerwalter    KassenTransaktion[] @relation("VerwalterKassenTransaktionen")
   erstellteKassenTransaktionen       KassenTransaktion[] @relation("ErstellerKassenTransaktionen")
+  aufladungsAnfragen                 AufladungsAnfrage[] @relation("UserAufladungsAnfragen")
+  zugewieseneAufladungsAnfragen      AufladungsAnfrage[] @relation("ZugewieseneAufladungsAnfragen")
+  entschiedeneAufladungsAnfragen     AufladungsAnfrage[] @relation("EntschiedeneAufladungsAnfragen")
 }
 
 model Invite {
@@ -103,6 +106,7 @@ model Transaktion {
   erstelltVon         User               @relation("ErstellerTransaktionen", fields: [erstelltVonId], references: [id])
   kassenTransaktionId String?            @unique
   kassenTransaktion   KassenTransaktion? @relation("MitgliedKassenKopplung", fields: [kassenTransaktionId], references: [id])
+  aufladungsAnfrage   AufladungsAnfrage? @relation("AnfrageTransaktion")
   createdAt           DateTime           @default(now())
 
   @@index([userId])
@@ -140,4 +144,37 @@ model KassenTransaktion {
   @@index([verwalterId])
   @@index([erstelltVonId])
   @@index([konto])
+}
+
+// PayPal-Aufladungs-Anfrage (KONFIGURATION.md §5.5, §6.5). State-Machine:
+// OFFEN → BESTAETIGT (gekoppelte Mitglieder- + Kassen-Buchung) | ABGELEHNT.
+// status als String + Zod (src/domain/aufladungs-status.ts), weil SQLite keine
+// Prisma-Enums kann.
+// zugewiesenerVerwalterId: der beim Abschicken zuständige Verwalter (in B2f
+// schlicht der/ein Admin; die echte Lastverteilung nach geringster Schuld kommt
+// in B2k — §6.9). Nur DIESER Verwalter bestätigt später seine Anfrage.
+// decidedById/decidedAt/adminNotiz: gesetzt bei Entscheidung (Ablehnen-Notiz
+// optional). transaktionId koppelt bei BESTAETIGT die erzeugte AUFLADUNG_PAYPAL-
+// Transaktion (1-1) — über die hängt via Transaktion.kassenTransaktionId auch
+// die Kassen-EINZAHLUNG dran.
+model AufladungsAnfrage {
+  id                      String       @id @default(cuid())
+  userId                  String
+  user                    User         @relation("UserAufladungsAnfragen", fields: [userId], references: [id], onDelete: Cascade)
+  betragCent              Int
+  status                  String       @default("OFFEN")
+  zugewiesenerVerwalterId String
+  zugewiesenerVerwalter   User         @relation("ZugewieseneAufladungsAnfragen", fields: [zugewiesenerVerwalterId], references: [id])
+  requestedAt             DateTime     @default(now())
+  decidedAt               DateTime?
+  decidedById             String?
+  decidedBy               User?        @relation("EntschiedeneAufladungsAnfragen", fields: [decidedById], references: [id])
+  adminNotiz              String?
+  transaktionId           String?      @unique
+  transaktion             Transaktion? @relation("AnfrageTransaktion", fields: [transaktionId], references: [id])
+
+  @@index([userId])
+  @@index([zugewiesenerVerwalterId])
+  @@index([decidedById])
+  @@index([status])
 }
