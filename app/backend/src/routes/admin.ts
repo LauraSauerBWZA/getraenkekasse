@@ -157,3 +157,57 @@ adminRouter.get('/admin/users/:id', async (req, res) => {
   const guthabenCent = await computeGuthabenCent(user.id);
   return res.json({ user: { ...user, guthabenCent }, transaktionen });
 });
+
+// POST /admin/korrektur — manuelle Guthaben-Korrektur eines Mitglieds (B2g, §4).
+// Legt NUR eine Mitglieder-Transaktion an (typ=KORREKTUR), bewusst OHNE
+// gekoppelte Kassen-Buchung: eine Korrektur verändert absichtlich die Deckung;
+// reales Geld bucht der Verwalter separat auf Kassen-Ebene (B2i). Konsistent mit
+// „Buchen bewegt kein Kassengeld".
+// betragCent: ganzzahlig, ≠ 0, darf negativ sein (Korrektur nach unten, §6.6).
+// notiz: Pflicht (§5.3). Live-Saldo (§6.1) verrechnet die Korrektur automatisch.
+const korrekturSchema = z.object({
+  userId: z.string().min(1),
+  betragCent: z.number().int(),
+  notiz: z.string(),
+});
+
+adminRouter.post('/admin/korrektur', async (req, res) => {
+  const parsed = korrekturSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res
+      .status(400)
+      .json({ error: 'Ungültige Eingaben.', details: parsed.error.flatten() });
+  }
+  const betragCent = parsed.data.betragCent;
+  if (betragCent === 0) {
+    return res.status(400).json({ error: 'Korrektur-Betrag darf nicht 0 sein.' });
+  }
+  const notiz = parsed.data.notiz.trim();
+  if (!notiz) {
+    return res.status(400).json({ error: 'Notiz ist bei einer Korrektur Pflicht.' });
+  }
+
+  const mitglied = await prisma.user.findUnique({ where: { id: parsed.data.userId } });
+  if (!mitglied) return res.status(404).json({ error: 'Mitglied nicht gefunden.' });
+  if (!mitglied.isActive) {
+    return res.status(400).json({ error: 'Mitglied ist deaktiviert — keine Korrektur möglich.' });
+  }
+
+  const adminId = req.auth!.sub;
+  const transaktion = await prisma.transaktion.create({
+    data: {
+      typ: 'KORREKTUR',
+      userId: mitglied.id,
+      erstelltVonId: adminId,
+      betragCent,
+      notiz,
+    },
+  });
+
+  const guthabenCent = await computeGuthabenCent(mitglied.id);
+  logger.info(
+    { mitgliedId: mitglied.id, adminId, betragCent, transaktionId: transaktion.id },
+    'Guthaben-Korrektur gebucht.',
+  );
+  return res.status(201).json({ transaktion, guthabenCent });
+});

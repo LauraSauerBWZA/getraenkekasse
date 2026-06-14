@@ -1272,3 +1272,106 @@ describe('Mitglied-Detail (Admin)', () => {
     expect(offen).toBeTruthy();
   });
 });
+
+// B2g.2 — Manuelle Guthaben-Korrektur (nur Mitglieder-Transaktion, keine Kasse).
+// Stand: Max-Guthaben -150.
+describe('Guthaben-Korrektur (Admin)', () => {
+  let maxId: string;
+  let lauraId: string;
+
+  it('Setup: IDs', async () => {
+    maxId = (await memberAgent.get('/auth/me')).body.user.id;
+    lauraId = (await agent.get('/auth/me')).body.user.id;
+  });
+
+  it('lehnt Korrektur ohne Login / ohne Admin ab', async () => {
+    const anon = supertest.agent(app);
+    expect(
+      (await anon.post('/admin/korrektur').send({ userId: maxId, betragCent: 100, notiz: 'x' }))
+        .status,
+    ).toBe(401);
+    expect(
+      (await memberAgent
+        .post('/admin/korrektur')
+        .send({ userId: maxId, betragCent: 100, notiz: 'x' })).status,
+    ).toBe(403);
+  });
+
+  it('lehnt Betrag 0 ab', async () => {
+    const r = await agent
+      .post('/admin/korrektur')
+      .send({ userId: maxId, betragCent: 0, notiz: 'Ausgleich' });
+    expect(r.status).toBe(400);
+  });
+
+  it('lehnt nicht-ganzzahligen Betrag ab', async () => {
+    const r = await agent
+      .post('/admin/korrektur')
+      .send({ userId: maxId, betragCent: 12.5, notiz: 'Ausgleich' });
+    expect(r.status).toBe(400);
+  });
+
+  it('lehnt fehlende / leere Notiz ab', async () => {
+    const r1 = await agent.post('/admin/korrektur').send({ userId: maxId, betragCent: 100 });
+    expect(r1.status).toBe(400);
+    const r2 = await agent
+      .post('/admin/korrektur')
+      .send({ userId: maxId, betragCent: 100, notiz: '   ' });
+    expect(r2.status).toBe(400);
+    expect(r2.body.error).toMatch(/notiz/i);
+  });
+
+  it('lehnt unbekanntes Mitglied ab', async () => {
+    const r = await agent
+      .post('/admin/korrektur')
+      .send({ userId: 'gibts-nicht', betragCent: 100, notiz: 'x' });
+    expect(r.status).toBe(404);
+  });
+
+  it('Korrektur nach oben: legt KORREKTUR an + erhöht den Live-Saldo', async () => {
+    // Max -150 → +500 → 350
+    const r = await agent
+      .post('/admin/korrektur')
+      .send({ userId: maxId, betragCent: 500, notiz: 'Kassensturz-Ausgleich' });
+    expect(r.status).toBe(201);
+    expect(r.body.transaktion).toMatchObject({
+      typ: 'KORREKTUR',
+      userId: maxId,
+      erstelltVonId: lauraId,
+      betragCent: 500,
+      notiz: 'Kassensturz-Ausgleich',
+    });
+    expect(r.body.guthabenCent).toBe(350);
+    const me = await memberAgent.get('/auth/me');
+    expect(me.body.user.guthabenCent).toBe(350);
+  });
+
+  it('Korrektur nach unten: negativer Betrag senkt den Saldo', async () => {
+    // 350 → -200 → 150
+    const r = await agent
+      .post('/admin/korrektur')
+      .send({ userId: maxId, betragCent: -200, notiz: 'Doppelbuchung zurück' });
+    expect(r.status).toBe(201);
+    expect(r.body.transaktion.betragCent).toBe(-200);
+    expect(r.body.guthabenCent).toBe(150);
+  });
+
+  it('erzeugt KEINE Kassen-Buchung', async () => {
+    const kasseVor = await prisma.kassenTransaktion.count();
+    const r = await agent
+      .post('/admin/korrektur')
+      .send({ userId: maxId, betragCent: 100, notiz: 'Test ohne Kasse' });
+    expect(r.status).toBe(201);
+    expect(await prisma.kassenTransaktion.count()).toBe(kasseVor);
+  });
+
+  it('die Korrektur taucht in der Detail-Historie auf', async () => {
+    const r = await agent.get(`/admin/users/${maxId}`);
+    const korrektur = r.body.transaktionen.find(
+      (t: { typ: string; notiz: string | null }) =>
+        t.typ === 'KORREKTUR' && t.notiz === 'Kassensturz-Ausgleich',
+    );
+    expect(korrektur).toBeTruthy();
+    expect(korrektur.stornierbar).toBe(true);
+  });
+});
