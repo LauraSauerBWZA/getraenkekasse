@@ -280,3 +280,43 @@ adminRouter.patch('/admin/users/:id/admin', async (req, res) => {
   );
   return res.json({ user });
 });
+
+// PATCH /admin/me/paypal — der eingeloggte Verwalter pflegt SEINEN eigenen
+// paypal.me-Link (§3, B2k). Immer nur der eigene (req.auth.sub), nie fremde.
+// Gespeichert wird der reine Handle (ohne protocol / „paypal.me/"), damit das
+// Frontend `paypal.me/{handle}/{betrag}` bauen kann. Leeren via null/"" → null.
+function normalizePaypalHandle(raw: string | null): string | null {
+  if (raw == null) return null;
+  const s = raw
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/^paypal\.me\//i, '')
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '');
+  return s || null;
+}
+
+const paypalSchema = z.object({ paypalMeLink: z.string().nullable() });
+
+adminRouter.patch('/admin/me/paypal', async (req, res) => {
+  const parsed = paypalSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res
+      .status(400)
+      .json({ error: 'Ungültige Eingaben.', details: parsed.error.flatten() });
+  }
+  const handle = normalizePaypalHandle(parsed.data.paypalMeLink);
+  if (handle && !/^[A-Za-z0-9._-]+$/.test(handle)) {
+    return res
+      .status(400)
+      .json({ error: 'Ungültiger paypal.me-Link — nur der Nutzername bzw. paypal.me/name.' });
+  }
+
+  const user = await prisma.user.update({
+    where: { id: req.auth!.sub },
+    data: { paypalMeLink: handle },
+    select: { id: true, paypalMeLink: true },
+  });
+  logger.info({ adminId: user.id, hatLink: handle !== null }, 'paypal.me-Link gepflegt.');
+  return res.json({ user });
+});

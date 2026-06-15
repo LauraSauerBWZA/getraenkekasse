@@ -20,6 +20,7 @@ async function publicUser(u: {
   lastName: string;
   isAdmin: boolean;
   isLeitung: boolean;
+  paypalMeLink: string | null;
   isActive: boolean;
 }) {
   return {
@@ -30,6 +31,7 @@ async function publicUser(u: {
     guthabenCent: await computeGuthabenCent(u.id),
     isAdmin: u.isAdmin,
     isLeitung: u.isLeitung,
+    paypalMeLink: u.paypalMeLink,
     isActive: u.isActive,
   };
 }

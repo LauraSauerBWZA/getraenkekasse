@@ -1808,3 +1808,44 @@ describe('Verwalter ernennen (Admin)', () => {
     expect((await memberAgent.get('/admin/users')).status).toBe(403);
   });
 });
+
+// B2k.2 — paypal.me-Profil (eigener Link). Am Ende auf 'laura-test'
+// zurückgesetzt, damit der Stand für die Lastverteilung-Tests vorhersehbar ist.
+describe('paypal.me-Profil (eigener Link)', () => {
+  it('lehnt das Pflegen ohne Admin-Recht ab (403)', async () => {
+    const r = await memberAgent.patch('/admin/me/paypal').send({ paypalMeLink: 'max' });
+    expect(r.status).toBe(403);
+  });
+
+  it('setzt den eigenen Link und normalisiert auf den Handle', async () => {
+    const r = await agent.patch('/admin/me/paypal').send({ paypalMeLink: 'https://paypal.me/laura-neu' });
+    expect(r.status).toBe(200);
+    expect(r.body.user.paypalMeLink).toBe('laura-neu');
+    // /me liefert den Link mit
+    expect((await agent.get('/auth/me')).body.user.paypalMeLink).toBe('laura-neu');
+  });
+
+  it('ändert den Link', async () => {
+    const r = await agent.patch('/admin/me/paypal').send({ paypalMeLink: 'paypal.me/laura2' });
+    expect(r.status).toBe(200);
+    expect(r.body.user.paypalMeLink).toBe('laura2');
+  });
+
+  it('leert den Link (null)', async () => {
+    const r = await agent.patch('/admin/me/paypal').send({ paypalMeLink: null });
+    expect(r.status).toBe(200);
+    expect(r.body.user.paypalMeLink).toBeNull();
+    expect((await agent.get('/auth/me')).body.user.paypalMeLink).toBeNull();
+  });
+
+  it('lehnt einen ungültigen Link ab (400)', async () => {
+    const r = await agent.patch('/admin/me/paypal').send({ paypalMeLink: 'hat leerzeichen' });
+    expect(r.status).toBe(400);
+  });
+
+  it('Restore: Lauras Link auf laura-test', async () => {
+    const r = await agent.patch('/admin/me/paypal').send({ paypalMeLink: 'laura-test' });
+    expect(r.status).toBe(200);
+    expect(r.body.user.paypalMeLink).toBe('laura-test');
+  });
+});
