@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Glass, GlassButton } from '../components/primitives';
+import { EmptyState, Glass, GlassButton, Loading } from '../components/primitives';
 import { ScrollList } from '../components/ScrollList';
 import { api, ApiError, type SortenStat, type SortenStatistik, type StatistikZeitraum } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -95,15 +95,9 @@ export default function Sortenstatistik() {
           <div style={{ fontSize: 12, color: 'var(--bwza-rescue-soft)' }}>{loadError}</div>
         </Glass>
       ) : loading && !data ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>Lädt …</div>
-        </Glass>
+        <Loading />
       ) : data && data.sorten.length === 0 ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '18px 16px' }}>
-          <div style={{ fontSize: 13, color: 'var(--bwza-ink-mute)' }}>
-            In diesem Zeitraum wurden keine Getränke gebucht.
-          </div>
-        </Glass>
+        <EmptyState title="Keine Buchungen" sub="In diesem Zeitraum wurde nichts gebucht." />
       ) : data ? (
         <>
           <Glass tone="amber" style={{ borderRadius: 18, padding: '14px 16px', marginBottom: 12 }}>

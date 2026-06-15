@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Glass, GlassButton, GlassInput } from '../components/primitives';
+import { EmptyState, Glass, GlassButton, GlassInput, Loading } from '../components/primitives';
 import { ScrollList } from '../components/ScrollList';
 import { api, ApiError, formatGuthaben, type AdminAnfrage } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -96,15 +96,9 @@ export default function AdminAufladungAnfragen() {
           <div style={{ fontSize: 12, color: 'var(--bwza-rescue-soft)' }}>{loadError}</div>
         </Glass>
       ) : anfragen === null ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>Lädt …</div>
-        </Glass>
+        <Loading />
       ) : anfragen.length === 0 ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '18px 16px' }}>
-          <div style={{ fontSize: 13, color: 'var(--bwza-ink-mute)' }}>
-            Keine offenen Anfragen.
-          </div>
-        </Glass>
+        <EmptyState title="Keine offenen Anfragen" sub="Neue PayPal-Anfragen deiner Mitglieder erscheinen hier." />
       ) : (
         <ScrollList>
           {anfragen.map((a) => (

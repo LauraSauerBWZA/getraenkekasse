@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Glass, GlassButton } from '../components/primitives';
+import { EmptyState, Glass, GlassButton, Loading } from '../components/primitives';
 import {
   api,
   ApiError,
@@ -291,13 +291,9 @@ function Historie({ historie }: { historie: KassenHistorieEintrag[] | null }) {
       </div>
 
       {historie === null ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>Lädt …</div>
-        </Glass>
+        <Loading />
       ) : historie.length === 0 ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>Noch keine Bewegungen.</div>
-        </Glass>
+        <EmptyState title="Noch keine Bewegungen" sub="Kassen-Buchungen erscheinen hier." />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {historie.map((b) => (

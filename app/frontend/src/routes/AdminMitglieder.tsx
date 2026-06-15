@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Glass, GlassButton, GlassInput } from '../components/primitives';
+import { EmptyState, Glass, GlassButton, GlassInput, Loading } from '../components/primitives';
+import { ScrollList } from '../components/ScrollList';
 import { api, ApiError, formatGuthaben, type AdminUser } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
@@ -74,19 +75,15 @@ export default function AdminMitglieder() {
           <div style={{ fontSize: 12, color: 'var(--bwza-rescue-soft)' }}>{loadError}</div>
         </Glass>
       ) : gefiltert === null ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>Lädt …</div>
-        </Glass>
+        <Loading />
       ) : gefiltert.length === 0 ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>Keine Treffer.</div>
-        </Glass>
+        <EmptyState title="Keine Treffer" sub="Andere Suche probieren." />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <ScrollList>
           {gefiltert.map((u) => (
             <MemberRow key={u.id} user={u} onPick={() => navigate(`/admin/mitglieder/${u.id}`)} />
           ))}
-        </div>
+        </ScrollList>
       )}
 
       <div style={{ marginTop: 22 }}>

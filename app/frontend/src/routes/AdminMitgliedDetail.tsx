@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Glass, GlassButton, GlassInput } from '../components/primitives';
+import { EmptyState, Glass, GlassButton, GlassInput, Loading } from '../components/primitives';
 import { ScrollList } from '../components/ScrollList';
 import {
   api,
@@ -366,13 +366,9 @@ function Historie({ txs, onChanged }: { txs: DetailTransaktion[] | null; onChang
       </div>
 
       {txs === null ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>Lädt …</div>
-        </Glass>
+        <Loading />
       ) : txs.length === 0 ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>Noch keine Transaktionen.</div>
-        </Glass>
+        <EmptyState title="Noch keine Transaktionen" sub="Käufe, Aufladungen und Korrekturen erscheinen hier." />
       ) : (
         <ScrollList>
           {txs.map((t) => (

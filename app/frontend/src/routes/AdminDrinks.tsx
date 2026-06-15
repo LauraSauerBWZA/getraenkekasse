@@ -7,7 +7,7 @@ import {
   type FormEvent,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Glass, GlassButton, GlassInput } from '../components/primitives';
+import { EmptyState, Glass, GlassButton, GlassInput, Loading } from '../components/primitives';
 import {
   api,
   ApiError,
@@ -141,15 +141,9 @@ export default function AdminDrinks() {
           <div style={{ fontSize: 12, color: 'var(--bwza-rescue-soft)' }}>{loadError}</div>
         </Glass>
       ) : drinks === null ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>Lädt …</div>
-        </Glass>
+        <Loading />
       ) : drinks.length === 0 ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '18px 16px' }}>
-          <div style={{ fontSize: 13, color: 'var(--bwza-ink-mute)' }}>
-            Noch keine Drinks im Katalog.
-          </div>
-        </Glass>
+        <EmptyState title="Katalog ist leer" sub="Lege oben den ersten Drink an." />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
           {DRINK_KATEGORIEN.map((kat) => {

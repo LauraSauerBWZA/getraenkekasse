@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Glass, GlassButton, GlassInput } from '../components/primitives';
+import { EmptyState, Glass, GlassButton, GlassInput, Loading, StatusChip } from '../components/primitives';
 import { ScrollList } from '../components/ScrollList';
 import { api, ApiError, type AdminInvite } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -17,10 +17,10 @@ const STATUS_LABEL: Record<AdminInvite['status'], string> = {
   abgelaufen: 'abgelaufen',
 };
 
-const STATUS_COLOR: Record<AdminInvite['status'], string> = {
-  offen: 'oklch(70% 0.16 70)',
-  eingeloest: 'oklch(72% 0.14 145)',
-  abgelaufen: 'oklch(58% 0.18 25)',
+const STATUS_TONE: Record<AdminInvite['status'], 'amber' | 'success' | 'rescue'> = {
+  offen: 'amber',
+  eingeloest: 'success',
+  abgelaufen: 'rescue',
 };
 
 function formatDate(iso: string): string {
@@ -608,15 +608,9 @@ function InviteList({
           <div style={{ fontSize: 12, color: 'var(--bwza-rescue-soft)' }}>{error}</div>
         </Glass>
       ) : invites === null ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>Lädt …</div>
-        </Glass>
+        <Loading />
       ) : invites.length === 0 ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>
-            Noch keine Invites erstellt.
-          </div>
-        </Glass>
+        <EmptyState title="Noch keine Invites" sub="Lade oben das erste Mitglied ein." />
       ) : (
         <ScrollList>
           {invites.map((inv) => (
@@ -629,7 +623,6 @@ function InviteList({
 }
 
 function InviteRow({ invite }: { invite: AdminInvite }) {
-  const color = STATUS_COLOR[invite.status];
   const dateLine =
     invite.status === 'eingeloest' && invite.redeemedAt
       ? `Eingelöst am ${formatDate(invite.redeemedAt)}`
@@ -679,23 +672,7 @@ function InviteRow({ invite }: { invite: AdminInvite }) {
           {dateLine}
         </div>
       </div>
-      <StatusChip color={color} label={STATUS_LABEL[invite.status]} />
+      <StatusChip label={STATUS_LABEL[invite.status]} tone={STATUS_TONE[invite.status]} />
     </Glass>
   );
-}
-
-function StatusChip({ color, label }: { color: string; label: string }) {
-  const style: CSSProperties = {
-    flexShrink: 0,
-    padding: '4px 10px',
-    borderRadius: 999,
-    fontSize: 10.5,
-    fontWeight: 700,
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
-    color,
-    border: `1px solid ${color}`,
-    background: 'rgba(0,0,0,0.30)',
-  };
-  return <span style={style}>{label}</span>;
 }
