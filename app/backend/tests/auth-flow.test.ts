@@ -2093,3 +2093,68 @@ describe('Sortenstatistik (B3)', () => {
     expect(typeof r.body.gesamtUmsatzCent).toBe('number');
   });
 });
+
+// B4.1 — Eigene Transaktions-Historie. Frischer User Jana, strikt eigene Daten.
+describe('Eigene Historie /me/transaktionen (B4)', () => {
+  const janaAgent = supertest.agent(app);
+  let janaId: string;
+
+  it('Setup: Jana + Login + eigene Transaktionen (inkl. Storno)', async () => {
+    const u = await prisma.user.create({
+      data: { email: 'jana@example.com', firstName: 'Jana', lastName: 'J' },
+    });
+    janaId = u.id;
+    const inv = generateInviteToken();
+    await prisma.invite.create({ data: { tokenHash: inv.hash, userId: u.id, expiresAt: inviteExpiry() } });
+    const r = await janaAgent.post('/auth/invite-redeem').send({ token: inv.clear, password: 'Jana-Pferd-9' });
+    expect(r.status).toBe(200);
+
+    const drink = await prisma.drink.create({
+      data: { name: 'Jana-Limo', preisCent: 150, kategorie: 'alkoholfrei' },
+    });
+    await prisma.transaktion.create({
+      data: { typ: 'AUFLADUNG_BARGELD', userId: janaId, erstelltVonId: janaId, betragCent: 2000, notiz: 'Start' },
+    });
+    await prisma.transaktion.create({
+      data: { typ: 'KAUF', userId: janaId, erstelltVonId: janaId, drinkId: drink.id, preisAtKaufCent: 150, betragCent: -150 },
+    });
+    const kauf2 = await prisma.transaktion.create({
+      data: { typ: 'KAUF', userId: janaId, erstelltVonId: janaId, drinkId: drink.id, preisAtKaufCent: 150, betragCent: -150 },
+    });
+    await prisma.transaktion.create({
+      data: { typ: 'STORNO', userId: janaId, erstelltVonId: janaId, stornoVonId: kauf2.id, betragCent: 150, notiz: 'undo' },
+    });
+  });
+
+  it('lehnt ohne Login ab (401)', async () => {
+    const anon = supertest.agent(app);
+    expect((await anon.get('/me/transaktionen')).status).toBe(401);
+  });
+
+  it('liefert eigene Historie desc + storniert-Flag + drinkName + dabeiSeitTage', async () => {
+    const r = await janaAgent.get('/me/transaktionen');
+    expect(r.status).toBe(200);
+    const txs = r.body.transaktionen as Array<{
+      typ: string;
+      drinkName: string | null;
+      storniert: boolean;
+      createdAt: string;
+    }>;
+    // chronologisch absteigend
+    const zeiten = txs.map((t) => new Date(t.createdAt).getTime());
+    expect(zeiten).toEqual([...zeiten].sort((a, b) => b - a));
+    // der stornierte Kauf ist markiert
+    expect(txs.some((t) => t.typ === 'KAUF' && t.storniert)).toBe(true);
+    // Drink-Name bei KAUF sichtbar
+    expect(txs.some((t) => t.drinkName === 'Jana-Limo')).toBe(true);
+    expect(typeof r.body.dabeiSeitTage).toBe('number');
+    // kein userId-Leak im Payload
+    expect(JSON.stringify(txs)).not.toMatch(/"userId"/);
+  });
+
+  it('zeigt NUR eigene Daten — Max sieht Janas Buchungen nicht', async () => {
+    const maxRes = await memberAgent.get('/me/transaktionen');
+    const maxTxs = maxRes.body.transaktionen as Array<{ drinkName: string | null }>;
+    expect(maxTxs.every((t) => t.drinkName !== 'Jana-Limo')).toBe(true);
+  });
+});

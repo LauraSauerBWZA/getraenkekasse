@@ -11,6 +11,7 @@ import { buchenRouter } from './routes/buchen.js';
 import { aufladungRouter } from './routes/aufladung.js';
 import { kasseRouter } from './routes/kasse.js';
 import { statistikRouter } from './routes/statistik.js';
+import { journalRouter } from './routes/journal.js';
 
 export function buildApp() {
   const app = express();
@@ -27,6 +28,7 @@ export function buildApp() {
   app.use(healthRouter);
   app.use(authRouter);
   app.use(buchenRouter);
+  app.use(journalRouter);
   // aufladungRouter VOR adminRouter: adminRouter setzt sein requireAdmin global
   // an Mount '/' und würde sonst die Mitglieder-Endpoints (/aufladung/*) mit 403
   // abfangen, bevor sie hier ankommen. Die Admin-Routen in aufladungRouter haben
