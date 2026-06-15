@@ -126,6 +126,15 @@ export default function AdminMitgliedDetail() {
 
       {detail && <KorrekturCard userId={detail.id} onDone={() => void load()} />}
 
+      {detail && (
+        <LeitungToggle
+          userId={detail.id}
+          isLeitung={detail.isLeitung}
+          isAdmin={detail.isAdmin}
+          onDone={() => void load()}
+        />
+      )}
+
       <Historie txs={txs} onChanged={() => void load()} />
 
       <div style={{ marginTop: 22 }}>
@@ -223,6 +232,62 @@ function KorrekturCard({ userId, onDone }: { userId: string; onDone: () => void 
         </div>
       </Glass>
     </form>
+  );
+}
+
+// Admin-Toggle „Leitung-Recht" (B2j). Setzt nur isLeitung; Verwalter ernennen
+// (isAdmin) ist B2k und hier bewusst nicht möglich.
+function LeitungToggle({
+  userId,
+  isLeitung,
+  isAdmin,
+  onDone,
+}: {
+  userId: string;
+  isLeitung: boolean;
+  isAdmin: boolean;
+  onDone: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const toggle = async () => {
+    setErr(null);
+    setBusy(true);
+    try {
+      await api.adminSetLeitung(userId, !isLeitung);
+      onDone();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Leitung-Recht konnte nicht geändert werden.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px', marginTop: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div className="bwza-eyebrow">Leitung-Recht</div>
+          <div style={{ marginTop: 3, fontSize: 12, color: 'var(--bwza-ink-dim)', lineHeight: 1.45 }}>
+            {isLeitung
+              ? 'Hat read-only Kassen-Einsicht (Vermögen, Töpfe, Deckung, Historie).'
+              : 'Ohne Kassen-Einsicht. Vergeben gibt read-only Finanz-Überblick.'}
+            {isAdmin && ' Admins sehen die Kasse ohnehin voll.'}
+          </div>
+          {err && (
+            <div style={{ marginTop: 4, fontSize: 11, color: 'var(--bwza-rescue-soft)' }}>{err}</div>
+          )}
+        </div>
+        <GlassButton
+          variant={isLeitung ? 'ghost' : 'primary'}
+          size="sm"
+          disabled={busy}
+          onClick={() => void toggle()}
+        >
+          {busy ? '…' : isLeitung ? 'Entziehen' : 'Vergeben'}
+        </GlassButton>
+      </div>
+    </Glass>
   );
 }
 

@@ -10,6 +10,7 @@ import AdminAufladungAnfragen from './routes/AdminAufladungAnfragen';
 import AdminMitglieder from './routes/AdminMitglieder';
 import AdminMitgliedDetail from './routes/AdminMitgliedDetail';
 import AdminKasse from './routes/AdminKasse';
+import LeitungKasse from './routes/LeitungKasse';
 import Buchen from './routes/Buchen';
 import Aufladen from './routes/Aufladen';
 
@@ -29,6 +30,12 @@ function Protected({ children }: { children: JSX.Element }) {
 function AdminOnly({ children }: { children: JSX.Element }) {
   const { user } = useAuth();
   if (!user?.isAdmin) return <Navigate to="/" replace />;
+  return children;
+}
+
+function AdminOrLeitungOnly({ children }: { children: JSX.Element }) {
+  const { user } = useAuth();
+  if (!user?.isAdmin && !user?.isLeitung) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -133,6 +140,16 @@ export default function App() {
             <AdminOnly>
               <AdminKasse />
             </AdminOnly>
+          </Protected>
+        }
+      />
+      <Route
+        path="/leitung"
+        element={
+          <Protected>
+            <AdminOrLeitungOnly>
+              <LeitungKasse />
+            </AdminOrLeitungOnly>
           </Protected>
         }
       />

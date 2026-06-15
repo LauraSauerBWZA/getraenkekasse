@@ -7,6 +7,7 @@ export interface ApiUser {
   lastName: string;
   guthabenCent: number;
   isAdmin: boolean;
+  isLeitung: boolean;
   isActive: boolean;
 }
 
@@ -275,7 +276,13 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  // Admin: Kassen-Kennzahlen (Töpfe, Box, Vermögen, Deckung)
+  // Admin: Leitung-Recht vergeben/entziehen (nur isLeitung, nicht isAdmin)
+  adminSetLeitung: (id: string, isLeitung: boolean) =>
+    request<{ user: { id: string; firstName: string; lastName: string; isAdmin: boolean; isLeitung: boolean } }>(
+      `/admin/users/${id}/leitung`,
+      { method: 'PATCH', body: JSON.stringify({ isLeitung }) },
+    ),
+  // Admin ODER Leitung: Kassen-Kennzahlen (Töpfe, Box, Vermögen, Deckung)
   adminKasseSummary: () => request<KassenSummary>('/admin/kasse/summary'),
   // Admin: Kassen-Historie (alle Bewegungen chronologisch)
   adminKasseHistorie: () =>
