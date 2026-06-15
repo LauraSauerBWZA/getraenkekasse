@@ -1,4 +1,9 @@
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+// Relativer Pfad über den Vite-Dev-Proxy (`/api` → Backend, siehe vite.config).
+// So gehen API-Calls immer an DENSELBEN Origin, von dem die Seite geladen wurde
+// (localhost ODER LAN-IP); Vite proxyt sie serverseitig ans Backend. Kein
+// hartkodiertes localhost mehr → funktioniert vom Handy im WLAN, ohne Cross-
+// Origin/CORS/Cookie-Probleme. Override via VITE_API_URL (z.B. für Prod-Deploy).
+const BASE = import.meta.env.VITE_API_URL ?? '/api';
 
 export interface ApiUser {
   id: string;
