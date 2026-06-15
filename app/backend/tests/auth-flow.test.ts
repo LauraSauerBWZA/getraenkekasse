@@ -2158,3 +2158,107 @@ describe('Eigene Historie /me/transaktionen (B4)', () => {
     expect(maxTxs.every((t) => t.drinkName !== 'Jana-Limo')).toBe(true);
   });
 });
+
+// B4.2 — Trinkjournal-Stats. Synthetische Mehrtage-Daten (explizite createdAt)
+// für Streak/Pause; frische User, isoliert.
+describe('Trinkjournal /journal (B4)', () => {
+  let saftId: string;
+
+  async function neuerUserAgent(email: string, firstName: string) {
+    const u = await prisma.user.create({ data: { email, firstName, lastName: 'T' } });
+    const inv = generateInviteToken();
+    await prisma.invite.create({ data: { tokenHash: inv.hash, userId: u.id, expiresAt: inviteExpiry() } });
+    const ag = supertest.agent(app);
+    const r = await ag.post('/auth/invite-redeem').send({ token: inv.clear, password: 'Journal-Pferd-9' });
+    expect(r.status).toBe(200);
+    return { id: u.id, ag };
+  }
+  async function kaufVor(userId: string, tageZurueck: number) {
+    return prisma.transaktion.create({
+      data: {
+        typ: 'KAUF',
+        userId,
+        erstelltVonId: userId,
+        drinkId: saftId,
+        preisAtKaufCent: 200,
+        betragCent: -200,
+        createdAt: new Date(Date.now() - tageZurueck * 86_400_000),
+      },
+    });
+  }
+
+  it('Setup: Drink', async () => {
+    const d = await prisma.drink.create({ data: { name: 'Journal-Saft', preisCent: 200, kategorie: 'alkoholfrei' } });
+    saftId = d.id;
+  });
+
+  it('lehnt /journal ohne Login ab (401)', async () => {
+    const anon = supertest.agent(app);
+    expect((await anon.get('/journal')).status).toBe(401);
+  });
+
+  it('Streak/Pause/Hero/Achievements aus synthetischen Mehrtage-Daten', async () => {
+    const { id, ag } = await neuerUserAgent('tobi@example.com', 'Tobi');
+    // heute: 3 gültige + 1 stornierter; gestern: 1; vorgestern: 1; vor 6 Tagen: 1
+    await kaufVor(id, 0);
+    await kaufVor(id, 0);
+    await kaufVor(id, 0);
+    const storno = await kaufVor(id, 0);
+    await prisma.transaktion.create({
+      data: { typ: 'STORNO', userId: id, erstelltVonId: id, stornoVonId: storno.id, betragCent: 200, notiz: 'undo' },
+    });
+    await kaufVor(id, 1);
+    await kaufVor(id, 2);
+    await kaufVor(id, 6);
+    // Aufladung für den Hamster (Guthaben > 50 €)
+    await prisma.transaktion.create({
+      data: { typ: 'AUFLADUNG_BARGELD', userId: id, erstelltVonId: id, betragCent: 10000, notiz: 'Start' },
+    });
+
+    const r = await ag.get('/journal');
+    expect(r.status).toBe(200);
+    // 6 gültige Käufe (4 heute − 1 storniert = 3, + gestern + vorgestern + vor 6 Tagen)
+    expect(r.body.gesamtKaeufe).toBe(6);
+    // Streak: heute, gestern, vorgestern → 3 (Tag 3 fehlt)
+    expect(r.body.streak).toBe(3);
+    // Längste Pause: Tage 3/4/5 zwischen Tag 6 und Tag 2 → 3
+    expect(r.body.laengstePause).toBe(3);
+    // Heutiger Verlaufs-Balken zählt 3 (stornierter nicht)
+    const heuteKey = new Date().toISOString().slice(0, 10);
+    const heuteBalken = r.body.verlauf30.find((v: { datum: string }) => v.datum === heuteKey);
+    expect(heuteBalken.anzahl).toBe(3);
+    expect(r.body.verlauf30).toHaveLength(30);
+    // diese Woche + Monat enthalten mindestens die heutigen 3
+    expect(r.body.dieseWoche).toBeGreaterThanOrEqual(3);
+    expect(r.body.heroMonat).toBeGreaterThanOrEqual(3);
+
+    const ach = (key: string) => r.body.achievements.find((a: { key: string }) => a.key === key);
+    expect(ach('erstbesteigung').freigeschaltet).toBe(true);
+    expect(ach('huettenabend').freigeschaltet).toBe(true); // 3 an einem Tag
+    expect(ach('trockenwoche').freigeschaltet).toBe(false); // Pause 3 < 7
+    expect(ach('tourenrucksack').freigeschaltet).toBe(false); // 6 < 20
+    expect(ach('stammgast').freigeschaltet).toBe(false); // 6 < 100
+    expect(ach('hamster').freigeschaltet).toBe(true); // Guthaben 10000 − 1200 > 5000
+    expect(ach('seilschaft')).toMatchObject({ freigeschaltet: false, gesperrt: true });
+  });
+
+  it('Trockenwoche schaltet bei Pause ≥ 7 frei; Streak bleibt korrekt', async () => {
+    const { id, ag } = await neuerUserAgent('uwe@example.com', 'Uwe');
+    await kaufVor(id, 0); // heute
+    await kaufVor(id, 10); // vor 10 Tagen → Lücke Tag 1..9 = 9 Tage
+    const r = await ag.get('/journal');
+    expect(r.body.laengstePause).toBe(9);
+    expect(r.body.achievements.find((a: { key: string }) => a.key === 'trockenwoche').freigeschaltet).toBe(true);
+    expect(r.body.streak).toBe(1); // nur heute (gestern keine Buchung)
+  });
+
+  it('leeres Journal: keine Käufe → Streak 0, Pause 0, nichts außer Erstbesteigung-Lock', async () => {
+    const { ag } = await neuerUserAgent('vera@example.com', 'Vera');
+    const r = await ag.get('/journal');
+    expect(r.body.gesamtKaeufe).toBe(0);
+    expect(r.body.streak).toBe(0);
+    expect(r.body.laengstePause).toBe(0);
+    expect(r.body.heroMonat).toBe(0);
+    expect(r.body.achievements.find((a: { key: string }) => a.key === 'erstbesteigung').freigeschaltet).toBe(false);
+  });
+});
