@@ -1,57 +1,68 @@
 /* ================================================================
    Bergwacht Zollernalb · Getränkekasse — Design Tokens
-   Dark "bar after hours" aesthetic. All colors in OKLCH.
-   Drop this file into frontend/src/styles/ and import once in main.
+   B5c „Visual Redirection": kühl, mehrfarbig, echtes Glass, Inter.
+   (löst die alte Amber/Fraunces/„Berghütten-Bar"-Ästhetik ab — Update 10)
    ================================================================ */
 
 :root {
-  /* ── Color · primary palette ───────────────────────────────── */
-  --bwza-amber:        oklch(78% 0.16 70);    /* whiskey lamp light */
-  --bwza-amber-deep:   oklch(64% 0.16 55);    /* primary button base */
-  --bwza-amber-glow:   oklch(85% 0.14 75);    /* highlight, focus */
-  --bwza-rescue:       oklch(58% 0.18 25);    /* danger / negative / admin warn */
-  --bwza-rescue-soft:  oklch(72% 0.12 25);    /* destructive hover */
-  --bwza-success:      oklch(72% 0.13 145);   /* topup confirmations */
+  /* ── Color · neue Palette ──────────────────────────────────── */
+  --bwza-teal:        #2BD4BC;  /* Primär: CTA, aktiv, Marke */
+  --bwza-teal-deep:   #1FB5A0;  /* Primär-Button-Basis */
+  --bwza-teal-ink:    #04342C;  /* Text auf Teal */
+  --bwza-blue:        #4D8EF7;  /* Info / weitere Kategorie */
+  --bwza-gold:        #F4B740;  /* „offen" / Warnung */
+  --bwza-green:       #34D399;  /* Aufladung / „bestätigt" / positiv */
+  --bwza-coral:       #FF5C61;  /* Schulden / Storno / Deckung negativ / „abgelehnt" */
 
-  /* ── Color · neutrals (warm-tinted) ────────────────────────── */
-  --bwza-ink:          oklch(96% 0.01 80);    /* primary text */
-  --bwza-ink-dim:      oklch(78% 0.02 80);    /* secondary text */
-  --bwza-ink-mute:     oklch(60% 0.02 80);    /* tertiary text, hints */
-  --bwza-ink-faint:    oklch(45% 0.015 80);   /* disabled, dividers */
+  /* Back-compat: alte Token-Namen → neue Semantik (Werte repurposed),
+     damit bestehende var(--bwza-*)-Referenzen automatisch mitziehen. */
+  --bwza-amber:        var(--bwza-teal);
+  --bwza-amber-deep:   var(--bwza-teal-deep);
+  --bwza-amber-glow:   #5EE6D2;
+  --bwza-rescue:       var(--bwza-coral);
+  --bwza-rescue-soft:  #FF8A8E;
+  --bwza-success:      var(--bwza-green);
+  --bwza-accent:       var(--bwza-teal);
 
-  /* ── Glass surfaces (use alpha-on-dark) ───────────────────── */
-  --bwza-glass:         rgba(18, 14, 10, 0.62);
-  --bwza-glass-raise:   rgba(40, 28, 20, 0.55);
-  --bwza-glass-amber:   rgba(80, 48, 22, 0.55);
-  --bwza-glass-line:    rgba(255, 210, 160, 0.15);
-  --bwza-glass-line-up: rgba(255, 210, 160, 0.20);
-  --bwza-glass-shine:   rgba(255, 225, 180, 0.08);
+  /* ── Color · neutrals (kühl) ───────────────────────────────── */
+  --bwza-ink:          #EEF1F4;  /* Haupttext, große Zahlen */
+  --bwza-ink-dim:      #9AA4B0;  /* Sekundärtext */
+  --bwza-ink-mute:     #6B7480;  /* Labels, Hints */
+  --bwza-ink-faint:    #454C55;  /* disabled, dividers */
+
+  /* ── Glass surfaces (weiß-alpha auf kühlem Grund) ──────────── */
+  --bwza-glass:         rgba(255, 255, 255, 0.05);  /* Karten */
+  --bwza-glass-raise:   rgba(255, 255, 255, 0.07);  /* betonte Flächen */
+  --bwza-glass-amber:   rgba(43, 212, 188, 0.08);   /* Hero/Akzent-Glas (teal-getönt) */
+  --bwza-glass-line:    rgba(255, 255, 255, 0.10);  /* Hairline-Border */
+  --bwza-glass-line-up: rgba(255, 255, 255, 0.16);
+  --bwza-glass-shine:   rgba(255, 255, 255, 0.20);  /* ShineEdge-Lichtkante */
 
   /* ── Background base ─────────────────────────────────────── */
-  --bwza-bg:           #0c0a08;
-  --bwza-bg-warm:      oklch(20% 0.03 60);
+  --bwza-bg:           #0D1116;  /* dunkler, kühler Charcoal */
+  --bwza-bg-warm:      #141922;  /* optionale Volltonebene (Card-Base) */
 
-  /* ── Radii ───────────────────────────────────────────────── */
+  /* ── Radii (großzügig) ───────────────────────────────────── */
   --bwza-radius-sm:  10px;
-  --bwza-radius-md:  16px;
-  --bwza-radius-lg:  22px;
-  --bwza-radius-xl:  28px;
+  --bwza-radius-md:  14px;
+  --bwza-radius-lg:  18px;
+  --bwza-radius-xl:  22px;
   --bwza-radius-pill: 9999px;
 
-  /* ── Shadows ─────────────────────────────────────────────── */
-  --bwza-shadow-card:   0 14px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,225,180,0.08);
-  --bwza-shadow-nav:    0 18px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,225,180,0.08);
-  --bwza-shadow-amber:  0 8px 24px rgba(217,138,74,0.40), inset 0 1px 0 rgba(255,255,255,0.45);
-  --bwza-shadow-rescue: 0 8px 24px rgba(216,90,70,0.35),  inset 0 1px 0 rgba(255,255,255,0.30);
-  --bwza-glow-amber:    0 0 30px rgba(217,138,74,0.25);
+  /* ── Shadows / Glow ──────────────────────────────────────── */
+  --bwza-shadow-card:   0 14px 30px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08);
+  --bwza-shadow-nav:    0 -8px 30px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08);
+  --bwza-shadow-amber:  0 8px 24px rgba(43,212,188,0.30), inset 0 1px 0 rgba(255,255,255,0.25);
+  --bwza-shadow-rescue: 0 8px 24px rgba(255,92,97,0.30),  inset 0 1px 0 rgba(255,255,255,0.20);
+  --bwza-glow-amber:    0 0 30px rgba(43,212,188,0.22);
 
-  /* ── Backdrop blur ───────────────────────────────────────── */
-  --bwza-blur-glass:  blur(20px) saturate(140%);
-  --bwza-blur-nav:    blur(24px) saturate(160%);
-  --bwza-blur-sheet:  blur(30px) saturate(160%);
+  /* ── Backdrop blur (echtes Milchglas, CSS-only) ──────────── */
+  --bwza-blur-glass:  blur(18px) saturate(120%);
+  --bwza-blur-nav:    blur(20px) saturate(130%);
+  --bwza-blur-sheet:  blur(22px) saturate(130%);
 
-  /* ── Typography ──────────────────────────────────────────── */
-  --bwza-font-display: 'Fraunces', Georgia, serif;
+  /* ── Typography — Inter durchgehend (Fraunces entfernt) ──── */
+  --bwza-font-display: 'Inter', system-ui, -apple-system, sans-serif;
   --bwza-font-ui:      'Inter', system-ui, -apple-system, sans-serif;
   --bwza-font-mono:    'JetBrains Mono', ui-monospace, monospace;
 
@@ -68,7 +79,7 @@
   --bwza-text-num:  52px; /* balance hero number */
 
   /* tracking */
-  --bwza-tracking-eyebrow: 1.4px;
+  --bwza-tracking-eyebrow: 2px;
 
   /* ── Spacing scale ───────────────────────────────────────── */
   --bwza-space-1:  4px;
@@ -95,14 +106,14 @@
 }
 
 /* Negative-balance utility for any numeric display */
-.bwza-neg { color: var(--bwza-rescue) !important; }
+.bwza-neg { color: var(--bwza-coral) !important; }
 
-/* Eyebrow / kicker label style */
+/* Eyebrow / kicker label style — Versalien, gesperrt */
 .bwza-eyebrow {
   font-family: var(--bwza-font-ui);
   font-size: var(--bwza-text-xxs);
   letter-spacing: var(--bwza-tracking-eyebrow);
   text-transform: uppercase;
   font-weight: 600;
-  color: var(--bwza-ink-dim);
+  color: var(--bwza-ink-mute);
 }

@@ -1,6 +1,6 @@
 # Konfiguration — Bergwacht Getränkekasse
 
-**Stand:** 15.06.2026 (Update 9: AUSLAGE gestrichen)
+**Stand:** 15.06.2026 (Update 10: Visual Redirection — kühl/mehrfarbig/Glass/Inter)
 **Status:** 🟢 Phase B1 abgeschlossen + verifiziert, Phase B2 vorbereitet
 
 ---
@@ -364,9 +364,9 @@ App-weit aggregiert, anonym. Zeitfilter, pro Drink Anzahl + Umsatz.
 
 ---
 
-## 8. Design-System (aus Design-Pack v2)
+## 8. Design-System (B5c „Visual Redirection", Update 10)
 
-**Tokens:** `--bwza-*`, OKLCH. **Fonts:** Fraunces (Display), Inter (UI), JetBrains Mono (Code). **Stil:** dunkle Berghütten-Bar, Glass, Amber. **Source of Truth:** `design/README_DESIGN.md` + `design/design-tokens.css`.
+**Tokens:** `--bwza-*`. **Fonts:** **Inter** durchgehend (Fraunces entfernt), JetBrains Mono nur für Code. **Stil:** kühl, mehrfarbig, echtes Glass (Backdrop-Blur + Lichtkante) auf dunklem Charcoal-Grund. **Palette:** Teal (Primär/CTA/aktiv), Blau (Info), Gold (offen/Warnung), Grün (Aufladung/bestätigt/positiv), Koralle (Schulden/Storno/Deckung negativ/abgelehnt). Großzahlen leicht (Weight 300), Beträge tabellarisch. **Source of Truth:** `design/README_DESIGN.md` + `design/design-tokens.css`. (Die Design-Pack-v2-Mockups zeigen den abgelösten Amber/Fraunces-Look — nur noch historisch.)
 
 **Primitives** (teils B1, Rest B5): Glass, ShineEdge, BergMark, Avatar, TopBar, BottomNav, GlassButton, GlassInput, PasswordInput, StatCard, Flash, EmptyState, Skeleton, DrinkPicker (B2b), DrinkConfirm (B2c), DrinkCatalogRow (B2b), ProfileDrawer, AdminBanner, AufladungsAnfrageRow (B2f), MitgliederSaldoRow (B2g), KassenBestandCard (B2i), KassenTransaktionRow (B2i), EinkaufSheet (B2i), VerwalterTopfRow (B2k), LeitungKassenView (B2j).
 
@@ -453,6 +453,16 @@ Außerdem: Form-Field-IDs auf Login fehlen → B5 Politur.
 ---
 
 ## 13. Änderungshistorie (kompakt)
+
+**Update 10 (15.06.2026):** Visual Redirection — kühl/mehrfarbig/Glass/Inter
+- Design-System neu definiert: dunkler kühler Charcoal-Grund, echtes Glass
+  (Backdrop-Blur + Lichtkante), **Inter durchgehend** (Fraunces entfernt).
+- Palette: Teal (Primär/CTA/aktiv), Blau (Info), Gold (offen), Grün (positiv/
+  bestätigt), Koralle (negativ/Storno/abgelehnt). Großzahlen Weight 300,
+  Beträge tabellarisch.
+- Token-Werte repurposed (Namen behalten) + neue semantische Tokens; reine
+  Frontend-Präsentation, keine Logik-/Daten-/Schema-Änderung.
+- (Vorher B5a Struktur/Bottom-Nav, B5b Primitive-Konsolidierung.)
 
 **Update 9 (15.06.2026):** AUSLAGE-Typ gestrichen
 - Redundant zu EINKAUF/ENTNAHME aus dem eigenen Verwalter-Topf (beide dürfen
