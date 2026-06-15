@@ -240,3 +240,43 @@ adminRouter.patch('/admin/users/:id/leitung', async (req, res) => {
   );
   return res.json({ user });
 });
+
+// PATCH /admin/users/:id/admin — Verwalter-Recht (isAdmin) vergeben/entziehen
+// (B2k, §4). requireAdmin (adminRouter-Gate). Setzt NUR `isAdmin`.
+// Letzter-Admin-Schutz: das Entziehen scheitert mit 400, wenn das Ziel der
+// letzte aktive Admin ist — die App darf nie ohne Verwalter dastehen. Sich
+// selbst entziehen ist erlaubt, solange ein weiterer aktiver Admin bleibt.
+const adminToggleSchema = z.object({ isAdmin: z.boolean() });
+
+adminRouter.patch('/admin/users/:id/admin', async (req, res) => {
+  const parsed = adminToggleSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res
+      .status(400)
+      .json({ error: 'Ungültige Eingaben.', details: parsed.error.flatten() });
+  }
+
+  const ziel = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!ziel) return res.status(404).json({ error: 'Mitglied nicht gefunden.' });
+
+  if (parsed.data.isAdmin === false && ziel.isAdmin && ziel.isActive) {
+    const aktiveAdmins = await prisma.user.count({ where: { isAdmin: true, isActive: true } });
+    if (aktiveAdmins <= 1) {
+      return res
+        .status(400)
+        .json({ error: 'Der letzte aktive Verwalter kann nicht entzogen werden.' });
+    }
+  }
+
+  const user = await prisma.user.update({
+    where: { id: ziel.id },
+    data: { isAdmin: parsed.data.isAdmin },
+    select: { id: true, firstName: true, lastName: true, isAdmin: true, isLeitung: true },
+  });
+
+  logger.info(
+    { mitgliedId: user.id, isAdmin: user.isAdmin, adminId: req.auth!.sub },
+    'Verwalter-Recht gesetzt.',
+  );
+  return res.json({ user });
+});

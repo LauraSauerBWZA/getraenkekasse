@@ -1754,3 +1754,57 @@ describe('Leitung-Recht vergeben (Admin)', () => {
     expect((await memberAgent.get('/admin/kasse/summary')).status).toBe(403);
   });
 });
+
+// B2k.1 — Verwalter ernennen (isAdmin-Toggle) + Letzter-Admin-Schutz. requireAdmin
+// ist jetzt DB-backed → Rechte wirken sofort ohne Re-Login. Baseline am Ende
+// wiederhergestellt (Laura einziger Admin, Max Mitglied).
+describe('Verwalter ernennen (Admin)', () => {
+  let lauraId: string;
+  let maxId: string;
+
+  it('Setup: IDs', async () => {
+    lauraId = (await agent.get('/auth/me')).body.user.id;
+    maxId = (await memberAgent.get('/auth/me')).body.user.id;
+  });
+
+  it('lehnt das Setzen ohne Admin-Recht ab (403)', async () => {
+    const r = await memberAgent.patch(`/admin/users/${maxId}/admin`).send({ isAdmin: true });
+    expect(r.status).toBe(403);
+  });
+
+  it('antwortet 404 bei unbekannter ID', async () => {
+    const r = await agent.patch('/admin/users/gibts-nicht/admin').send({ isAdmin: true });
+    expect(r.status).toBe(404);
+  });
+
+  it('lehnt ungültiges isAdmin ab (400)', async () => {
+    const r = await agent.patch(`/admin/users/${maxId}/admin`).send({});
+    expect(r.status).toBe(400);
+  });
+
+  it('Letzter-Admin-Schutz: der einzige aktive Admin kann sich nicht entziehen (400)', async () => {
+    const r = await agent.patch(`/admin/users/${lauraId}/admin`).send({ isAdmin: false });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/letzte/i);
+    // Laura ist weiter Admin
+    expect((await agent.get('/auth/me')).body.user.isAdmin).toBe(true);
+  });
+
+  it('ernennt Max zum Verwalter — wirkt sofort (ohne Re-Login)', async () => {
+    const r = await agent.patch(`/admin/users/${maxId}/admin`).send({ isAdmin: true });
+    expect(r.status).toBe(200);
+    expect(r.body.user).toMatchObject({ id: maxId, isAdmin: true });
+    // /me spiegelt es; und der Admin-Zugriff greift sofort trotz altem JWT
+    expect((await memberAgent.get('/auth/me')).body.user.isAdmin).toBe(true);
+    expect((await memberAgent.get('/admin/users')).status).toBe(200);
+  });
+
+  it('Selbst-Entzug erlaubt, solange ein weiterer Admin bleibt (Baseline-Restore)', async () => {
+    // Max (jetzt Admin) entzieht sich selbst — Laura bleibt Admin → erlaubt.
+    const r = await memberAgent.patch(`/admin/users/${maxId}/admin`).send({ isAdmin: false });
+    expect(r.status).toBe(200);
+    expect(r.body.user.isAdmin).toBe(false);
+    // Admin-Zugriff sofort weg
+    expect((await memberAgent.get('/admin/users')).status).toBe(403);
+  });
+});

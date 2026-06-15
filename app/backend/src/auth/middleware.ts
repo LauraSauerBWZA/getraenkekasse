@@ -28,21 +28,27 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   next();
 }
 
-export function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  if (!req.auth?.isAdmin) return res.status(403).json({ error: 'Nur für Admins.' });
-  next();
+// Rollen werden LIVE aus der DB gelesen, nicht aus dem JWT (das trägt nur einen
+// denormalisierten `isAdmin`-Claim vom Login-Zeitpunkt). So wirken Rechte-
+// Änderungen (Verwalter/Leitung ernennen ODER entziehen, B2j/B2k) sofort und es
+// gibt kein „entzogener Admin behält Rechte bis Token-Ablauf"-Loch. Inaktive
+// User fallen überall durch.
+async function ladeRolle(req: Request) {
+  return prisma.user.findUnique({
+    where: { id: req.auth!.sub },
+    select: { isAdmin: true, isLeitung: true, isActive: true },
+  });
+}
+
+export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  const user = await ladeRolle(req);
+  if (user?.isActive && user.isAdmin) return next();
+  return res.status(403).json({ error: 'Nur für Admins.' });
 }
 
 // Lesender Guard für die Kassen-Einsicht (B2j): erlaubt Admin ODER Leitung.
-// Das JWT trägt nur `isAdmin` — `isLeitung` wird daher per DB-Lookup geprüft,
-// wenn der User kein Admin ist. Vorteil: ein frisch vergebenes Leitung-Recht
-// wirkt ohne Re-Login (kein Token-Refresh nötig). Inaktive User fallen durch.
 export async function requireAdminOrLeitung(req: Request, res: Response, next: NextFunction) {
-  if (req.auth?.isAdmin) return next();
-  const user = await prisma.user.findUnique({
-    where: { id: req.auth!.sub },
-    select: { isLeitung: true, isActive: true },
-  });
-  if (user?.isLeitung && user.isActive) return next();
+  const user = await ladeRolle(req);
+  if (user?.isActive && (user.isAdmin || user.isLeitung)) return next();
   return res.status(403).json({ error: 'Nur für Admins oder Leitung.' });
 }
