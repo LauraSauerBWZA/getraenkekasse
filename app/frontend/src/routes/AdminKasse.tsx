@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Glass, GlassButton, GlassInput } from '../components/primitives';
+import { ScrollList } from '../components/ScrollList';
 import {
   api,
   ApiError,
@@ -344,11 +345,11 @@ function Historie({ historie }: { historie: KassenHistorieEintrag[] | null }) {
           <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>Noch keine Bewegungen.</div>
         </Glass>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <ScrollList>
           {historie.map((b) => (
             <HistorieRow key={b.id} eintrag={b} />
           ))}
-        </div>
+        </ScrollList>
       )}
     </div>
   );

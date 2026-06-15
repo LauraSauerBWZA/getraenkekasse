@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Glass, GlassButton } from '../components/primitives';
+import { ScrollList } from '../components/ScrollList';
 import { api, ApiError, type SortenStat, type SortenStatistik, type StatistikZeitraum } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
@@ -118,11 +119,11 @@ export default function Sortenstatistik() {
             </div>
           </Glass>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <ScrollList>
             {data.sorten.map((s) => (
               <SorteRow key={s.drinkId} sorte={s} maxAnzahl={maxAnzahl} />
             ))}
-          </div>
+          </ScrollList>
         </>
       ) : null}
 

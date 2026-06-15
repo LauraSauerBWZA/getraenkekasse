@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Glass, GlassButton } from '../components/primitives';
+import { ScrollList } from '../components/ScrollList';
 import {
   api,
   ApiError,
@@ -334,11 +335,11 @@ function Historie({ historie }: { historie: MeineHistorie | null }) {
         </Glass>
       ) : (
         <>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <ScrollList>
             {historie.transaktionen.map((t) => (
               <HistorieRow key={t.id} tx={t} />
             ))}
-          </div>
+          </ScrollList>
           <div style={{ marginTop: 14, fontSize: 12, color: 'var(--bwza-ink-mute)', textAlign: 'center' }}>
             Du bist seit <strong style={{ color: 'var(--bwza-ink-dim)' }}>{historie.dabeiSeitTage}</strong>{' '}
             {historie.dabeiSeitTage === 1 ? 'Tag' : 'Tagen'} dabei.

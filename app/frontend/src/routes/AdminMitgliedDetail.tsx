@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Glass, GlassButton, GlassInput } from '../components/primitives';
+import { ScrollList } from '../components/ScrollList';
 import {
   api,
   ApiError,
@@ -373,11 +374,11 @@ function Historie({ txs, onChanged }: { txs: DetailTransaktion[] | null; onChang
           <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>Noch keine Transaktionen.</div>
         </Glass>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <ScrollList>
           {txs.map((t) => (
             <TxRow key={t.id} tx={t} onChanged={onChanged} />
           ))}
-        </div>
+        </ScrollList>
       )}
     </div>
   );

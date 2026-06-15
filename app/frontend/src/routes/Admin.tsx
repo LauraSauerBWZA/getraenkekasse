@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Glass, GlassButton, GlassInput } from '../components/primitives';
+import { ScrollList } from '../components/ScrollList';
 import { api, ApiError, type AdminInvite } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
@@ -617,11 +618,11 @@ function InviteList({
           </div>
         </Glass>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <ScrollList>
           {invites.map((inv) => (
             <InviteRow key={inv.id} invite={inv} />
           ))}
-        </div>
+        </ScrollList>
       )}
     </div>
   );

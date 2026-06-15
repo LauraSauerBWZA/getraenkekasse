@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Glass, GlassButton, GlassInput } from '../components/primitives';
+import { ScrollList } from '../components/ScrollList';
 import { api, ApiError, formatGuthaben, type AdminAnfrage } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
@@ -105,11 +106,11 @@ export default function AdminAufladungAnfragen() {
           </div>
         </Glass>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <ScrollList>
           {anfragen.map((a) => (
             <AnfrageCard key={a.id} anfrage={a} onEntschieden={entfernen} />
           ))}
-        </div>
+        </ScrollList>
       )}
 
       <div style={{ marginTop: 22 }}>
