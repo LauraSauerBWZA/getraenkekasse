@@ -24,6 +24,12 @@ body {
 
 button { font-family: inherit; }
 
+/* Skeleton-Shimmer (B5b) — dezent, token-nah */
+@keyframes bwza-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* Vertikale Skelett-Bühne (mobile-first, 390px Optik) */
 .bwza-stage {
   min-height: 100%;

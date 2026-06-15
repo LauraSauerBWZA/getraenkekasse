@@ -322,3 +322,157 @@ export function PasswordInput({
     />
   );
 }
+
+// ─────────── Avatar (Initialen, Amber-Gradient) ───────────
+// Eine Quelle für den Avatar (vorher 2× inline dupliziert). Amber-Gradient =
+// der kanonische Primary-Akzent des Design-Systems.
+export function Avatar({
+  firstName,
+  lastName,
+  size = 38,
+  onClick,
+  ariaLabel,
+}: {
+  firstName: string;
+  lastName: string;
+  size?: number;
+  onClick?: () => void;
+  ariaLabel?: string;
+}) {
+  const initialen = ((firstName[0] ?? '') + (lastName[0] ?? '')).toUpperCase() || '·';
+  const style: CSSProperties = {
+    width: size,
+    height: size,
+    flex: `0 0 ${size}px`,
+    borderRadius: 'var(--bwza-radius-pill)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'linear-gradient(180deg, #f4b56a, #d98a4a)',
+    color: '#3a200a',
+    fontFamily: 'var(--bwza-font-display)',
+    fontWeight: 700,
+    fontSize: Math.round(size * 0.38),
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.30)',
+  };
+  if (onClick) {
+    return (
+      <button type="button" aria-label={ariaLabel ?? 'Profil'} onClick={onClick} style={{ all: 'unset', cursor: 'pointer', ...style }}>
+        {initialen}
+      </button>
+    );
+  }
+  return (
+    <div aria-hidden style={style}>
+      {initialen}
+    </div>
+  );
+}
+
+// ─────────── StatCard (Eyebrow + Wert in Fraunces) ───────────
+export function StatCard({
+  eyebrow,
+  value,
+  sub,
+  tone = 'dark',
+}: {
+  eyebrow: string;
+  value: ReactNode;
+  sub?: ReactNode;
+  tone?: GlassTone;
+}) {
+  return (
+    <Glass tone={tone} style={{ borderRadius: 'var(--bwza-radius-md)', padding: '12px 12px', flex: 1, textAlign: 'center' }}>
+      <div className="bwza-eyebrow">{eyebrow}</div>
+      <div
+        style={{
+          fontFamily: 'var(--bwza-font-display)',
+          fontSize: 18,
+          fontWeight: 600,
+          color: 'var(--bwza-ink)',
+          letterSpacing: -0.3,
+          marginTop: 4,
+        }}
+      >
+        {value}
+      </div>
+      {sub && <div style={{ marginTop: 2, fontSize: 10.5, color: 'var(--bwza-ink-mute)' }}>{sub}</div>}
+    </Glass>
+  );
+}
+
+// ─────────── StatusChip (Token-Farben statt hartkodiertem oklch) ───────────
+type ChipTone = 'amber' | 'success' | 'rescue' | 'neutral';
+const CHIP_COLOR: Record<ChipTone, string> = {
+  amber: 'var(--bwza-amber)',
+  success: 'var(--bwza-success)',
+  rescue: 'var(--bwza-rescue-soft)',
+  neutral: 'var(--bwza-ink-mute)',
+};
+export function StatusChip({ label, tone = 'neutral' }: { label: string; tone?: ChipTone }) {
+  const color = CHIP_COLOR[tone];
+  return (
+    <span
+      style={{
+        flexShrink: 0,
+        padding: '4px 10px',
+        borderRadius: 'var(--bwza-radius-pill)',
+        fontSize: 10.5,
+        fontWeight: 700,
+        letterSpacing: 0.3,
+        textTransform: 'uppercase',
+        color,
+        border: `1px solid ${color}`,
+        background: 'rgba(0,0,0,0.30)',
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+// ─────────── EmptyState (Berg-Silhouette + Fraunces-Titel) ───────────
+export function EmptyState({ title, sub }: { title: string; sub?: string }) {
+  return (
+    <div style={{ padding: '34px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div style={{ marginBottom: 12, opacity: 0.6 }} aria-hidden>
+        <svg width="110" height="56" viewBox="0 0 120 60" fill="none">
+          <path d="M0 58 L20 30 L35 42 L55 18 L75 35 L92 22 L120 58 Z" fill="rgba(217,138,74,0.18)" stroke="rgba(217,138,74,0.4)" strokeWidth="1" strokeLinejoin="round" />
+          <path d="M50 24 L55 18 L60 24 L57 22 L55 23 L53 22 Z" fill="rgba(255,255,255,0.4)" />
+        </svg>
+      </div>
+      <div style={{ fontFamily: 'var(--bwza-font-display)', fontSize: 18, color: 'var(--bwza-ink)', fontWeight: 600 }}>{title}</div>
+      {sub && <div style={{ marginTop: 6, fontSize: 12.5, color: 'var(--bwza-ink-mute)', maxWidth: 240, lineHeight: 1.45 }}>{sub}</div>}
+    </div>
+  );
+}
+
+// ─────────── Skeleton / Loading ───────────
+export function Skeleton({ w = '100%', h = 14, radius = 8, style = {} }: { w?: number | string; h?: number; radius?: number; style?: CSSProperties }) {
+  return (
+    <div
+      style={{
+        width: w,
+        height: h,
+        borderRadius: radius,
+        background:
+          'linear-gradient(90deg, rgba(255,225,180,0.05), rgba(255,225,180,0.12), rgba(255,225,180,0.05))',
+        backgroundSize: '200% 100%',
+        animation: 'bwza-shimmer 1.5s ease infinite',
+        ...style,
+      }}
+    />
+  );
+}
+
+// Einheitlicher Lade-Platzhalter (ersetzt das nackte „Lädt …") — ein paar
+// Skeleton-Zeilen in einer Glass-Card, gegen Layout-Sprünge.
+export function Loading({ zeilen = 3 }: { zeilen?: number }) {
+  return (
+    <Glass tone="dark" style={{ borderRadius: 'var(--bwza-radius-md)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {Array.from({ length: zeilen }).map((_, i) => (
+        <Skeleton key={i} w={i === zeilen - 1 ? '55%' : '100%'} />
+      ))}
+    </Glass>
+  );
+}
