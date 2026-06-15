@@ -1,6 +1,6 @@
 import { useState, type PropsWithChildren } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BergMark } from './primitives';
+import { Avatar, BergMark } from './primitives';
 import { ProfileDrawer } from './ProfileDrawer';
 import { useAuth } from '../lib/auth';
 
@@ -10,10 +10,6 @@ const TABS = [
   { to: '/aufladen', label: 'Aufladen', icon: '💳' },
   { to: '/verlauf', label: 'Verlauf', icon: '🕒' },
 ];
-
-function Initialen(vorname: string, nachname: string): string {
-  return ((vorname[0] ?? '') + (nachname[0] ?? '')).toUpperCase() || '?';
-}
 
 // Persistente Shell für die Member-Screens (B5a): schlanker Top-Header mit
 // Avatar→Profil-Drawer + persistente Bottom-Nav (4 Tabs). Funktional mit
@@ -50,28 +46,13 @@ export function MemberLayout({ children }: PropsWithChildren) {
             BWZA
           </span>
         </div>
-        <button
-          type="button"
-          aria-label="Profil"
+        <Avatar
+          firstName={user?.firstName ?? ''}
+          lastName={user?.lastName ?? ''}
+          size={36}
           onClick={() => setDrawer(true)}
-          style={{
-            all: 'unset',
-            cursor: 'pointer',
-            width: 36,
-            height: 36,
-            borderRadius: 999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'linear-gradient(180deg, #f4b56a, #d98a4a)',
-            color: '#3a200a',
-            fontFamily: 'var(--bwza-font-display)',
-            fontWeight: 700,
-            fontSize: 14,
-          }}
-        >
-          {user ? Initialen(user.firstName, user.lastName) : '·'}
-        </button>
+          ariaLabel="Profil"
+        />
       </header>
 
       {/* Inhalt — Platz für die fixierte Bottom-Nav lassen */}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Glass } from '../components/primitives';
+import { EmptyState, Glass, Loading, StatCard } from '../components/primitives';
 import { ScrollList } from '../components/ScrollList';
 import {
   api,
@@ -137,19 +137,7 @@ function StatStrip({ journal }: { journal: Journal }) {
   return (
     <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
       {items.map((it) => (
-        <Glass key={it.label} tone="dark" style={{ borderRadius: 16, padding: '12px 10px', textAlign: 'center' }}>
-          <div
-            style={{
-              fontFamily: 'var(--bwza-font-display)',
-              fontSize: 18,
-              fontWeight: 600,
-              color: 'var(--bwza-ink)',
-            }}
-          >
-            {it.wert}
-          </div>
-          <div style={{ marginTop: 2, fontSize: 10.5, color: 'var(--bwza-ink-mute)' }}>{it.label}</div>
-        </Glass>
+        <StatCard key={it.label} eyebrow={it.label} value={it.wert} />
       ))}
     </div>
   );
@@ -316,15 +304,9 @@ function Historie({ historie }: { historie: MeineHistorie | null }) {
       </div>
 
       {historie === null ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>Lädt …</div>
-        </Glass>
+        <Loading />
       ) : historie.transaktionen.length === 0 ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '18px 16px' }}>
-          <div style={{ fontSize: 13, color: 'var(--bwza-ink-mute)' }}>
-            Noch keine Buchungen. Geht doch los an der Theke 🍺
-          </div>
-        </Glass>
+        <EmptyState title="Noch nichts gebucht" sub="Geht doch los an der Theke 🍺" />
       ) : (
         <>
           <ScrollList>

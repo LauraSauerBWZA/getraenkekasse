@@ -1,10 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { Glass } from './primitives';
+import { Avatar, Glass } from './primitives';
 import { useAuth } from '../lib/auth';
-
-function Initialen(vorname: string, nachname: string): string {
-  return ((vorname[0] ?? '') + (nachname[0] ?? '')).toUpperCase() || '?';
-}
 
 // Profil-Drawer (B5a): Bottom-Sheet vom Avatar-Tap. Der Identitäts-Header ist die
 // „Profil"-Fläche (es gibt keinen separaten Member-Profil-Screen); darunter
@@ -53,25 +49,7 @@ export function ProfileDrawer({ onClose }: { onClose: () => void }) {
         <Glass tone="raise" style={{ borderRadius: 22, padding: '18px 16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Identitäts-Header = Profil */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div
-              aria-hidden
-              style={{
-                width: 46,
-                height: 46,
-                flexShrink: 0,
-                borderRadius: 999,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'linear-gradient(180deg, #f4b56a, #d98a4a)',
-                color: '#3a200a',
-                fontFamily: 'var(--bwza-font-display)',
-                fontWeight: 700,
-                fontSize: 18,
-              }}
-            >
-              {Initialen(user.firstName, user.lastName)}
-            </div>
+            <Avatar firstName={user.firstName} lastName={user.lastName} size={46} />
             <div style={{ minWidth: 0, flex: 1 }}>
               <div
                 style={{

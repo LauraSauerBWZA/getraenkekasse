@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Glass, GlassButton } from '../components/primitives';
+import { EmptyState, Glass, GlassButton, Loading } from '../components/primitives';
 import {
   api,
   ApiError,
@@ -112,15 +112,9 @@ export default function Buchen() {
           <div style={{ fontSize: 12, color: 'var(--bwza-rescue-soft)' }}>{loadError}</div>
         </Glass>
       ) : drinks === null ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>Lädt …</div>
-        </Glass>
+        <Loading />
       ) : drinks.length === 0 ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '18px 16px' }}>
-          <div style={{ fontSize: 13, color: 'var(--bwza-ink-mute)' }}>
-            Aktuell sind keine Drinks buchbar.
-          </div>
-        </Glass>
+        <EmptyState title="Keine Getränke" sub="Aktuell ist nichts buchbar — frag deinen Verwalter." />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
           {DRINK_KATEGORIEN.map((kat) => {

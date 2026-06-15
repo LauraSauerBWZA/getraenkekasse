@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react';
-import { Glass, GlassButton, GlassInput } from '../components/primitives';
+import { useCallback, useEffect, useState } from 'react';
+import { EmptyState, Glass, GlassButton, GlassInput, Loading, StatusChip } from '../components/primitives';
+import { ScrollList } from '../components/ScrollList';
 import {
   api,
   ApiError,
@@ -37,10 +38,10 @@ const STATUS_LABEL: Record<AufladungsStatus, string> = {
   ABGELEHNT: 'abgelehnt',
 };
 
-const STATUS_COLOR: Record<AufladungsStatus, string> = {
-  OFFEN: 'oklch(70% 0.16 70)',
-  BESTAETIGT: 'oklch(72% 0.14 145)',
-  ABGELEHNT: 'oklch(58% 0.18 25)',
+const STATUS_TONE: Record<AufladungsStatus, 'amber' | 'success' | 'rescue'> = {
+  OFFEN: 'amber',
+  BESTAETIGT: 'success',
+  ABGELEHNT: 'rescue',
 };
 
 export default function Aufladen() {
@@ -301,28 +302,21 @@ function EigeneAnfragen({ anfragen }: { anfragen: MeineAnfrage[] | null }) {
       </div>
 
       {anfragen === null ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>Lädt …</div>
-        </Glass>
+        <Loading />
       ) : anfragen.length === 0 ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>
-            Noch keine PayPal-Anfragen gestellt.
-          </div>
-        </Glass>
+        <EmptyState title="Noch keine Anfragen" sub="Wähle oben einen Betrag, um per PayPal aufzuladen." />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <ScrollList>
           {anfragen.map((a) => (
             <AnfrageRow key={a.id} anfrage={a} />
           ))}
-        </div>
+        </ScrollList>
       )}
     </div>
   );
 }
 
 function AnfrageRow({ anfrage }: { anfrage: MeineAnfrage }) {
-  const color = STATUS_COLOR[anfrage.status];
   const datum = new Date(anfrage.requestedAt).toLocaleDateString('de-DE', {
     day: '2-digit',
     month: 'short',
@@ -374,23 +368,7 @@ function AnfrageRow({ anfrage }: { anfrage: MeineAnfrage }) {
           </a>
         )}
       </div>
-      <StatusChip color={color} label={STATUS_LABEL[anfrage.status]} />
+      <StatusChip label={STATUS_LABEL[anfrage.status]} tone={STATUS_TONE[anfrage.status]} />
     </Glass>
   );
-}
-
-function StatusChip({ color, label }: { color: string; label: string }) {
-  const style: CSSProperties = {
-    flexShrink: 0,
-    padding: '4px 10px',
-    borderRadius: 999,
-    fontSize: 10.5,
-    fontWeight: 700,
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
-    color,
-    border: `1px solid ${color}`,
-    background: 'rgba(0,0,0,0.30)',
-  };
-  return <span style={style}>{label}</span>;
 }
