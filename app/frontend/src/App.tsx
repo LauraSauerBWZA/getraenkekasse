@@ -10,6 +10,7 @@ import AdminAufladungAnfragen from './routes/AdminAufladungAnfragen';
 import AdminMitglieder from './routes/AdminMitglieder';
 import AdminMitgliedDetail from './routes/AdminMitgliedDetail';
 import AdminKasse from './routes/AdminKasse';
+import AdminProfil from './routes/AdminProfil';
 import LeitungKasse from './routes/LeitungKasse';
 import Buchen from './routes/Buchen';
 import Aufladen from './routes/Aufladen';
@@ -139,6 +140,16 @@ export default function App() {
           <Protected>
             <AdminOnly>
               <AdminKasse />
+            </AdminOnly>
+          </Protected>
+        }
+      />
+      <Route
+        path="/admin/profil"
+        element={
+          <Protected>
+            <AdminOnly>
+              <AdminProfil />
             </AdminOnly>
           </Protected>
         }

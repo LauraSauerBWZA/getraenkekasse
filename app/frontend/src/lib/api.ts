@@ -8,6 +8,7 @@ export interface ApiUser {
   guthabenCent: number;
   isAdmin: boolean;
   isLeitung: boolean;
+  paypalMeLink: string | null;
   isActive: boolean;
 }
 
@@ -282,6 +283,18 @@ export const api = {
       `/admin/users/${id}/leitung`,
       { method: 'PATCH', body: JSON.stringify({ isLeitung }) },
     ),
+  // Admin: Verwalter-Recht (isAdmin) vergeben/entziehen (Letzter-Admin-Schutz im Backend)
+  adminSetAdmin: (id: string, isAdmin: boolean) =>
+    request<{ user: { id: string; firstName: string; lastName: string; isAdmin: boolean; isLeitung: boolean } }>(
+      `/admin/users/${id}/admin`,
+      { method: 'PATCH', body: JSON.stringify({ isAdmin }) },
+    ),
+  // Verwalter: eigenen paypal.me-Link setzen/leeren (null = leeren)
+  setMyPaypalLink: (paypalMeLink: string | null) =>
+    request<{ user: { id: string; paypalMeLink: string | null } }>('/admin/me/paypal', {
+      method: 'PATCH',
+      body: JSON.stringify({ paypalMeLink }),
+    }),
   // Admin ODER Leitung: Kassen-Kennzahlen (Töpfe, Box, Vermögen, Deckung)
   adminKasseSummary: () => request<KassenSummary>('/admin/kasse/summary'),
   // Admin: Kassen-Historie (alle Bewegungen chronologisch)

@@ -127,6 +127,10 @@ export default function AdminMitgliedDetail() {
       {detail && <KorrekturCard userId={detail.id} onDone={() => void load()} />}
 
       {detail && (
+        <VerwalterToggle userId={detail.id} isAdmin={detail.isAdmin} onDone={() => void load()} />
+      )}
+
+      {detail && (
         <LeitungToggle
           userId={detail.id}
           isLeitung={detail.isLeitung}
@@ -235,8 +239,61 @@ function KorrekturCard({ userId, onDone }: { userId: string; onDone: () => void 
   );
 }
 
-// Admin-Toggle „Leitung-Recht" (B2j). Setzt nur isLeitung; Verwalter ernennen
-// (isAdmin) ist B2k und hier bewusst nicht möglich.
+// Admin-Toggle „Verwalter-Recht" (B2k). Setzt isAdmin. Der Letzter-Admin-Schutz
+// sitzt im Backend (400) — die Meldung wird hier angezeigt.
+function VerwalterToggle({
+  userId,
+  isAdmin,
+  onDone,
+}: {
+  userId: string;
+  isAdmin: boolean;
+  onDone: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const toggle = async () => {
+    setErr(null);
+    setBusy(true);
+    try {
+      await api.adminSetAdmin(userId, !isAdmin);
+      onDone();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Verwalter-Recht konnte nicht geändert werden.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px', marginTop: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div className="bwza-eyebrow">Verwalter-Recht</div>
+          <div style={{ marginTop: 3, fontSize: 12, color: 'var(--bwza-ink-dim)', lineHeight: 1.45 }}>
+            {isAdmin
+              ? 'Ist Verwalter: volle Schreibrechte, eigener Kassen-Topf, PayPal-Anfragen.'
+              : 'Kein Verwalter. Ernennen gibt volle Schreibrechte + eigenen Kassen-Topf.'}
+          </div>
+          {err && (
+            <div style={{ marginTop: 4, fontSize: 11, color: 'var(--bwza-rescue-soft)' }}>{err}</div>
+          )}
+        </div>
+        <GlassButton
+          variant={isAdmin ? 'ghost' : 'primary'}
+          size="sm"
+          disabled={busy}
+          onClick={() => void toggle()}
+        >
+          {busy ? '…' : isAdmin ? 'Entziehen' : 'Ernennen'}
+        </GlassButton>
+      </div>
+    </Glass>
+  );
+}
+
+// Admin-Toggle „Leitung-Recht" (B2j). Setzt nur isLeitung (Verwalter-Recht hat
+// seinen eigenen Toggle oben).
 function LeitungToggle({
   userId,
   isLeitung,
