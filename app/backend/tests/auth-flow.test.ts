@@ -1628,3 +1628,76 @@ describe('Kassen-Aktionen (Admin)', () => {
     expect(topfSum + s.boxCent).toBe(s.vereinsvermoegenCent);
   });
 });
+
+// B2j.1 — Leitung-Lesezugriff auf die Kasse. Eigener Leitung-User (Lea), via
+// Invite eingeloggt; Max bleibt reines Mitglied, Laura Admin.
+describe('Leitung-Lesezugriff (Kasse)', () => {
+  const leitungAgent = supertest.agent(app);
+  let leitungId: string;
+
+  it('Setup: Leitung-User anlegen + einloggen', async () => {
+    const u = await prisma.user.create({
+      data: { email: 'leitung@example.com', firstName: 'Lea', lastName: 'Leitung', isLeitung: true },
+    });
+    leitungId = u.id;
+    const inv = generateInviteToken();
+    await prisma.invite.create({
+      data: { tokenHash: inv.hash, userId: u.id, expiresAt: inviteExpiry() },
+    });
+    const r = await leitungAgent
+      .post('/auth/invite-redeem')
+      .send({ token: inv.clear, password: 'Leitung-Pferd-9' });
+    expect(r.status).toBe(200);
+    expect(r.body.user.isLeitung).toBe(true);
+    expect(r.body.user.isAdmin).toBe(false);
+  });
+
+  it('/me liefert isLeitung', async () => {
+    const r = await leitungAgent.get('/auth/me');
+    expect(r.status).toBe(200);
+    expect(r.body.user.isLeitung).toBe(true);
+    expect(r.body.user.isAdmin).toBe(false);
+  });
+
+  it('Leitung darf Kassen-Summary + Historie lesen (200)', async () => {
+    expect((await leitungAgent.get('/admin/kasse/summary')).status).toBe(200);
+    expect((await leitungAgent.get('/admin/kasse/historie')).status).toBe(200);
+  });
+
+  it('Leitung darf KEINE Kassen-Aktionen (buchung/einlage → 403)', async () => {
+    const b = await leitungAgent
+      .post('/admin/kasse/buchung')
+      .send({ typ: 'EINKAUF', konto: 'BOX', betragCent: 100, vermerk: 'x' });
+    expect(b.status).toBe(403);
+    const e = await leitungAgent.post('/admin/kasse/einlage').send({ betragCent: 100, vermerk: 'x' });
+    expect(e.status).toBe(403);
+  });
+
+  it('Leitung bekommt KEINE Mitglieder-Daten/-Aktionen (403)', async () => {
+    expect((await leitungAgent.get('/admin/users')).status).toBe(403);
+    expect((await leitungAgent.get(`/admin/users/${leitungId}`)).status).toBe(403);
+    expect(
+      (await leitungAgent.post('/admin/korrektur').send({ userId: leitungId, betragCent: 100, notiz: 'x' }))
+        .status,
+    ).toBe(403);
+    expect((await leitungAgent.get('/admin/aufladung/anfragen')).status).toBe(403);
+    expect((await leitungAgent.get('/admin/drinks')).status).toBe(403);
+  });
+
+  it('reines Mitglied (Max) bekommt Kassen-GET 403', async () => {
+    expect((await memberAgent.get('/admin/kasse/summary')).status).toBe(403);
+    expect((await memberAgent.get('/admin/kasse/historie')).status).toBe(403);
+  });
+
+  it('Admin behält vollen Kassen-Zugriff (summary 200)', async () => {
+    expect((await agent.get('/admin/kasse/summary')).status).toBe(200);
+  });
+
+  it('Summary zeigt Mitglieder-Guthaben nur als EINE Summe (DSGVO §9)', async () => {
+    const r = await leitungAgent.get('/admin/kasse/summary');
+    expect(typeof r.body.mitgliederGuthabenSummeCent).toBe('number');
+    // keine Pro-Person-Salden im Payload, toepfe sind nur Verwalter-Töpfe
+    expect(r.body).not.toHaveProperty('mitgliederGuthaben');
+    expect(Array.isArray(r.body.toepfe)).toBe(true);
+  });
+});

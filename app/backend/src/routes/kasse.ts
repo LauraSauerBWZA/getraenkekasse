@@ -1,14 +1,16 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
-import { requireAdmin, requireAuth } from '../auth/middleware.js';
+import { requireAdmin, requireAdminOrLeitung, requireAuth } from '../auth/middleware.js';
 import { computeMitgliederGuthabenSummeCent } from '../domain/guthaben.js';
 import { logger } from '../logger.js';
 
 export const kasseRouter = Router();
 
-// Komplett admin-gated (Leitung-Read-only-Sicht ist B2j, nicht hier).
-kasseRouter.use(requireAuth, requireAdmin);
+// Auth global; Autorisierung per Route (B2j): die beiden GET-Endpoints sind
+// lesend für Admin ODER Leitung, die schreibenden POST-Aktionen bleiben
+// Admin-only.
+kasseRouter.use(requireAuth);
 
 // GET /admin/kasse/summary — Kennzahlen der Vereinskasse, alle live (§6.8):
 //   - toepfe: je Verwalter SUM(betragCent) WHERE konto=VERWALTER. Darf negativ.
@@ -19,7 +21,7 @@ kasseRouter.use(requireAuth, requireAdmin);
 // Die Töpfe-Liste = alle aktiven Admins ∪ alle verwalterId mit VERWALTER-
 // Buchungen — so erscheint der eingeloggte Admin auch bei Topf 0 und historische
 // Verwalter (B2k) bleiben sichtbar.
-kasseRouter.get('/admin/kasse/summary', async (_req, res) => {
+kasseRouter.get('/admin/kasse/summary', requireAdminOrLeitung, async (_req, res) => {
   const [verwalterGroups, boxAgg, vermoegenAgg, admins] = await Promise.all([
     prisma.kassenTransaktion.groupBy({
       by: ['verwalterId'],
@@ -80,7 +82,7 @@ kasseRouter.get('/admin/kasse/summary', async (_req, res) => {
 
 // GET /admin/kasse/historie — alle Kassen-Bewegungen chronologisch (jüngste
 // zuerst), mit aufgelöstem Verwalter-Namen (null bei konto=BOX).
-kasseRouter.get('/admin/kasse/historie', async (_req, res) => {
+kasseRouter.get('/admin/kasse/historie', requireAdminOrLeitung, async (_req, res) => {
   const rows = await prisma.kassenTransaktion.findMany({
     orderBy: { createdAt: 'desc' },
     include: { verwalter: { select: { firstName: true, lastName: true } } },
@@ -123,7 +125,7 @@ const buchungSchema = z.object({
   vermerk: z.string(),
 });
 
-kasseRouter.post('/admin/kasse/buchung', async (req, res) => {
+kasseRouter.post('/admin/kasse/buchung', requireAdmin, async (req, res) => {
   const parsed = buchungSchema.safeParse(req.body);
   if (!parsed.success) {
     return res
@@ -171,7 +173,7 @@ const einlageSchema = z.object({
   vermerk: z.string(),
 });
 
-kasseRouter.post('/admin/kasse/einlage', async (req, res) => {
+kasseRouter.post('/admin/kasse/einlage', requireAdmin, async (req, res) => {
   const parsed = einlageSchema.safeParse(req.body);
   if (!parsed.success) {
     return res

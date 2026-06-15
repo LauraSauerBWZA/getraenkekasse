@@ -32,3 +32,17 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   if (!req.auth?.isAdmin) return res.status(403).json({ error: 'Nur für Admins.' });
   next();
 }
+
+// Lesender Guard für die Kassen-Einsicht (B2j): erlaubt Admin ODER Leitung.
+// Das JWT trägt nur `isAdmin` — `isLeitung` wird daher per DB-Lookup geprüft,
+// wenn der User kein Admin ist. Vorteil: ein frisch vergebenes Leitung-Recht
+// wirkt ohne Re-Login (kein Token-Refresh nötig). Inaktive User fallen durch.
+export async function requireAdminOrLeitung(req: Request, res: Response, next: NextFunction) {
+  if (req.auth?.isAdmin) return next();
+  const user = await prisma.user.findUnique({
+    where: { id: req.auth!.sub },
+    select: { isLeitung: true, isActive: true },
+  });
+  if (user?.isLeitung && user.isActive) return next();
+  return res.status(403).json({ error: 'Nur für Admins oder Leitung.' });
+}

@@ -19,6 +19,7 @@ async function publicUser(u: {
   firstName: string;
   lastName: string;
   isAdmin: boolean;
+  isLeitung: boolean;
   isActive: boolean;
 }) {
   return {
@@ -28,6 +29,7 @@ async function publicUser(u: {
     lastName: u.lastName,
     guthabenCent: await computeGuthabenCent(u.id),
     isAdmin: u.isAdmin,
+    isLeitung: u.isLeitung,
     isActive: u.isActive,
   };
 }
