@@ -158,6 +158,9 @@ export function GlassInput({
   error,
   autoFocus,
   hint,
+  id,
+  name,
+  autoComplete,
 }: {
   label?: string;
   type?: string;
@@ -168,6 +171,9 @@ export function GlassInput({
   error?: string | null;
   autoFocus?: boolean;
   hint?: string;
+  id?: string;
+  name?: string;
+  autoComplete?: string;
 }) {
   const [focus, setFocus] = useState(false);
   return (
@@ -216,6 +222,9 @@ export function GlassInput({
           onChange={onChange}
           placeholder={placeholder}
           autoFocus={autoFocus}
+          id={id}
+          name={name}
+          autoComplete={autoComplete}
           onFocus={() => setFocus(true)}
           onBlur={() => setFocus(false)}
           style={{
@@ -254,6 +263,9 @@ export function PasswordInput({
   autoFocus,
   hint,
   error,
+  id,
+  name,
+  autoComplete,
 }: {
   label?: string;
   value: string;
@@ -261,6 +273,9 @@ export function PasswordInput({
   autoFocus?: boolean;
   hint?: string;
   error?: string | null;
+  id?: string;
+  name?: string;
+  autoComplete?: string;
 }) {
   const [show, setShow] = useState(false);
   return (
@@ -272,6 +287,9 @@ export function PasswordInput({
       autoFocus={autoFocus}
       hint={hint}
       error={error}
+      id={id}
+      name={name}
+      autoComplete={autoComplete}
       suffix={
         <button
           type="button"

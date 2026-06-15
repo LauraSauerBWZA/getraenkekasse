@@ -74,12 +74,18 @@ export default function Login() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="vorname.nachname@…"
+            id="email"
+            name="email"
+            autoComplete="email"
           />
           <PasswordInput
             label="Passwort"
             value={pw}
             onChange={(e) => setPw(e.target.value)}
             error={err}
+            id="current-password"
+            name="current-password"
+            autoComplete="current-password"
           />
           <GlassButton type="submit" full size="lg" disabled={busy} onClick={() => undefined}>
             {busy ? 'Moment …' : 'Anmelden'}

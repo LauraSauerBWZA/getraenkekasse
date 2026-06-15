@@ -93,7 +93,15 @@ export default function SetPassword() {
       <form onSubmit={submit}>
         <Glass tone="dark" style={{ borderRadius: 22, padding: '18px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <PasswordInput label="Neues Passwort" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus />
+            <PasswordInput
+              label="Neues Passwort"
+              value={pw}
+              onChange={(e) => setPw(e.target.value)}
+              autoFocus
+              id="new-password"
+              name="new-password"
+              autoComplete="new-password"
+            />
             <div style={{ display: 'flex', gap: 4, marginTop: 8, alignItems: 'center' }}>
               {[0, 1, 2, 3].map((i) => (
                 <div
@@ -126,6 +134,9 @@ export default function SetPassword() {
             value={pw2}
             onChange={(e) => setPw2(e.target.value)}
             error={pw2 && !match ? 'Passwörter stimmen nicht überein.' : err}
+            id="new-password-confirm"
+            name="new-password-confirm"
+            autoComplete="new-password"
           />
         </Glass>
 
