@@ -182,6 +182,26 @@ export interface KassenHistorieEintrag {
 export type KassenBuchungTyp = 'EINKAUF' | 'ENTNAHME' | 'SPENDE' | 'KORREKTUR';
 export type KassenKonto = 'VERWALTER' | 'BOX';
 
+// Sortenstatistik (B3) — app-weit anonym aggregiert.
+export type StatistikZeitraum = 'woche' | 'monat' | 'quartal';
+
+export interface SortenStat {
+  drinkId: string;
+  name: string;
+  icon: string | null;
+  kategorie: string | null;
+  anzahl: number;
+  umsatzCent: number;
+}
+
+export interface SortenStatistik {
+  zeitraum: StatistikZeitraum;
+  seit: string;
+  sorten: SortenStat[];
+  gesamtAnzahl: number;
+  gesamtUmsatzCent: number;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string, public details?: unknown) {
     super(message);
@@ -295,6 +315,9 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ paypalMeLink }),
     }),
+  // Admin ODER Leitung: Sortenstatistik (anonym aggregiert)
+  sortenStatistik: (zeitraum: StatistikZeitraum) =>
+    request<SortenStatistik>(`/statistik/sorten?zeitraum=${zeitraum}`),
   // Admin ODER Leitung: Kassen-Kennzahlen (Töpfe, Box, Vermögen, Deckung)
   adminKasseSummary: () => request<KassenSummary>('/admin/kasse/summary'),
   // Admin: Kassen-Historie (alle Bewegungen chronologisch)

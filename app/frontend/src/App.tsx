@@ -12,6 +12,7 @@ import AdminMitgliedDetail from './routes/AdminMitgliedDetail';
 import AdminKasse from './routes/AdminKasse';
 import AdminProfil from './routes/AdminProfil';
 import LeitungKasse from './routes/LeitungKasse';
+import Sortenstatistik from './routes/Sortenstatistik';
 import Buchen from './routes/Buchen';
 import Aufladen from './routes/Aufladen';
 
@@ -160,6 +161,16 @@ export default function App() {
           <Protected>
             <AdminOrLeitungOnly>
               <LeitungKasse />
+            </AdminOrLeitungOnly>
+          </Protected>
+        }
+      />
+      <Route
+        path="/statistik"
+        element={
+          <Protected>
+            <AdminOrLeitungOnly>
+              <Sortenstatistik />
             </AdminOrLeitungOnly>
           </Protected>
         }
