@@ -10,6 +10,7 @@ import { drinksRouter } from './routes/drinks.js';
 import { buchenRouter } from './routes/buchen.js';
 import { aufladungRouter } from './routes/aufladung.js';
 import { kasseRouter } from './routes/kasse.js';
+import { statistikRouter } from './routes/statistik.js';
 
 export function buildApp() {
   const app = express();
@@ -32,6 +33,7 @@ export function buildApp() {
   // ihr eigenes requireAdmin pro Route.
   app.use(aufladungRouter);
   app.use(kasseRouter);
+  app.use(statistikRouter);
   app.use(adminRouter);
   app.use(drinksRouter);
 

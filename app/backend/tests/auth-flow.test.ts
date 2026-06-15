@@ -1985,3 +1985,111 @@ describe('Lastverteilung (§6.9)', () => {
     expect(r.status).toBe(200);
   });
 });
+
+// B3 — Sortenstatistik. Isoliert über einen frischen Drink mit gezielt gesetzten
+// Käufen (recent/alt/storniert), Asserts auf genau dessen Zeile.
+describe('Sortenstatistik (B3)', () => {
+  let saftId: string;
+  let maxId: string;
+  let leitungAgent: ReturnType<typeof supertest.agent>;
+
+  function saftRow(body: any) {
+    return body.sorten.find((s: { drinkId: string }) => s.drinkId === saftId);
+  }
+
+  it('Setup: Drink + Käufe (recent/alt/storniert) + Leitung-Login', async () => {
+    maxId = (await memberAgent.get('/auth/me')).body.user.id;
+    const drink = await prisma.drink.create({
+      data: { name: 'TestSaft B3', preisCent: 250, icon: '🧃', kategorie: 'alkoholfrei' },
+    });
+    saftId = drink.id;
+
+    const now = new Date();
+    async function kauf(createdAt: Date) {
+      return prisma.transaktion.create({
+        data: {
+          typ: 'KAUF',
+          userId: maxId,
+          erstelltVonId: maxId,
+          drinkId: saftId,
+          preisAtKaufCent: 250,
+          betragCent: -250,
+          createdAt,
+        },
+      });
+    }
+    const k1 = await kauf(now);
+    await kauf(now);
+    await kauf(now);
+    // Storno auf k1 → ausgeschlossen, egal wann gebucht
+    await prisma.transaktion.create({
+      data: {
+        typ: 'STORNO',
+        userId: maxId,
+        erstelltVonId: maxId,
+        stornoVonId: k1.id,
+        betragCent: 250,
+        notiz: 'Teststorno',
+      },
+    });
+    // alter Kauf 40 Tage zurück (im Quartal, nicht im Monat)
+    await kauf(new Date(Date.now() - 40 * 24 * 60 * 60 * 1000));
+
+    leitungAgent = supertest.agent(app);
+    const r = await leitungAgent
+      .post('/auth/login')
+      .send({ email: 'leitung@example.com', password: 'Leitung-Pferd-9' });
+    expect(r.status).toBe(200);
+  });
+
+  it('lehnt ohne Login (401) und als reines Mitglied (403) ab', async () => {
+    const anon = supertest.agent(app);
+    expect((await anon.get('/statistik/sorten')).status).toBe(401);
+    expect((await memberAgent.get('/statistik/sorten')).status).toBe(403);
+  });
+
+  it('Admin UND Leitung dürfen lesen (200)', async () => {
+    expect((await agent.get('/statistik/sorten')).status).toBe(200);
+    expect((await leitungAgent.get('/statistik/sorten')).status).toBe(200);
+  });
+
+  it('aggregiert Anzahl + Umsatz, schließt Stornos aus (monat)', async () => {
+    const row = saftRow((await agent.get('/statistik/sorten?zeitraum=monat')).body);
+    expect(row).toMatchObject({
+      name: 'TestSaft B3',
+      kategorie: 'alkoholfrei',
+      icon: '🧃',
+      anzahl: 2,
+      umsatzCent: 500,
+    });
+  });
+
+  it('Zeitfilter: quartal enthält den alten Kauf, woche/monat nicht', async () => {
+    const woche = saftRow((await agent.get('/statistik/sorten?zeitraum=woche')).body);
+    const monat = saftRow((await agent.get('/statistik/sorten?zeitraum=monat')).body);
+    const quartal = saftRow((await agent.get('/statistik/sorten?zeitraum=quartal')).body);
+    expect(woche.anzahl).toBe(2);
+    expect(monat.anzahl).toBe(2);
+    expect(quartal.anzahl).toBe(3);
+  });
+
+  it('nutzt den eingefrorenen preisAtKaufCent, nicht den aktuellen Drink-Preis', async () => {
+    await prisma.drink.update({ where: { id: saftId }, data: { preisCent: 999 } });
+    const row = saftRow((await agent.get('/statistik/sorten?zeitraum=monat')).body);
+    expect(row.umsatzCent).toBe(500); // 2 × eingefrorene 250, nicht 2 × 999
+  });
+
+  it('Default-Zeitraum ist monat (fehlender/ungültiger Param)', async () => {
+    expect((await agent.get('/statistik/sorten')).body.zeitraum).toBe('monat');
+    expect((await agent.get('/statistik/sorten?zeitraum=quatsch')).body.zeitraum).toBe('monat');
+  });
+
+  it('DSGVO: kein User-Bezug in der Antwort, nur Drink-Totale + Gesamtsummen', async () => {
+    const r = await agent.get('/statistik/sorten?zeitraum=quartal');
+    expect(JSON.stringify(r.body)).not.toMatch(/userId/i);
+    expect(r.body).not.toHaveProperty('users');
+    expect(saftRow(r.body)).not.toHaveProperty('userId');
+    expect(typeof r.body.gesamtAnzahl).toBe('number');
+    expect(typeof r.body.gesamtUmsatzCent).toBe('number');
+  });
+});
