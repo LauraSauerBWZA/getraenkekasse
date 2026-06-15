@@ -15,6 +15,7 @@ import LeitungKasse from './routes/LeitungKasse';
 import Sortenstatistik from './routes/Sortenstatistik';
 import Buchen from './routes/Buchen';
 import Aufladen from './routes/Aufladen';
+import Verlauf from './routes/Verlauf';
 
 function Protected({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -72,6 +73,14 @@ export default function App() {
         element={
           <Protected>
             <Aufladen />
+          </Protected>
+        }
+      />
+      <Route
+        path="/verlauf"
+        element={
+          <Protected>
+            <Verlauf />
           </Protected>
         }
       />

@@ -202,6 +202,49 @@ export interface SortenStatistik {
   gesamtUmsatzCent: number;
 }
 
+// Trinkjournal (B4) — privat, eigene Daten.
+export interface JournalAchievement {
+  key: string;
+  emoji: string;
+  titel: string;
+  beschreibung: string;
+  freigeschaltet: boolean;
+  gesperrt?: boolean;
+  fortschritt?: { ist: number; ziel: number };
+}
+
+export interface VerlaufTag {
+  datum: string;
+  anzahl: number;
+  istWochenende: boolean;
+}
+
+export interface Journal {
+  heroMonat: number;
+  dieseWoche: number;
+  streak: number;
+  laengstePause: number;
+  gesamtKaeufe: number;
+  verlauf30: VerlaufTag[];
+  achievements: JournalAchievement[];
+}
+
+export interface MeineTransaktion {
+  id: string;
+  typ: TransaktionTyp;
+  betragCent: number;
+  notiz: string | null;
+  drinkName: string | null;
+  stornoVonId: string | null;
+  createdAt: string;
+  storniert: boolean;
+}
+
+export interface MeineHistorie {
+  transaktionen: MeineTransaktion[];
+  dabeiSeitTage: number;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string, public details?: unknown) {
     super(message);
@@ -267,6 +310,10 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ isActive }),
     }),
+  // Member: eigenes Trinkjournal (Hero/Strip/30-Tage/Achievements, sortenagnostisch)
+  journal: () => request<Journal>('/journal'),
+  // Member: eigene Transaktions-Historie (chronologisch, mit Drink/Storno-Flag)
+  meineTransaktionen: () => request<MeineHistorie>('/me/transaktionen'),
   // Member: nur aktive Drinks zum Buchen
   drinks: () => request<{ drinks: Drink[] }>('/drinks'),
   // Member: Drink kaufen → liefert Transaktion + neues Live-Guthaben zurück
