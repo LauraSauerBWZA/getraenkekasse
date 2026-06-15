@@ -14,24 +14,52 @@ export const aufladungRouter = Router();
 // PayPal bestätigen/ablehnen) bündelt.
 aufladungRouter.use(requireAuth);
 
-// Zuständiger Verwalter für die nächste PayPal-Aufladung.
-//
-// B2f-Scope: schlicht „der/ein Admin". Die echte Lastverteilung nach geringster
-// gehaltener Summe inkl. offener Anfragen (KONFIGURATION §6.9) ist B2k und
-// ersetzt genau diese Funktion. Auswahl hier deterministisch und degeneriert
-// sauber zum Einzel-Verwalter-Fall:
-//   1. nur aktive Admins,
-//   2. bevorzugt einen mit hinterlegtem paypalMeLink (sonst kein Link zum
-//      Überweisen),
-//   3. unter denen alphabetisch nach Vorname (= späterer §6.9-Tie-Break).
-// Liefert null, wenn es gar keinen aktiven Admin gibt.
+// Zuständiger Verwalter für die nächste PayPal-Aufladung — Lastverteilung
+// „geringste Schuld zuerst" (KONFIGURATION §6.9), live berechnet, kein
+// gespeicherter Cursor.
+//   - Wählbar = aktive Admins MIT nicht-leerem paypalMeLink (ohne Link gibt es
+//     nichts zum Überweisen).
+//   - Effektive gehaltene Summe je Verwalter = Verwalter-Topf
+//     (SUM kassenTransaktion WHERE konto=VERWALTER AND verwalterId=V) PLUS Summe
+//     der betragCent seiner noch OFFENEN Anfragen. Das Mitzählen offener
+//     Anfragen verhindert Klumpung: zwei schnell hintereinander gestellte
+//     Anfragen gehen an verschiedene Verwalter, sobald die erste den effektiven
+//     Stand hebt.
+//   - Zuständig = niedrigste effektive Summe; Tie-Break alphabetisch nach
+//     firstName (waehlbar ist so sortiert; strikter Min-Scan behält den ersten).
+//   - Ein Verwalter → degeneriert sauber. Kein wählbarer Verwalter → null
+//     (Caller blockt die PayPal-Anfrage mit 400, kein Crash).
 async function ermittleZustaendigenVerwalter(): Promise<User | null> {
-  const admins = await prisma.user.findMany({
-    where: { isAdmin: true, isActive: true },
+  const verwalter = await prisma.user.findMany({
+    where: { isAdmin: true, isActive: true, paypalMeLink: { not: null } },
     orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
   });
-  if (admins.length === 0) return null;
-  return admins.find((a) => a.paypalMeLink) ?? admins[0];
+  const waehlbar = verwalter.filter((v) => v.paypalMeLink && v.paypalMeLink.trim() !== '');
+  if (waehlbar.length === 0) return null;
+  if (waehlbar.length === 1) return waehlbar[0];
+
+  const mitSumme = await Promise.all(
+    waehlbar.map(async (v) => {
+      const [topf, offen] = await Promise.all([
+        prisma.kassenTransaktion.aggregate({
+          _sum: { betragCent: true },
+          where: { konto: 'VERWALTER', verwalterId: v.id },
+        }),
+        prisma.aufladungsAnfrage.aggregate({
+          _sum: { betragCent: true },
+          where: { zugewiesenerVerwalterId: v.id, status: 'OFFEN' },
+        }),
+      ]);
+      const effektiv = (topf._sum.betragCent ?? 0) + (offen._sum.betragCent ?? 0);
+      return { v, effektiv };
+    }),
+  );
+
+  let best = mitSumme[0];
+  for (const e of mitSumme.slice(1)) {
+    if (e.effektiv < best.effektiv) best = e;
+  }
+  return best.v;
 }
 
 // Verwalter-Sicht fürs Frontend — nur was zum Anzeigen/Verlinken nötig ist,
@@ -73,9 +101,9 @@ aufladungRouter.post('/aufladung/paypal', async (req, res) => {
 
   const verwalter = await ermittleZustaendigenVerwalter();
   if (!verwalter) {
-    return res
-      .status(409)
-      .json({ error: 'Aktuell ist kein Verwalter für PayPal-Aufladungen verfügbar.' });
+    return res.status(400).json({
+      error: 'Kein Verwalter mit PayPal-Link hinterlegt — bitte Bargeld nutzen oder später erneut versuchen.',
+    });
   }
 
   const userId = req.auth!.sub;
@@ -200,14 +228,13 @@ aufladungRouter.post('/admin/aufladung/bargeld', requireAdmin, async (req, res) 
   });
 });
 
-// GET /admin/aufladung/anfragen — offene PayPal-Anfragen für die Admin-Liste.
-// B2f: alle offenen (kein Filter auf den zugewiesenen Verwalter). Die
-// gefilterte Sicht „nur meine zugewiesenen" kommt in B2k (§7.2). Älteste zuerst,
-// damit die Liste eine natürliche Abarbeitungs-Reihenfolge hat. Mitglied-Daten
-// (Name/Email) zum Anzeigen mitgeliefert.
-aufladungRouter.get('/admin/aufladung/anfragen', requireAdmin, async (_req, res) => {
+// GET /admin/aufladung/anfragen — offene PayPal-Anfragen, gefiltert auf die dem
+// eingeloggten Verwalter ZUGEWIESENEN (§7.2/§6.9, B2k). Jeder Verwalter sieht
+// und bestätigt nur seine eigenen. Älteste zuerst (natürliche Abarbeitungs-
+// Reihenfolge); Mitglied-Daten (Name/Email) zum Anzeigen mitgeliefert.
+aufladungRouter.get('/admin/aufladung/anfragen', requireAdmin, async (req, res) => {
   const anfragen = await prisma.aufladungsAnfrage.findMany({
-    where: { status: 'OFFEN' },
+    where: { status: 'OFFEN', zugewiesenerVerwalterId: req.auth!.sub },
     orderBy: { requestedAt: 'asc' },
     include: {
       user: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -248,6 +275,12 @@ aufladungRouter.post(
     if (!anfrage) return res.status(404).json({ error: 'Anfrage nicht gefunden.' });
     if (anfrage.status !== 'OFFEN') {
       return res.status(400).json({ error: 'Diese Anfrage wurde bereits entschieden.' });
+    }
+    // Nur der zugewiesene Verwalter darf bestätigen (§6.5/§6.9, B2k).
+    if (anfrage.zugewiesenerVerwalterId !== req.auth!.sub) {
+      return res
+        .status(403)
+        .json({ error: 'Nur der zugewiesene Verwalter darf diese Anfrage bestätigen.' });
     }
 
     const empfaenger = await prisma.user.findUnique({ where: { id: anfrage.userId } });
@@ -345,6 +378,12 @@ aufladungRouter.post(
     if (!anfrage) return res.status(404).json({ error: 'Anfrage nicht gefunden.' });
     if (anfrage.status !== 'OFFEN') {
       return res.status(400).json({ error: 'Diese Anfrage wurde bereits entschieden.' });
+    }
+    // Nur der zugewiesene Verwalter darf ablehnen (§6.5/§6.9, B2k).
+    if (anfrage.zugewiesenerVerwalterId !== req.auth!.sub) {
+      return res
+        .status(403)
+        .json({ error: 'Nur der zugewiesene Verwalter darf diese Anfrage ablehnen.' });
     }
 
     const adminId = req.auth!.sub;

@@ -1849,3 +1849,139 @@ describe('paypal.me-Profil (eigener Link)', () => {
     expect(r.body.user.paypalMeLink).toBe('laura-test');
   });
 });
+
+// B2k.3 — Lastverteilung (§6.9). Isoliert: Laura-Link kurz entfernt, damit nur
+// zwei frische Verwalter (Anna, Bert) wählbar sind; Töpfe gezielt befüllt.
+describe('Lastverteilung (§6.9)', () => {
+  const annaAgent = supertest.agent(app);
+  const bertAgent = supertest.agent(app);
+  let annaId: string;
+  let bertId: string;
+
+  async function topf(verwalterId: string): Promise<number> {
+    const agg = await prisma.kassenTransaktion.aggregate({
+      _sum: { betragCent: true },
+      where: { konto: 'VERWALTER', verwalterId },
+    });
+    return agg._sum.betragCent ?? 0;
+  }
+
+  async function loginVerwalter(
+    agentInst: ReturnType<typeof supertest.agent>,
+    email: string,
+    firstName: string,
+    link: string,
+  ): Promise<string> {
+    const u = await prisma.user.create({
+      data: { email, firstName, lastName: 'V', isAdmin: true, paypalMeLink: link },
+    });
+    const inv = generateInviteToken();
+    await prisma.invite.create({ data: { tokenHash: inv.hash, userId: u.id, expiresAt: inviteExpiry() } });
+    const r = await agentInst.post('/auth/invite-redeem').send({ token: inv.clear, password: 'Verwalter-Pferd-9' });
+    expect(r.status).toBe(200);
+    expect(r.body.user.isAdmin).toBe(true);
+    return u.id;
+  }
+
+  it('Setup: Laura-Link entfernen, Anna + Bert als Verwalter anlegen', async () => {
+    await agent.patch('/admin/me/paypal').send({ paypalMeLink: null });
+    annaId = await loginVerwalter(annaAgent, 'anna@example.com', 'Anna', 'anna');
+    bertId = await loginVerwalter(bertAgent, 'bert@example.com', 'Bert', 'bert');
+  });
+
+  it('Tie-Break: bei Gleichstand gewinnt firstName alphabetisch (Anna)', async () => {
+    // Beide Töpfe 0, keine offenen Anfragen → Gleichstand → Anna < Bert.
+    const r = await memberAgent.get('/aufladung/zustaendiger-verwalter');
+    expect(r.status).toBe(200);
+    expect(r.body.verwalter.id).toBe(annaId);
+  });
+
+  it('Setup: Annas Topf auf -100 senken (Einkauf aus eigenem Topf)', async () => {
+    const r = await annaAgent
+      .post('/admin/kasse/buchung')
+      .send({ typ: 'EINKAUF', konto: 'VERWALTER', betragCent: 100, vermerk: 'Anna Einkauf' });
+    expect(r.status).toBe(201);
+    expect(await topf(annaId)).toBe(-100);
+    expect(await topf(bertId)).toBe(0);
+  });
+
+  it('niedrigste effektive Summe gewinnt (Anna, -100 < 0)', async () => {
+    const r = await memberAgent.get('/aufladung/zustaendiger-verwalter');
+    expect(r.body.verwalter.id).toBe(annaId);
+  });
+
+  it('erste Anfrage geht an Anna + liefert deren Link', async () => {
+    const r = await memberAgent.post('/aufladung/paypal').send({ betragCent: 500 });
+    expect(r.status).toBe(201);
+    expect(r.body.anfrage.zugewiesenerVerwalterId).toBe(annaId);
+    expect(r.body.verwalter).toMatchObject({ id: annaId, paypalMeLink: 'anna' });
+  });
+
+  it('zweite Anfrage geht an Bert (offene Anfrage hebt Annas effektiven Stand: -100+500=400 > 0)', async () => {
+    const r = await memberAgent.post('/aufladung/paypal').send({ betragCent: 500 });
+    expect(r.status).toBe(201);
+    expect(r.body.anfrage.zugewiesenerVerwalterId).toBe(bertId);
+    expect(r.body.verwalter).toMatchObject({ id: bertId, paypalMeLink: 'bert' });
+  });
+
+  it('Anfragen-Liste ist je Verwalter auf eigene zugewiesene gefiltert', async () => {
+    const annaListe = await annaAgent.get('/admin/aufladung/anfragen');
+    const bertListe = await bertAgent.get('/admin/aufladung/anfragen');
+    expect(annaListe.body.anfragen.every((a: { zugewiesenerVerwalterId: string }) => a.zugewiesenerVerwalterId === annaId)).toBe(true);
+    expect(bertListe.body.anfragen.every((a: { zugewiesenerVerwalterId: string }) => a.zugewiesenerVerwalterId === bertId)).toBe(true);
+    // Annas Anfrage taucht nicht in Berts Liste auf und umgekehrt
+    expect(annaListe.body.anfragen.length).toBeGreaterThanOrEqual(1);
+    expect(bertListe.body.anfragen.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('Bestätigen nur durch den Zugewiesenen: Anna kann Berts Anfrage nicht (403)', async () => {
+    const bertAnfrage = await prisma.aufladungsAnfrage.findFirst({
+      where: { zugewiesenerVerwalterId: bertId, status: 'OFFEN' },
+    });
+    const r = await annaAgent.post(`/admin/aufladung/anfragen/${bertAnfrage!.id}/bestaetigen`).send({});
+    expect(r.status).toBe(403);
+  });
+
+  it('Bert bestätigt seine Anfrage → EINZAHLUNG landet in Berts Topf', async () => {
+    const bertAnfrage = await prisma.aufladungsAnfrage.findFirst({
+      where: { zugewiesenerVerwalterId: bertId, status: 'OFFEN' },
+    });
+    const topfVor = await topf(bertId);
+    const r = await bertAgent.post(`/admin/aufladung/anfragen/${bertAnfrage!.id}/bestaetigen`).send({});
+    expect(r.status).toBe(201);
+    expect(r.body.kassenTransaktion).toMatchObject({ konto: 'VERWALTER', verwalterId: bertId, betragCent: 500 });
+    expect(await topf(bertId)).toBe(topfVor + 500);
+  });
+
+  it('Ablehnen nur durch den Zugewiesenen: Bert kann Annas Anfrage nicht (403)', async () => {
+    const annaAnfrage = await prisma.aufladungsAnfrage.findFirst({
+      where: { zugewiesenerVerwalterId: annaId, status: 'OFFEN' },
+    });
+    const r = await bertAgent.post(`/admin/aufladung/anfragen/${annaAnfrage!.id}/ablehnen`).send({});
+    expect(r.status).toBe(403);
+  });
+
+  it('Anna lehnt ihre eigene Anfrage ab (200)', async () => {
+    const annaAnfrage = await prisma.aufladungsAnfrage.findFirst({
+      where: { zugewiesenerVerwalterId: annaId, status: 'OFFEN' },
+    });
+    const r = await annaAgent.post(`/admin/aufladung/anfragen/${annaAnfrage!.id}/ablehnen`).send({});
+    expect(r.status).toBe(200);
+    expect(r.body.anfrage.status).toBe('ABGELEHNT');
+  });
+
+  it('kein Verwalter mit Link → PayPal-Anfrage 400 (kein Crash)', async () => {
+    await annaAgent.patch('/admin/me/paypal').send({ paypalMeLink: null });
+    await bertAgent.patch('/admin/me/paypal').send({ paypalMeLink: null });
+    const preview = await memberAgent.get('/aufladung/zustaendiger-verwalter');
+    expect(preview.body.verwalter).toBeNull();
+    const r = await memberAgent.post('/aufladung/paypal').send({ betragCent: 500 });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/kein verwalter mit paypal/i);
+  });
+
+  it('Restore: Lauras Link wieder setzen', async () => {
+    const r = await agent.patch('/admin/me/paypal').send({ paypalMeLink: 'laura-test' });
+    expect(r.status).toBe(200);
+  });
+});
