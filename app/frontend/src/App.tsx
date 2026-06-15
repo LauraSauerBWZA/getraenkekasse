@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './lib/auth';
+import { MemberLayout } from './components/MemberLayout';
 import Login from './routes/Login';
 import SetPassword from './routes/SetPassword';
 import Dashboard from './routes/Dashboard';
@@ -56,7 +57,9 @@ export default function App() {
         path="/"
         element={
           <Protected>
-            <Dashboard />
+            <MemberLayout>
+              <Dashboard />
+            </MemberLayout>
           </Protected>
         }
       />
@@ -64,7 +67,9 @@ export default function App() {
         path="/buchen"
         element={
           <Protected>
-            <Buchen />
+            <MemberLayout>
+              <Buchen />
+            </MemberLayout>
           </Protected>
         }
       />
@@ -72,7 +77,9 @@ export default function App() {
         path="/aufladen"
         element={
           <Protected>
-            <Aufladen />
+            <MemberLayout>
+              <Aufladen />
+            </MemberLayout>
           </Protected>
         }
       />
@@ -80,7 +87,9 @@ export default function App() {
         path="/verlauf"
         element={
           <Protected>
-            <Verlauf />
+            <MemberLayout>
+              <Verlauf />
+            </MemberLayout>
           </Protected>
         }
       />

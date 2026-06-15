@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Glass, GlassButton } from '../components/primitives';
+import { Glass } from '../components/primitives';
 import { ScrollList } from '../components/ScrollList';
 import {
   api,
@@ -41,7 +40,6 @@ function formatZeit(iso: string): string {
 
 export default function Verlauf() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [journal, setJournal] = useState<Journal | null>(null);
   const [historie, setHistorie] = useState<MeineHistorie | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -100,12 +98,6 @@ export default function Verlauf() {
       )}
 
       <Historie historie={historie} />
-
-      <div style={{ marginTop: 22 }}>
-        <GlassButton variant="ghost" full onClick={() => navigate('/')}>
-          Zurück
-        </GlassButton>
-      </div>
     </div>
   );
 }

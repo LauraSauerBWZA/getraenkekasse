@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Glass, GlassButton, GlassInput } from '../components/primitives';
 import {
   api,
@@ -46,7 +45,6 @@ const STATUS_COLOR: Record<AufladungsStatus, string> = {
 
 export default function Aufladen() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [verwalter, setVerwalter] = useState<VerwalterPublic | null>(null);
   const [anfragen, setAnfragen] = useState<MeineAnfrage[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -282,12 +280,6 @@ export default function Aufladen() {
 
       {/* Eigene Anfragen */}
       <EigeneAnfragen anfragen={anfragen} />
-
-      <div style={{ marginTop: 22 }}>
-        <GlassButton variant="ghost" full onClick={() => navigate('/')}>
-          Zurück
-        </GlassButton>
-      </div>
     </div>
   );
 }

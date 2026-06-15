@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Glass, GlassButton } from '../components/primitives';
 import {
   api,
@@ -36,7 +35,6 @@ interface LastBooking {
 
 export default function Buchen() {
   const { user, setUser } = useAuth();
-  const navigate = useNavigate();
   const [drinks, setDrinks] = useState<Drink[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pending, setPending] = useState<Drink | null>(null);
@@ -154,12 +152,6 @@ export default function Buchen() {
           })}
         </div>
       )}
-
-      <div style={{ marginTop: 22 }}>
-        <GlassButton variant="ghost" full onClick={() => navigate('/')}>
-          Zurück
-        </GlassButton>
-      </div>
 
       {pending && (
         <ConfirmSheet
