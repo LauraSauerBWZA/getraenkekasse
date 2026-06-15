@@ -17,10 +17,10 @@ const STATUS_LABEL: Record<AdminInvite['status'], string> = {
   abgelaufen: 'abgelaufen',
 };
 
-const STATUS_TONE: Record<AdminInvite['status'], 'amber' | 'success' | 'rescue'> = {
-  offen: 'amber',
-  eingeloest: 'success',
-  abgelaufen: 'rescue',
+const STATUS_TONE: Record<AdminInvite['status'], 'gold' | 'green' | 'coral'> = {
+  offen: 'gold',
+  eingeloest: 'green',
+  abgelaufen: 'coral',
 };
 
 function formatDate(iso: string): string {

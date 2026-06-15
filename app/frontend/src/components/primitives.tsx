@@ -1,7 +1,7 @@
 import { useState, type CSSProperties, type PropsWithChildren, type ReactNode } from 'react';
 
 // ─────────── BergMark ───────────
-export function BergMark({ size = 22, color = '#d98a4a' }: { size?: number; color?: string }) {
+export function BergMark({ size = 22, color = '#2BD4BC' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden>
       <path d="M16 3 L29 27 L3 27 Z" stroke={color} strokeWidth="1.6" strokeLinejoin="round" />
@@ -23,7 +23,7 @@ export function Glass({
   const tones: Record<GlassTone, { bg: string; line: string }> = {
     dark: { bg: 'var(--bwza-glass)', line: 'var(--bwza-glass-line)' },
     raise: { bg: 'var(--bwza-glass-raise)', line: 'var(--bwza-glass-line-up)' },
-    amber: { bg: 'var(--bwza-glass-amber)', line: 'rgba(255,200,140,0.30)' },
+    amber: { bg: 'var(--bwza-glass-amber)', line: 'rgba(43,212,188,0.30)' },
   };
   const t = tones[tone];
   return (
@@ -53,7 +53,7 @@ export function ShineEdge({ radius = 28 }: { radius?: number }) {
         inset: 0,
         borderRadius: radius,
         pointerEvents: 'none',
-        background: 'linear-gradient(180deg, rgba(255,225,180,0.10) 0%, transparent 24%)',
+        background: 'linear-gradient(180deg, var(--bwza-glass-shine) 0%, transparent 24%)',
       }}
     />
   );
@@ -89,16 +89,16 @@ export function GlassButton({
   const sz = sizes[size];
   const variants: Record<ButtonVariant, CSSProperties> = {
     primary: {
-      background: 'linear-gradient(180deg, #f4b56a, #d98a4a)',
-      color: '#3a200a',
+      background: 'linear-gradient(180deg, var(--bwza-teal), var(--bwza-teal-deep))',
+      color: 'var(--bwza-teal-ink)',
       fontWeight: 700,
       letterSpacing: 0.3,
       boxShadow: 'var(--bwza-shadow-amber)',
       border: 'none',
     },
     danger: {
-      background: 'linear-gradient(180deg, oklch(70% 0.18 25), oklch(55% 0.18 25))',
-      color: '#fef3d8',
+      background: 'linear-gradient(180deg, var(--bwza-coral), #E04449)',
+      color: '#2A0608',
       fontWeight: 700,
       letterSpacing: 0.3,
       boxShadow: 'var(--bwza-shadow-rescue)',
@@ -199,19 +199,19 @@ export function GlassInput({
           gap: 8,
           padding: '12px 14px',
           borderRadius: 14,
-          background: 'rgba(15,11,8,0.55)',
+          background: 'rgba(255,255,255,0.04)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
           border:
             '1px solid ' +
             (error
-              ? 'rgba(216,90,70,0.5)'
+              ? 'rgba(255,92,97,0.55)'
               : focus
-                ? 'rgba(244,181,106,0.45)'
+                ? 'rgba(43,212,188,0.55)'
                 : 'var(--bwza-glass-line)'),
           boxShadow: focus
-            ? '0 0 0 4px rgba(217,138,74,0.12), inset 0 1px 0 rgba(255,225,180,0.07)'
-            : 'inset 0 1px 0 rgba(255,225,180,0.06)',
+            ? '0 0 0 4px rgba(43,212,188,0.15), inset 0 1px 0 rgba(255,255,255,0.08)'
+            : 'inset 0 1px 0 rgba(255,255,255,0.06)',
           transition:
             'border-color var(--bwza-dur) var(--bwza-ease), box-shadow var(--bwza-dur) var(--bwza-ease)',
         }}
@@ -323,9 +323,8 @@ export function PasswordInput({
   );
 }
 
-// ─────────── Avatar (Initialen, Amber-Gradient) ───────────
-// Eine Quelle für den Avatar (vorher 2× inline dupliziert). Amber-Gradient =
-// der kanonische Primary-Akzent des Design-Systems.
+// ─────────── Avatar (Initialen, Teal-Gradient) ───────────
+// Eine Quelle für den Avatar. Teal-Gradient = der Primär-Akzent (B5c).
 export function Avatar({
   firstName,
   lastName,
@@ -348,9 +347,9 @@ export function Avatar({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: 'linear-gradient(180deg, #f4b56a, #d98a4a)',
-    color: '#3a200a',
-    fontFamily: 'var(--bwza-font-display)',
+    background: 'linear-gradient(180deg, var(--bwza-teal), var(--bwza-teal-deep))',
+    color: 'var(--bwza-teal-ink)',
+    fontFamily: 'var(--bwza-font-ui)',
     fontWeight: 700,
     fontSize: Math.round(size * 0.38),
     boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.30)',
@@ -369,7 +368,7 @@ export function Avatar({
   );
 }
 
-// ─────────── StatCard (Eyebrow + Wert in Fraunces) ───────────
+// ─────────── StatCard (Eyebrow + leichte Großzahl) ───────────
 export function StatCard({
   eyebrow,
   value,
@@ -386,11 +385,11 @@ export function StatCard({
       <div className="bwza-eyebrow">{eyebrow}</div>
       <div
         style={{
-          fontFamily: 'var(--bwza-font-display)',
-          fontSize: 18,
-          fontWeight: 600,
+          fontFamily: 'var(--bwza-font-ui)',
+          fontSize: 20,
+          fontWeight: 300,
           color: 'var(--bwza-ink)',
-          letterSpacing: -0.3,
+          letterSpacing: -0.4,
           marginTop: 4,
         }}
       >
@@ -401,12 +400,14 @@ export function StatCard({
   );
 }
 
-// ─────────── StatusChip (Token-Farben statt hartkodiertem oklch) ───────────
-type ChipTone = 'amber' | 'success' | 'rescue' | 'neutral';
+// ─────────── StatusChip (semantische Token-Farben, B5c) ───────────
+type ChipTone = 'gold' | 'green' | 'coral' | 'teal' | 'blue' | 'neutral';
 const CHIP_COLOR: Record<ChipTone, string> = {
-  amber: 'var(--bwza-amber)',
-  success: 'var(--bwza-success)',
-  rescue: 'var(--bwza-rescue-soft)',
+  gold: 'var(--bwza-gold)',   // offen / Warnung
+  green: 'var(--bwza-green)', // bestätigt / positiv
+  coral: 'var(--bwza-coral)', // abgelehnt / negativ
+  teal: 'var(--bwza-teal)',   // aktiv / primär
+  blue: 'var(--bwza-blue)',   // Info
   neutral: 'var(--bwza-ink-mute)',
 };
 export function StatusChip({ label, tone = 'neutral' }: { label: string; tone?: ChipTone }) {
@@ -431,17 +432,17 @@ export function StatusChip({ label, tone = 'neutral' }: { label: string; tone?: 
   );
 }
 
-// ─────────── EmptyState (Berg-Silhouette + Fraunces-Titel) ───────────
+// ─────────── EmptyState (Berg-Silhouette, teal) ───────────
 export function EmptyState({ title, sub }: { title: string; sub?: string }) {
   return (
     <div style={{ padding: '34px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <div style={{ marginBottom: 12, opacity: 0.6 }} aria-hidden>
+      <div style={{ marginBottom: 12, opacity: 0.7 }} aria-hidden>
         <svg width="110" height="56" viewBox="0 0 120 60" fill="none">
-          <path d="M0 58 L20 30 L35 42 L55 18 L75 35 L92 22 L120 58 Z" fill="rgba(217,138,74,0.18)" stroke="rgba(217,138,74,0.4)" strokeWidth="1" strokeLinejoin="round" />
-          <path d="M50 24 L55 18 L60 24 L57 22 L55 23 L53 22 Z" fill="rgba(255,255,255,0.4)" />
+          <path d="M0 58 L20 30 L35 42 L55 18 L75 35 L92 22 L120 58 Z" fill="rgba(43,212,188,0.14)" stroke="rgba(43,212,188,0.45)" strokeWidth="1" strokeLinejoin="round" />
+          <path d="M50 24 L55 18 L60 24 L57 22 L55 23 L53 22 Z" fill="rgba(255,255,255,0.5)" />
         </svg>
       </div>
-      <div style={{ fontFamily: 'var(--bwza-font-display)', fontSize: 18, color: 'var(--bwza-ink)', fontWeight: 600 }}>{title}</div>
+      <div style={{ fontFamily: 'var(--bwza-font-ui)', fontSize: 18, color: 'var(--bwza-ink)', fontWeight: 600 }}>{title}</div>
       {sub && <div style={{ marginTop: 6, fontSize: 12.5, color: 'var(--bwza-ink-mute)', maxWidth: 240, lineHeight: 1.45 }}>{sub}</div>}
     </div>
   );
@@ -456,7 +457,7 @@ export function Skeleton({ w = '100%', h = 14, radius = 8, style = {} }: { w?: n
         height: h,
         borderRadius: radius,
         background:
-          'linear-gradient(90deg, rgba(255,225,180,0.05), rgba(255,225,180,0.12), rgba(255,225,180,0.05))',
+          'linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.10), rgba(255,255,255,0.04))',
         backgroundSize: '200% 100%',
         animation: 'bwza-shimmer 1.5s ease infinite',
         ...style,

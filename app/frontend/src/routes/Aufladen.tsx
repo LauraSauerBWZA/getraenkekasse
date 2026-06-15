@@ -38,10 +38,10 @@ const STATUS_LABEL: Record<AufladungsStatus, string> = {
   ABGELEHNT: 'abgelehnt',
 };
 
-const STATUS_TONE: Record<AufladungsStatus, 'amber' | 'success' | 'rescue'> = {
-  OFFEN: 'amber',
-  BESTAETIGT: 'success',
-  ABGELEHNT: 'rescue',
+const STATUS_TONE: Record<AufladungsStatus, 'gold' | 'green' | 'coral'> = {
+  OFFEN: 'gold',
+  BESTAETIGT: 'green',
+  ABGELEHNT: 'coral',
 };
 
 export default function Aufladen() {
