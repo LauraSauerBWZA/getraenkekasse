@@ -449,7 +449,7 @@ export default function Admin() {
             Vereinskasse
           </div>
           <div style={{ marginTop: 2, fontSize: 11, color: 'var(--bwza-ink-mute)' }}>
-            Töpfe, Box, Deckung, Einkauf · Einlage · Auslage · Spende · Korrektur
+            Töpfe, Box, Deckung, Einkauf · Einlage · Spende · Korrektur
           </div>
         </div>
         <svg

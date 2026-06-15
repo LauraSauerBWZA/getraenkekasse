@@ -1,17 +1,16 @@
 import { z } from 'zod';
 
-// Sieben Kassen-Transaktions-Typen (KONFIGURATION.md §5.6).
+// Sechs Kassen-Transaktions-Typen (KONFIGURATION.md §5.6, Update 9).
 // Prisma-Enums sind auf SQLite nicht unterstützt → String + Zod-Validierung.
-// Alle Typen schon jetzt definiert, auch wenn B2e nur EINZAHLUNG (Bargeld-
-// Aufladung) und KORREKTUR (Aufladungs-Storno-Rückbuchung) schreibt — die
-// späteren Phasen (B2i Kassen-Screen mit EINKAUF/ENTNAHME/EINLAGE_BOX/
-// AUSLAGE/SPENDE) erben sie ohne weitere Migration.
+// B2e schreibt nur EINZAHLUNG (Bargeld-Aufladung) und KORREKTUR (Aufladungs-
+// Storno-Rückbuchung); der B2i-Kassen-Screen nutzt EINKAUF/ENTNAHME/EINLAGE_BOX/
+// SPENDE/KORREKTUR. Der frühere Privat-Vorstreck-Typ entfiel in Update 9 —
+// redundant zu EINKAUF/ENTNAHME aus dem eigenen Topf, der negativ werden darf.
 export const KASSEN_TYPEN = [
   'EINZAHLUNG',
   'EINLAGE_BOX',
   'EINKAUF',
   'ENTNAHME',
-  'AUSLAGE',
   'SPENDE',
   'KORREKTUR',
 ] as const;

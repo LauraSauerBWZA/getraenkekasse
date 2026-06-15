@@ -103,18 +103,18 @@ kasseRouter.get('/admin/kasse/historie', async (_req, res) => {
 });
 
 // POST /admin/kasse/buchung — einzeilige Kassen-Aktion (§6.8). Ein generischer
-// Endpoint für die fünf einzeiligen Typen; EINLAGE_BOX (zweizeilig) hat seinen
+// Endpoint für die vier einzeiligen Typen; EINLAGE_BOX (zweizeilig) hat seinen
 // eigenen Endpoint unten.
 //
 // Betrags-Konvention (Frontend tippt immer einen Euro-Betrag ein):
-//   - EINKAUF/ENTNAHME/AUSLAGE: client schickt positive Magnitude → Backend
-//     speichert NEGATIV (Abfluss).
+//   - EINKAUF/ENTNAHME: client schickt positive Magnitude → Backend speichert
+//     NEGATIV (Abfluss). Konto VERWALTER oder BOX; der Verwalter-Topf darf dabei
+//     negativ werden (= Verein schuldet dem Verwalter).
 //   - SPENDE: positive Magnitude → POSITIV (Zufluss).
 //   - KORREKTUR: SIGNIERTER Betrag (±), ≠ 0, wird so gespeichert.
-// Konto-Wahl VERWALTER/BOX frei, AUSNAHME AUSLAGE: nur VERWALTER (Privattasche).
-// verwalterId = der eingeloggte Admin bei konto=VERWALTER, sonst null.
-// vermerk Pflicht (§6.8).
-const EINZEILIGE_TYPEN = ['EINKAUF', 'ENTNAHME', 'AUSLAGE', 'SPENDE', 'KORREKTUR'] as const;
+// Konto-Wahl VERWALTER/BOX frei. verwalterId = der eingeloggte Admin bei
+// konto=VERWALTER, sonst null. vermerk Pflicht (§6.8).
+const EINZEILIGE_TYPEN = ['EINKAUF', 'ENTNAHME', 'SPENDE', 'KORREKTUR'] as const;
 
 const buchungSchema = z.object({
   typ: z.enum(EINZEILIGE_TYPEN),
@@ -133,11 +133,6 @@ kasseRouter.post('/admin/kasse/buchung', async (req, res) => {
   const { typ, konto, betragCent } = parsed.data;
   const vermerk = parsed.data.vermerk.trim();
   if (!vermerk) return res.status(400).json({ error: 'Vermerk ist Pflicht.' });
-
-  // AUSLAGE = Privattasche → immer eigener Verwalter-Topf.
-  if (typ === 'AUSLAGE' && konto !== 'VERWALTER') {
-    return res.status(400).json({ error: 'Auslage geht immer auf den eigenen Verwalter-Topf.' });
-  }
 
   // Vorzeichen / Magnitude je Typ.
   let storedBetrag: number;

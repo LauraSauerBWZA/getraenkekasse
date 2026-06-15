@@ -115,7 +115,7 @@ model Transaktion {
 }
 
 // Kassen-Ebene (KONFIGURATION.md §5.6). Audit-Trail — niemals löschen.
-// typ: EINZAHLUNG | EINLAGE_BOX | EINKAUF | ENTNAHME | AUSLAGE | SPENDE | KORREKTUR,
+// typ: EINZAHLUNG | EINLAGE_BOX | EINKAUF | ENTNAHME | SPENDE | KORREKTUR,
 // konto: VERWALTER | BOX — validiert via src/domain/kassen-typ.ts + kassen-konto.ts.
 // verwalterId: gesetzt bei konto=VERWALTER (welcher Topf), null bei konto=BOX.
 // notiz: PFLICHT bei JEDER Bewegung (§6.8) — die Spalte ist NOT NULL, weil

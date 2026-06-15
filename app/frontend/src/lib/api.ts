@@ -177,7 +177,7 @@ export interface KassenHistorieEintrag {
 }
 
 // Einzeilige Kassen-Aktionen (EINLAGE_BOX hat einen eigenen Endpoint).
-export type KassenBuchungTyp = 'EINKAUF' | 'ENTNAHME' | 'AUSLAGE' | 'SPENDE' | 'KORREKTUR';
+export type KassenBuchungTyp = 'EINKAUF' | 'ENTNAHME' | 'SPENDE' | 'KORREKTUR';
 export type KassenKonto = 'VERWALTER' | 'BOX';
 
 export class ApiError extends Error {
@@ -280,7 +280,7 @@ export const api = {
   // Admin: Kassen-Historie (alle Bewegungen chronologisch)
   adminKasseHistorie: () =>
     request<{ buchungen: KassenHistorieEintrag[] }>('/admin/kasse/historie'),
-  // Admin: einzeilige Kassen-Buchung (EINKAUF/ENTNAHME/AUSLAGE/SPENDE/KORREKTUR)
+  // Admin: einzeilige Kassen-Buchung (EINKAUF/ENTNAHME/SPENDE/KORREKTUR)
   adminKasseBuchung: (input: {
     typ: KassenBuchungTyp;
     konto: KassenKonto;

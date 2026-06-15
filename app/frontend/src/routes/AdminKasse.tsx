@@ -50,7 +50,7 @@ function parseSignedEuroToCent(input: string): number | null {
   return cent === 0 ? null : cent;
 }
 
-type AktionKey = 'EINKAUF' | 'ENTNAHME' | 'EINLAGE_BOX' | 'AUSLAGE' | 'SPENDE' | 'KORREKTUR';
+type AktionKey = 'EINKAUF' | 'ENTNAHME' | 'EINLAGE_BOX' | 'SPENDE' | 'KORREKTUR';
 
 interface AktionDef {
   key: AktionKey;
@@ -65,7 +65,6 @@ const AKTIONEN: AktionDef[] = [
   { key: 'EINKAUF', label: 'Einkauf', desc: 'Getränke-Nachschub', kontoWahl: true, signed: false, modus: 'buchung' },
   { key: 'EINLAGE_BOX', label: 'Einlage in die Box', desc: 'Gehaltenes Geld in die Box legen', kontoWahl: false, signed: false, modus: 'einlage' },
   { key: 'ENTNAHME', label: 'Entnahme', desc: 'Vereinsfremde Ausgabe', kontoWahl: true, signed: false, modus: 'buchung' },
-  { key: 'AUSLAGE', label: 'Auslage', desc: 'Privat vorgestreckt (eigener Topf)', kontoWahl: false, signed: false, modus: 'buchung' },
   { key: 'SPENDE', label: 'Spende', desc: 'Spende oder Gast-Einzahlung', kontoWahl: true, signed: false, modus: 'buchung' },
   { key: 'KORREKTUR', label: 'Korrektur', desc: 'Kassenstand anpassen (±)', kontoWahl: true, signed: true, modus: 'buchung' },
 ];
@@ -80,7 +79,6 @@ const TYP_LABEL: Record<string, string> = {
   EINLAGE_BOX: 'Einlage Box',
   EINKAUF: 'Einkauf',
   ENTNAHME: 'Entnahme',
-  AUSLAGE: 'Auslage',
   SPENDE: 'Spende',
   KORREKTUR: 'Korrektur',
 };

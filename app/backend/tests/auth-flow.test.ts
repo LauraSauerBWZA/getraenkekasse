@@ -1507,6 +1507,10 @@ describe('Kassen-Aktionen (Admin)', () => {
     });
     const nach = await summary();
     expect(topf(nach, lauraId)).toBe(topf(vor, lauraId) - 3000);
+    // Einkauf aus dem eigenen Topf darf diesen negativ machen (= Verein schuldet
+    // dem Verwalter). Das ersetzt die in Update 9 entfernte Privat-Vorstreck-
+    // Abdeckung.
+    expect(topf(nach, lauraId)).toBeLessThan(0);
     expect(nach.vereinsvermoegenCent).toBe(vor.vereinsvermoegenCent - 3000);
     expect(nach.mitgliederGuthabenSummeCent).toBe(vor.mitgliederGuthabenSummeCent);
     expect(nach.deckungCent).toBe(vor.deckungCent - 3000);
@@ -1535,20 +1539,13 @@ describe('Kassen-Aktionen (Admin)', () => {
     expect(topf(nach, lauraId)).toBe(topf(vor, lauraId) - 800);
   });
 
-  it('AUSLAGE nur auf eigenen Topf (BOX → 400), darf Topf negativ machen', async () => {
-    const bad = await agent
-      .post('/admin/kasse/buchung')
-      .send({ typ: 'AUSLAGE', konto: 'BOX', betragCent: 100, vermerk: 'x' });
-    expect(bad.status).toBe(400);
-
-    const vor = await summary();
+  it('lehnt einen unbekannten Kassen-Typ ab', async () => {
+    // Nur die gelisteten Typen sind erlaubt (Zod-Enum). Ein in Update 9
+    // gestrichener oder vertippter Typ fällt hier durch.
     const r = await agent
       .post('/admin/kasse/buchung')
-      .send({ typ: 'AUSLAGE', konto: 'VERWALTER', betragCent: 1200, vermerk: 'Privat vorgestreckt' });
-    expect(r.status).toBe(201);
-    expect(r.body.kassenTransaktion.betragCent).toBe(-1200);
-    const nach = await summary();
-    expect(topf(nach, lauraId)).toBe(topf(vor, lauraId) - 1200);
+      .send({ typ: 'GIBTS_NICHT', konto: 'VERWALTER', betragCent: 1200, vermerk: 'x' });
+    expect(r.status).toBe(400);
   });
 
   it('SPENDE: erhöht das gewählte Konto', async () => {
