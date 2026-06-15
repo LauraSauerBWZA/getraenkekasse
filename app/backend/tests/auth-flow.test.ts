@@ -30,6 +30,7 @@ execFileSync(
 const { buildApp } = await import('../src/index.js');
 const { prisma } = await import('../src/db.js');
 const { generateInviteToken, inviteExpiry } = await import('../src/auth/tokens.js');
+const { berlinDayKey } = await import('../src/routes/journal.js');
 const supertest = (await import('supertest')).default;
 
 const app = buildApp();
@@ -2260,5 +2261,26 @@ describe('Trinkjournal /journal (B4)', () => {
     expect(r.body.laengstePause).toBe(0);
     expect(r.body.heroMonat).toBe(0);
     expect(r.body.achievements.find((a: { key: string }) => a.key === 'erstbesteigung').freigeschaltet).toBe(false);
+  });
+});
+
+// B5a — Berlin-Tagesgrenzen (Europe/Berlin) für die Journal-Buckets. Deterministisch
+// über feste Instants getestet, inkl. Mitternachts-Übergang und DST (CET/CEST).
+describe('berlinDayKey (Europe/Berlin)', () => {
+  it('Winter (CET, UTC+1): 22:30Z bleibt am selben Tag, 23:30Z kippt über Mitternacht', () => {
+    // 2026-03-15 ist vor der DST-Umstellung (Ende März) → CET (UTC+1).
+    expect(berlinDayKey(new Date('2026-03-15T22:30:00Z'))).toBe('2026-03-15'); // 23:30 Berlin
+    expect(berlinDayKey(new Date('2026-03-15T23:30:00Z'))).toBe('2026-03-16'); // 00:30 Berlin
+  });
+
+  it('Sommer (CEST, UTC+2): 21:30Z selber Tag, 22:30Z kippt über Mitternacht', () => {
+    // Juli → CEST (UTC+2).
+    expect(berlinDayKey(new Date('2026-07-15T21:30:00Z'))).toBe('2026-07-15'); // 23:30 Berlin
+    expect(berlinDayKey(new Date('2026-07-15T22:30:00Z'))).toBe('2026-07-16'); // 00:30 Berlin
+  });
+
+  it('Mittags-Instants liegen in beiden Zeitzonen am Kalendertag', () => {
+    expect(berlinDayKey(new Date('2026-01-10T12:00:00Z'))).toBe('2026-01-10');
+    expect(berlinDayKey(new Date('2026-08-10T12:00:00Z'))).toBe('2026-08-10');
   });
 });

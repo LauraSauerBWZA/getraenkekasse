@@ -5,13 +5,42 @@ import { computeGuthabenCent } from '../domain/guthaben.js';
 
 export const journalRouter = Router();
 
-// Tagesschlüssel yyyy-mm-dd (UTC). Im Container ist TZ=UTC → deterministisch +
-// testbar; ein Berlin-Feinabgleich wäre Politur (B5/B6).
-function dayKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
+// Tagesschlüssel yyyy-mm-dd in **Europe/Berlin** (B5a), dependency-frei via Intl.
+// CET/CEST (DST) behandelt Intl korrekt. en-CA liefert das ISO-Format yyyy-mm-dd.
+const BERLIN_DATE_FMT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Berlin',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+const BERLIN_WEEKDAY_FMT = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Europe/Berlin',
+  weekday: 'short',
+});
+
+export function berlinDayKey(d: Date): string {
+  return BERLIN_DATE_FMT.format(d);
 }
-function addDays(d: Date, n: number): Date {
-  return new Date(d.getTime() + n * 86_400_000);
+
+// Tagesarithmetik auf dem Berlin-Tagesschlüssel mit **UTC-Noon-Anker**: 12:00 UTC
+// eines Kalendertags liegt in Berlin am frühen Nachmittag (13:00/14:00) — die
+// 12h-Marge zur Mitternacht macht ±24h-Sprünge DST-sicher (eine 23h-/25h-Stunde
+// kippt den Tag nie).
+function keyAnchor(key: string): Date {
+  return new Date(key + 'T12:00:00Z');
+}
+function shiftKey(key: string, days: number): string {
+  return berlinDayKey(new Date(keyAnchor(key).getTime() + days * 86_400_000));
+}
+function istWochenendeKey(key: string): boolean {
+  const wd = BERLIN_WEEKDAY_FMT.format(keyAnchor(key));
+  return wd === 'Sat' || wd === 'Sun';
+}
+// Mo=0 … So=6, in Berlin.
+function berlinWochentagMontag0(key: string): number {
+  const wd = BERLIN_WEEKDAY_FMT.format(keyAnchor(key));
+  const idx = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(wd);
+  return (idx + 6) % 7;
 }
 
 // Hamster-Interpretation (dokumentiert): Live-Berechnung kann keine Historie der
@@ -83,26 +112,24 @@ journalRouter.get('/journal', async (req, res) => {
   const stornierte = new Set(stornos.map((s) => s.stornoVonId));
   const gueltige = kaeufe.filter((k) => !stornierte.has(k.id));
 
-  // Tages- und Monatszähler.
+  // Tages- und Monatszähler (Berlin-Tagesschlüssel).
   const dayCounts = new Map<string, number>();
   const monatsZaehler = new Map<string, number>();
   for (const k of gueltige) {
-    const key = dayKey(k.createdAt);
+    const key = berlinDayKey(k.createdAt);
     dayCounts.set(key, (dayCounts.get(key) ?? 0) + 1);
     const mk = key.slice(0, 7);
     monatsZaehler.set(mk, (monatsZaehler.get(mk) ?? 0) + 1);
   }
 
-  const now = new Date();
-  const heuteKey = dayKey(now);
+  const heuteKey = berlinDayKey(new Date());
   const monatKey = heuteKey.slice(0, 7);
 
   // Hero: gültige Käufe im laufenden Kalendermonat.
   const heroMonat = monatsZaehler.get(monatKey) ?? 0;
 
-  // Diese Woche (Montag-basiert).
-  const seitMontag = (now.getUTCDay() + 6) % 7;
-  const wocheStartKey = dayKey(addDays(now, -seitMontag));
+  // Diese Woche (Montag-basiert, Berlin).
+  const wocheStartKey = shiftKey(heuteKey, -berlinWochentagMontag0(heuteKey));
   let dieseWoche = 0;
   for (const [key, count] of dayCounts) {
     if (key >= wocheStartKey && key <= heuteKey) dieseWoche += count;
@@ -110,10 +137,10 @@ journalRouter.get('/journal', async (req, res) => {
 
   // Streak: aufeinanderfolgende Tage bis heute mit >=1 Buchung (heute 0 → 0).
   let streak = 0;
-  let cursor = now;
-  while ((dayCounts.get(dayKey(cursor)) ?? 0) > 0) {
+  let cursor = heuteKey;
+  while ((dayCounts.get(cursor) ?? 0) > 0) {
     streak++;
-    cursor = addDays(cursor, -1);
+    cursor = shiftKey(cursor, -1);
   }
 
   // Längste Pause: längste lückenlose Folge buchungsfreier Tage zwischen erstem
@@ -122,26 +149,24 @@ journalRouter.get('/journal', async (req, res) => {
   let laengstePause = 0;
   if (gueltige.length > 0) {
     const minMs = Math.min(...gueltige.map((k) => k.createdAt.getTime()));
-    let d = new Date(minMs);
+    let key = berlinDayKey(new Date(minMs));
     let run = 0;
-    while (dayKey(d) <= heuteKey) {
-      if ((dayCounts.get(dayKey(d)) ?? 0) > 0) {
+    while (key <= heuteKey) {
+      if ((dayCounts.get(key) ?? 0) > 0) {
         run = 0;
       } else {
         run++;
         if (run > laengstePause) laengstePause = run;
       }
-      d = addDays(d, 1);
+      key = shiftKey(key, 1);
     }
   }
 
   // 30-Tage-Verlauf (älteste zuerst), Wochenenden für die Amber-Deep-Färbung.
   const verlauf30 = [];
   for (let i = 29; i >= 0; i--) {
-    const d = addDays(now, -i);
-    const key = dayKey(d);
-    const wd = d.getUTCDay();
-    verlauf30.push({ datum: key, anzahl: dayCounts.get(key) ?? 0, istWochenende: wd === 0 || wd === 6 });
+    const key = shiftKey(heuteKey, -i);
+    verlauf30.push({ datum: key, anzahl: dayCounts.get(key) ?? 0, istWochenende: istWochenendeKey(key) });
   }
 
   // Achievements (live abgeleitet, keine Persistenz).
