@@ -1,6 +1,6 @@
 # Konfiguration — Bergwacht Getränkekasse
 
-**Stand:** 04.06.2026 (Update 8: Multi-Verwalter mit Lastverteilung)
+**Stand:** 15.06.2026 (Update 9: AUSLAGE gestrichen)
 **Status:** 🟢 Phase B1 abgeschlossen + verifiziert, Phase B2 vorbereitet
 
 ---
@@ -83,7 +83,7 @@ Alles vom Mitglied plus volle Schreibrechte:
 - Drink-Katalog pflegen
 - Übersicht aller Mitglieder mit Saldo sehen, Guthaben korrigieren, Transaktionen stornieren (alle, mit Pflicht-Notiz)
 - App-weite Sortenstatistik sehen
-- **Kassenführung:** Einkäufe abrechnen, Entnahmen buchen, Geld in die Box legen, Auslagen erfassen, Spenden eintragen, Bar-Vereinskasse korrigieren (jeweils auf den eigenen Topf bzw. die Box)
+- **Kassenführung:** Einkäufe abrechnen, Entnahmen buchen, Geld in die Box legen, Spenden eintragen, Bar-Vereinskasse korrigieren (jeweils auf den eigenen Topf bzw. die Box)
 
 **Alle Verwalter sehen alles und dürfen alles** — einzige Ausnahme: PayPal-Anfragen bestätigt nur der zugewiesene Verwalter.
 
@@ -183,7 +183,7 @@ Jede Bewegung am Vereinsgeld. `konto` trennt Verwalter-Töpfe von der Box; `verw
 | Feld | Typ | Notiz |
 |---|---|---|
 | `id` | String (cuid) | |
-| `typ` | Enum | `EINZAHLUNG`, `EINLAGE_BOX`, `EINKAUF`, `ENTNAHME`, `AUSLAGE`, `SPENDE`, `KORREKTUR` |
+| `typ` | Enum | `EINZAHLUNG`, `EINLAGE_BOX`, `EINKAUF`, `ENTNAHME`, `SPENDE`, `KORREKTUR` |
 | `konto` | Enum | `VERWALTER` oder `BOX` |
 | `verwalterId` | String, FK → User, nullable | Welcher Verwalter-Topf. Gesetzt wenn `konto=VERWALTER`, null bei `BOX` — NEU Update 8 |
 | `betragCent` | Int | Positiv = Zufluss, negativ = Abfluss |
@@ -201,7 +201,6 @@ Jede Bewegung am Vereinsgeld. `konto` trennt Verwalter-Töpfe von der Box; `verw
 | `EINLAGE_BOX` | VERWALTER / BOX | −/+ | Verwalter legt gehaltenes Geld in die Box. Zwei Zeilen, verknüpft über `einlageGegenId`. |
 | `EINKAUF` | VERWALTER **oder** BOX | − | Getränke-Einkauf. Quelle wählbar. |
 | `ENTNAHME` | VERWALTER **oder** BOX | − | Vereinsfremde Ausgabe (z.B. „Waschstraße Einsatzfahrzeuge"). Getrennt vom Getränke-Einkauf. — NEU Update 8 |
-| `AUSLAGE` | VERWALTER | − | Verwalter streckt aus Privattasche vor → sein Topf sinkt, darf negativ werden. |
 | `SPENDE` | VERWALTER **oder** BOX | + | Spende/Gast-Einzahlung. Konto wählbar (ein Verwalter oder Box). — erweitert Update 8 |
 | `KORREKTUR` | VERWALTER **oder** BOX | ± | Manuelle Korrektur, z.B. Box nach Nachzählen. |
 
@@ -288,7 +287,6 @@ Soft-Delete (`deletedAt`), Mitglieder-Transaktionen mitgelöscht, gekoppelte Kas
 | Geld in die Box legen | Admin | `EINLAGE_BOX`: `VERWALTER −X` (eigener Topf) + `BOX +X`, verknüpft |
 | Getränke-Einkauf | Admin | `EINKAUF`, Quelle (eigener Topf ODER Box), `−X`, Pflicht-Vermerk |
 | Vereinsfremde Ausgabe | Admin | `ENTNAHME`, Quelle (eigener Topf ODER Box), `−X`, Pflicht-Vermerk (z.B. „Waschstraße") |
-| Auslage Privattasche | Admin | `AUSLAGE`, eigener Topf, `−X` (darf negativ), Pflicht-Vermerk |
 | Spende / Gast | Admin | `SPENDE`, Konto wählbar (ein Verwalter ODER Box), `+X`, Pflicht-Vermerk |
 | Korrektur | Admin | `KORREKTUR`, Konto wählbar, `±X`, Pflicht-Vermerk |
 
@@ -337,7 +335,7 @@ Admin-/Leitung-Bereiche via Profil-Drawer, je nach Rolle.
 - 🍺 Drink-Katalog
 - 💳 Aufladungs-Anfragen — **gefiltert auf die eigenen zugewiesenen** (plus optional „alle" zur Übersicht, aber bestätigen nur die eigenen)
 - 📊 Sortenstatistik
-- 🏦 Kasse: Gesamtbestand, Töpfe je Verwalter, Box, Deckung, Aktionen (Einkauf, Entnahme, Einlage, Auslage, Spende, Korrektur), Kassen-Historie
+- 🏦 Kasse: Gesamtbestand, Töpfe je Verwalter, Box, Deckung, Aktionen (Einkauf, Entnahme, Einlage, Spende, Korrektur), Kassen-Historie
 - 👤 eigenes Profil: paypal.me-Link pflegen
 
 ### 7.3 Leitung-Bereich (read-only)
@@ -361,7 +359,7 @@ App-weit aggregiert, anonym. Zeitfilter, pro Drink Anzahl + Umsatz.
 - **Bestands-Hero:** Vereinsvermögen groß
 - **Töpfe-Liste:** jeder Verwalter mit seinem aktuellen Stand (eigener hervorgehoben), darunter Bar-Vereinskasse
 - **Deckungs-Card:** rot bei negativ, mit Erklär-Text
-- **Aktionen:** Einkauf, Entnahme, Einlage in die Box, Auslage, Spende, Korrektur — jeweils mit Pflicht-Vermerk-Feld
+- **Aktionen:** Einkauf, Entnahme, Einlage in die Box, Spende, Korrektur — jeweils mit Pflicht-Vermerk-Feld
 - **Kassen-Historie:** chronologisch, mit Typ, Konto/Verwalter, Betrag, Vermerk
 
 ---
@@ -406,7 +404,7 @@ Phase B1 abgeschlossen. Ab B2 feinere Sub-Phasen. Das Datenmodell wird **von Anf
 | **B2e** | Bargeld-Aufladung (Admin) — Kassen-Schema multi-fähig anlegen (verwalterId) | 1-2 Tage | offen |
 | **B2f** | PayPal-Aufladungs-Anfragen (User + Admin) — inkl. gekoppelter Kassen-Buchung | 1-2 Tage | offen |
 | **B2g** | Mitglieder-Übersicht + manuelle Guthaben-Korrektur | 1 Tag | offen |
-| **B2i** | Kassen-Screen: Töpfe, Box, Deckung, Einkauf, Entnahme, Einlage, Auslage, Spende, Korrektur | 2 Tage | offen |
+| **B2i** | Kassen-Screen: Töpfe, Box, Deckung, Einkauf, Entnahme, Einlage, Spende, Korrektur | 2 Tage | offen |
 | **B2j** | Leitung-Rolle: Recht vergeben + Read-only-Kassen-Einsicht | 1 Tag | offen |
 | **B2k** | **Multi-Verwalter: Verwalter ernennen, paypal.me pflegen, Lastverteilung (geringste Schuld), zugewiesene Anfragen** | 2 Tage | offen |
 | **B3** | Sortenstatistik (Admin + Leitung) | 1 Tag | offen |
@@ -456,6 +454,13 @@ Außerdem: Form-Field-IDs auf Login fehlen → B5 Politur.
 
 ## 13. Änderungshistorie (kompakt)
 
+**Update 9 (15.06.2026):** AUSLAGE-Typ gestrichen
+- Redundant zu EINKAUF/ENTNAHME aus dem eigenen Verwalter-Topf (beide dürfen
+  den Topf negativ machen = „Verein schuldet dem Verwalter").
+- „Auslage" beschrieb nur die Geldquelle (privat), die ohnehin im negativen
+  Topf abgebildet ist, und lieferte keine saubere eigene Auswertungs-Kategorie.
+- Kassen-Typen jetzt sechs: EINZAHLUNG, EINLAGE_BOX, EINKAUF, ENTNAHME, SPENDE, KORREKTUR.
+
 **Update 8 (04.06.2026):** Multi-Verwalter mit Lastverteilung
 - Mehrere Verwalter, jeder mit eigenem `paypalMeLink` und eigenem „Verwalter hält"-Topf (`KassenTransaktion.verwalterId`)
 - PayPal-Aufladung: Mitglied sieht nur den Link des zuständigen Verwalters; `AufladungsAnfrage.zugewiesenerVerwalterId`
@@ -469,7 +474,7 @@ Außerdem: Form-Field-IDs auf Login fehlen → B5 Politur.
 
 **Update 7 (04.06.2026):** Schuld-Modell + Leitung-Rolle
 - „Verwalter hält" (ein Topf, darf negativ) + „Bar-Vereinskasse" (nachzählbar) statt Bar/PayPal
-- KassenTransaktion-Typen EINZAHLUNG, EINLAGE_BOX, EINKAUF, AUSLAGE, SPENDE, KORREKTUR
+- KassenTransaktion-Typen EINZAHLUNG, EINLAGE_BOX, EINKAUF, SPENDE, KORREKTUR
 - Rolle „Leitung" (read-only Kassen-Einsicht)
 - Deckung = Vereinsvermögen − Summe Mitglieder-Guthaben
 
