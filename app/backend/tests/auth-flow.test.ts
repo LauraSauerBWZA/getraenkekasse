@@ -1701,3 +1701,56 @@ describe('Leitung-Lesezugriff (Kasse)', () => {
     expect(Array.isArray(r.body.toepfe)).toBe(true);
   });
 });
+
+// B2j.2 — Leitung-Recht vergeben/entziehen (Admin-only). Nutzt Max als Ziel und
+// prüft end-to-end, dass das frisch gesetzte Recht ohne Re-Login wirkt.
+describe('Leitung-Recht vergeben (Admin)', () => {
+  let maxId: string;
+
+  it('Setup: Max-Id', async () => {
+    maxId = (await memberAgent.get('/auth/me')).body.user.id;
+  });
+
+  it('lehnt das Setzen ohne Admin-Recht ab (403)', async () => {
+    const r = await memberAgent.patch(`/admin/users/${maxId}/leitung`).send({ isLeitung: true });
+    expect(r.status).toBe(403);
+  });
+
+  it('antwortet 404 bei unbekannter ID', async () => {
+    const r = await agent.patch('/admin/users/gibts-nicht/leitung').send({ isLeitung: true });
+    expect(r.status).toBe(404);
+  });
+
+  it('lehnt fehlendes/ungültiges isLeitung ab (400)', async () => {
+    const r = await agent.patch(`/admin/users/${maxId}/leitung`).send({});
+    expect(r.status).toBe(400);
+  });
+
+  it('Admin vergibt Leitung — setzt nur isLeitung, nicht isAdmin', async () => {
+    const r = await agent.patch(`/admin/users/${maxId}/leitung`).send({ isLeitung: true });
+    expect(r.status).toBe(200);
+    expect(r.body.user).toMatchObject({ id: maxId, isLeitung: true, isAdmin: false });
+    // /me des Mitglieds spiegelt es (ohne Re-Login)
+    const me = await memberAgent.get('/auth/me');
+    expect(me.body.user.isLeitung).toBe(true);
+    expect(me.body.user.isAdmin).toBe(false);
+  });
+
+  it('frisch vergebenes Recht wirkt sofort: Max liest jetzt die Kasse (200)', async () => {
+    expect((await memberAgent.get('/admin/kasse/summary')).status).toBe(200);
+    expect((await memberAgent.get('/admin/kasse/historie')).status).toBe(200);
+    // aber weiterhin keine Schreib-Aktion + keine Mitglieder-Endpoints
+    expect(
+      (await memberAgent.post('/admin/kasse/buchung').send({ typ: 'EINKAUF', konto: 'BOX', betragCent: 100, vermerk: 'x' }))
+        .status,
+    ).toBe(403);
+    expect((await memberAgent.get('/admin/users')).status).toBe(403);
+  });
+
+  it('Admin entzieht Leitung wieder → Max verliert den Kassen-Zugriff (403)', async () => {
+    const r = await agent.patch(`/admin/users/${maxId}/leitung`).send({ isLeitung: false });
+    expect(r.status).toBe(200);
+    expect(r.body.user.isLeitung).toBe(false);
+    expect((await memberAgent.get('/admin/kasse/summary')).status).toBe(403);
+  });
+});

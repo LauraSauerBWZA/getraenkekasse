@@ -211,3 +211,32 @@ adminRouter.post('/admin/korrektur', async (req, res) => {
   );
   return res.status(201).json({ transaktion, guthabenCent });
 });
+
+// PATCH /admin/users/:id/leitung — Leitung-Recht vergeben/entziehen (B2j, §4).
+// Setzt NUR `isLeitung`. Verwalter ernennen (`isAdmin`) ist bewusst B2k und hier
+// nicht möglich. requireAdmin (adminRouter-Gate).
+const leitungSchema = z.object({ isLeitung: z.boolean() });
+
+adminRouter.patch('/admin/users/:id/leitung', async (req, res) => {
+  const parsed = leitungSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res
+      .status(400)
+      .json({ error: 'Ungültige Eingaben.', details: parsed.error.flatten() });
+  }
+
+  const ziel = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!ziel) return res.status(404).json({ error: 'Mitglied nicht gefunden.' });
+
+  const user = await prisma.user.update({
+    where: { id: ziel.id },
+    data: { isLeitung: parsed.data.isLeitung },
+    select: { id: true, firstName: true, lastName: true, isAdmin: true, isLeitung: true },
+  });
+
+  logger.info(
+    { mitgliedId: user.id, isLeitung: user.isLeitung, adminId: req.auth!.sub },
+    'Leitung-Recht gesetzt.',
+  );
+  return res.json({ user });
+});
