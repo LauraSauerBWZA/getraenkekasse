@@ -1,15 +1,17 @@
 import { useState, type PropsWithChildren } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { ChevronLeft, History, Home, Wallet } from 'lucide-react';
 import { Avatar, BergMark } from './primitives';
 import { ProfileDrawer } from './ProfileDrawer';
 import { useAuth } from '../lib/auth';
 
 // Bottom-Nav: 3 Tabs (B5c-Feinschliff). „Buchen" ist kein Tab mehr — es ist über
 // den Theke-CTA als Unter-Screen erreichbar (Route /buchen bleibt).
+// B5-Icons: lucide-Line-Icons statt Emoji (Home/Wallet/History), aktiv in Teal.
 const TABS = [
-  { to: '/', label: 'Theke', icon: '🏠' },
-  { to: '/aufladen', label: 'Aufladen', icon: '💳' },
-  { to: '/verlauf', label: 'Verlauf', icon: '🕒' },
+  { to: '/', label: 'Theke', icon: Home },
+  { to: '/aufladen', label: 'Aufladen', icon: Wallet },
+  { to: '/verlauf', label: 'Verlauf', icon: History },
 ];
 
 // Persistente Shell für die Member-Screens: sticky Top-Header (Avatar→Drawer,
@@ -71,9 +73,7 @@ export function MemberLayout({ children }: PropsWithChildren) {
               fontWeight: 600,
             }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
+            <ChevronLeft size={18} strokeWidth={2.2} aria-hidden />
             Zurück
           </button>
         )}
@@ -109,6 +109,7 @@ export function MemberLayout({ children }: PropsWithChildren) {
       >
         {TABS.map((t) => {
           const aktiv = t.to === '/' ? location.pathname === '/' : location.pathname.startsWith(t.to);
+          const Icon = t.icon;
           return (
             <button
               key={t.to}
@@ -122,14 +123,12 @@ export function MemberLayout({ children }: PropsWithChildren) {
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 3,
+                gap: 4,
                 paddingTop: 10,
-                color: aktiv ? 'var(--bwza-amber)' : 'var(--bwza-ink-mute)',
+                color: aktiv ? 'var(--bwza-teal)' : 'var(--bwza-ink-mute)',
               }}
             >
-              <span style={{ fontSize: 20, lineHeight: 1, opacity: aktiv ? 1 : 0.75 }} aria-hidden>
-                {t.icon}
-              </span>
+              <Icon size={22} strokeWidth={aktiv ? 2.4 : 2} aria-hidden />
               <span style={{ fontSize: 10.5, fontWeight: aktiv ? 700 : 500, letterSpacing: 0.2 }}>
                 {t.label}
               </span>

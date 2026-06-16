@@ -1,4 +1,5 @@
 import { useState, type CSSProperties, type PropsWithChildren, type ReactNode } from 'react';
+import type { LucideIcon } from 'lucide-react';
 
 // ─────────── BergMark ───────────
 export function BergMark({ size = 22, color = '#2BD4BC' }: { size?: number; color?: string }) {
@@ -498,6 +499,27 @@ export function KategorieMarker({ kategorie, size = 40 }: { kategorie: string; s
       }}
     >
       <span style={{ width: dot, height: dot, borderRadius: 'var(--bwza-radius-pill)', background: m.solid }} />
+    </div>
+  );
+}
+
+// ─────────── Eyebrow (B5-Icons) ───────────
+// Kicker-Label mit konsistentem lucide-Line-Icon statt Emoji-Glyph. Icon im
+// Teal-Akzent, Text in der bestehenden `.bwza-eyebrow`-Optik. Einheitliche
+// Größe/Stroke über alle Sektions-Labels (Admin-Cards, Aufladen, Verlauf …).
+export function Eyebrow({
+  icon: Icon,
+  children,
+  color = 'var(--bwza-teal)',
+}: {
+  icon: LucideIcon;
+  children: ReactNode;
+  color?: string;
+}) {
+  return (
+    <div className="bwza-eyebrow" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <Icon size={13} strokeWidth={2} style={{ color, flexShrink: 0 }} aria-hidden />
+      <span>{children}</span>
     </div>
   );
 }
