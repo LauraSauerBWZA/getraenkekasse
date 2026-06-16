@@ -1,6 +1,6 @@
 # Konfiguration — Bergwacht Getränkekasse
 
-**Stand:** 16.06.2026 (Update 12: B5-Icons — Emojis raus, lucide-Line-Icons; Achievements behalten Emojis)
+**Stand:** 16.06.2026 (Update 13: Account-B — Passwort-Reset + Invite-mit-Rolle; Doku-Fix `deletedAt`→`isActive`)
 **Status:** 🟢 Phase B1 abgeschlossen + verifiziert, Phase B2 vorbereitet
 
 ---
@@ -108,7 +108,7 @@ Zwei Buchungs-Ebenen:
 | `isAdmin` | Boolean, default false | Verwalter-Flag (volle Schreibrechte) |
 | `isLeitung` | Boolean, default false | Leitung-Flag (reine Kassen-Einsicht) |
 | `paypalMeLink` | String, nullable | paypal.me-Link des Verwalters (nur bei Admins relevant) — NEU Update 8 |
-| `deletedAt` | DateTime, nullable | Soft-Delete-Marker |
+| `isActive` | Boolean, default true | Soft-Delete-/Aktiv-Marker (`false` = entfernt/deaktiviert; kein Login, raus aus Aggregaten) — Doku-Fix Update 13 |
 | `createdAt` / `updatedAt` | DateTime | Standard-Audit |
 
 **Kein gespeichertes `guthabenCent`-Feld.** Guthaben live aus Transaktionen summiert.
@@ -158,6 +158,8 @@ Jede Bewegung am Guthaben eines Mitglieds. **Niemals löschen** — Audit-Trail.
 | `createdAt` | DateTime | |
 
 **Hinweis:** B1-Code nennt diese Entität `InviteToken`. Umbenennung auf `Invite` in B2b.
+
+**Realität (Doku-Fix Update 13):** Das `Invite`-Modell ist **schlank** — es trägt nur `tokenHash`, `userId` (FK → User), `expiresAt`, `redeemedAt`. Email/Namen **und Rollen leben am User**, nicht am Invite. „Direkt mit Recht einladen" (Account-B) setzt `isAdmin`/`isLeitung` daher **am User beim Anlegen** (`POST /admin/invite`, nur create-Zweig); die Redemption setzt nur das Passwort. Der Passwort-Reset (Account-B) erzeugt schlicht einen weiteren Token-Invite für den bestehenden User.
 
 ### 5.5 AufladungsAnfrage
 
@@ -266,7 +268,7 @@ Erlaubt, unbegrenzt, visuell rot, kein Audio, kein Hard-Stop. Confirm-Sheet warn
 
 ### 6.7 Account-Lifecycle
 
-Soft-Delete (`deletedAt`), Mitglieder-Transaktionen mitgelöscht, gekoppelte Kassen-Buchungen bleiben (Kopplung auf null), Hard-Delete nach 30 Tagen (B7). Keine Gast-Konten.
+Soft-Delete über `isActive=false` (Doku-Fix Update 13 — es gibt **kein** `deletedAt`-Feld): kein Login mehr, raus aus aktiver Liste + Aggregaten (Statistik/Mitglieder-Summe/Deckung, Ausschluss via User-Relation). Mitglieder-Transaktionen **bleiben** erhalten; gekoppelte Kassen-Buchungen bleiben, ihre Kopplung wird auf null gesetzt (Bestand unverfälscht). Hard-Delete nach 30 Tagen (B7, optional). Keine Gast-Konten.
 
 **Verwalter-Austritt:** Wird ein Verwalter soft-gelöscht, bleiben seine Kassen-Transaktionen erhalten (das Geld war real). Sein Topf-Saldo sollte vorher durch Einlage in die Box oder Übergabe an einen anderen Verwalter auf 0 gebracht werden — Prozess-Hinweis, kein automatischer Mechanismus.
 
@@ -457,6 +459,18 @@ Außerdem: Form-Field-IDs auf Login fehlen → B5 Politur.
 ---
 
 ## 13. Änderungshistorie (kompakt)
+
+**Update 13 (16.06.2026):** Account-B — Passwort-Reset + Invite-mit-Rolle + Doku-Fix
+- **Admin-Passwort-Reset:** `POST /admin/users/:id/reset-password` erzeugt einen
+  einmaligen Reset-Link (bestehende Token-Infra, neuer Invite für den bestehenden
+  User); Einlösen über `/auth/invite-redeem` setzt das neue Passwort. Altes Passwort
+  gilt bis zum Einlösen; `isActive` unberührt; Reset-Link wird angezeigt (kein
+  E-Mail-Versand). Frontend: Karte im Mitglied-Detail (kopierbar).
+- **Invite-mit-Rolle:** `POST /admin/invite` nimmt `isAdmin`/`isLeitung` und setzt sie
+  beim Anlegen am User (Checkboxen im Invite-Formular, Default aus). **Kein**
+  Schema-Change (Rollen am User, schlankes Invite — siehe §5.4).
+- **Doku-Fix:** §5.1/§6.7 `deletedAt` → `isActive` (real existierendes Feld; Account-A);
+  §5.4 Realitäts-Note zum schlanken Invite. Kein Verhaltens-Change.
 
 **Update 12 (16.06.2026):** B5-Icons — Emoji-Entkernung + Line-Icon-System
 - **Alle UI-Emojis entfernt** (Bottom-Nav, Admin-Hub-Cards, Leitung, Sektions-Labels,
