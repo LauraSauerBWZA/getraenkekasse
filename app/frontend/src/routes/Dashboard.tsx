@@ -42,6 +42,9 @@ export default function Dashboard() {
             fontWeight: 300,
             letterSpacing: -1.5,
             marginTop: 6,
+            // Große Beträge (nbsp im Format = nicht-umbrechbar) dürfen den
+            // Viewport nicht aufweiten → bei echtem Überlauf umbrechen statt schieben.
+            overflowWrap: 'anywhere',
             color: negative ? undefined : 'var(--bwza-ink)',
           }}
         >

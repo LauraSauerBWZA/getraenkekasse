@@ -119,6 +119,7 @@ export default function AdminMitgliedDetail() {
               fontWeight: 300,
               letterSpacing: -1.5,
               marginTop: 6,
+              overflowWrap: 'anywhere',
               color: negativ ? undefined : 'var(--bwza-ink)',
             }}
           >

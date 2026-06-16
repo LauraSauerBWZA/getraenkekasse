@@ -283,7 +283,11 @@ export default function Admin() {
                   background: 'rgba(0,0,0,0.30)',
                   border: '1px solid var(--bwza-glass-line)',
                   fontSize: 12,
+                  // Langer Token MUSS umbrechen: overflow-wrap:anywhere reduziert
+                  // den min-content-Beitrag (anders als break-all allein) → schiebt
+                  // die Karte nicht mehr über den Viewport-Rand (iOS-Pan-Ursache).
                   wordBreak: 'break-all',
+                  overflowWrap: 'anywhere',
                   fontFamily: 'var(--bwza-font-ui)',
                 }}
               >

@@ -110,6 +110,7 @@ export default function LeitungKasse() {
                 fontWeight: 300,
                 letterSpacing: -1.5,
                 marginTop: 6,
+                overflowWrap: 'anywhere',
                 color: 'var(--bwza-ink)',
               }}
             >
