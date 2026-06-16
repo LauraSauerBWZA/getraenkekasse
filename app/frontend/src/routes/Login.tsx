@@ -39,12 +39,12 @@ export default function Login() {
             display: 'inline-flex',
             padding: 18,
             borderRadius: 24,
-            background: 'rgba(20,14,10,0.55)',
+            background: 'var(--bwza-glass)',
             border: '1px solid var(--bwza-glass-line)',
-            boxShadow: 'inset 0 1px 0 rgba(255,225,180,0.08), 0 0 60px rgba(217,138,74,0.18)',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10), 0 0 60px rgba(43,212,188,0.20)',
           }}
         >
-          <BergMark size={42} color="#d98a4a" />
+          <BergMark size={42} />
         </div>
       </div>
 

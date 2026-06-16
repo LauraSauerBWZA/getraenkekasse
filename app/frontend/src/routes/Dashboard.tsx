@@ -36,10 +36,10 @@ export default function Dashboard() {
         <div
           className={negative ? 'bwza-neg' : ''}
           style={{
-            fontFamily: 'var(--bwza-font-display)',
+            fontFamily: 'var(--bwza-font-ui)',
             fontSize: 'var(--bwza-text-num)',
-            fontWeight: 600,
-            letterSpacing: -1,
+            fontWeight: 300,
+            letterSpacing: -1.5,
             marginTop: 6,
             color: negative ? undefined : 'var(--bwza-ink)',
           }}

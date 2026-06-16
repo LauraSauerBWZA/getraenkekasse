@@ -4,7 +4,8 @@ import { Glass, BergMark, PasswordInput, GlassButton } from '../components/primi
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
-const STR_COLORS = ['oklch(58% 0.18 25)', 'oklch(70% 0.15 50)', 'oklch(78% 0.16 70)', 'oklch(72% 0.14 145)'];
+// schwach → stark: Koralle, Gold, Teal, Grün (neue Palette).
+const STR_COLORS = ['#FF5C61', '#F4B740', '#2BD4BC', '#34D399'];
 const STR_LABELS = ['schwach', 'okay', 'gut', 'stark'];
 
 export default function SetPassword() {
@@ -63,9 +64,9 @@ export default function SetPassword() {
             display: 'inline-flex',
             padding: 16,
             borderRadius: 22,
-            background: 'rgba(20,14,10,0.55)',
+            background: 'var(--bwza-glass)',
             border: '1px solid var(--bwza-glass-line)',
-            boxShadow: 'inset 0 1px 0 rgba(255,225,180,0.08), 0 0 60px rgba(217,138,74,0.18)',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10), 0 0 60px rgba(43,212,188,0.20)',
           }}
         >
           <BergMark size={36} />
@@ -110,7 +111,7 @@ export default function SetPassword() {
                     flex: 1,
                     height: 4,
                     borderRadius: 4,
-                    background: i < strength ? STR_COLORS[strength - 1] : 'rgba(255,225,180,0.08)',
+                    background: i < strength ? STR_COLORS[strength - 1] : 'rgba(255,255,255,0.08)',
                     transition: 'background var(--bwza-dur) var(--bwza-ease)',
                   }}
                 />

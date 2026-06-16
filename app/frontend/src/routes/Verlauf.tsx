@@ -111,10 +111,10 @@ function HeroCard({ heroMonat }: { heroMonat: number }) {
       <div className="bwza-eyebrow">Diesen Monat</div>
       <div
         style={{
-          fontFamily: 'var(--bwza-font-display)',
+          fontFamily: 'var(--bwza-font-ui)',
           fontSize: 'var(--bwza-text-num)',
-          fontWeight: 600,
-          letterSpacing: -1,
+          fontWeight: 300,
+          letterSpacing: -1.5,
           marginTop: 4,
           color: 'var(--bwza-ink)',
         }}
