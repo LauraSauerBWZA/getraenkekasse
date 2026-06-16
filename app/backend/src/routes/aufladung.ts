@@ -4,6 +4,7 @@ import type { User } from '@prisma/client';
 import { prisma } from '../db.js';
 import { requireAdmin, requireAuth } from '../auth/middleware.js';
 import { computeGuthabenCent } from '../domain/guthaben.js';
+import { ermittleZustaendigenVerwalter } from '../domain/lastverteilung.js';
 import { logger } from '../logger.js';
 
 export const aufladungRouter = Router();
@@ -14,53 +15,9 @@ export const aufladungRouter = Router();
 // PayPal bestätigen/ablehnen) bündelt.
 aufladungRouter.use(requireAuth);
 
-// Zuständiger Verwalter für die nächste PayPal-Aufladung — Lastverteilung
-// „geringste Schuld zuerst" (KONFIGURATION §6.9), live berechnet, kein
-// gespeicherter Cursor.
-//   - Wählbar = aktive Admins MIT nicht-leerem paypalMeLink (ohne Link gibt es
-//     nichts zum Überweisen).
-//   - Effektive gehaltene Summe je Verwalter = Verwalter-Topf
-//     (SUM kassenTransaktion WHERE konto=VERWALTER AND verwalterId=V) PLUS Summe
-//     der betragCent seiner noch OFFENEN Anfragen. Das Mitzählen offener
-//     Anfragen verhindert Klumpung: zwei schnell hintereinander gestellte
-//     Anfragen gehen an verschiedene Verwalter, sobald die erste den effektiven
-//     Stand hebt.
-//   - Zuständig = niedrigste effektive Summe; Tie-Break alphabetisch nach
-//     firstName (waehlbar ist so sortiert; strikter Min-Scan behält den ersten).
-//   - Ein Verwalter → degeneriert sauber. Kein wählbarer Verwalter → null
-//     (Caller blockt die PayPal-Anfrage mit 400, kein Crash).
-async function ermittleZustaendigenVerwalter(): Promise<User | null> {
-  const verwalter = await prisma.user.findMany({
-    where: { isAdmin: true, isActive: true, paypalMeLink: { not: null } },
-    orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
-  });
-  const waehlbar = verwalter.filter((v) => v.paypalMeLink && v.paypalMeLink.trim() !== '');
-  if (waehlbar.length === 0) return null;
-  if (waehlbar.length === 1) return waehlbar[0];
-
-  const mitSumme = await Promise.all(
-    waehlbar.map(async (v) => {
-      const [topf, offen] = await Promise.all([
-        prisma.kassenTransaktion.aggregate({
-          _sum: { betragCent: true },
-          where: { konto: 'VERWALTER', verwalterId: v.id },
-        }),
-        prisma.aufladungsAnfrage.aggregate({
-          _sum: { betragCent: true },
-          where: { zugewiesenerVerwalterId: v.id, status: 'OFFEN' },
-        }),
-      ]);
-      const effektiv = (topf._sum.betragCent ?? 0) + (offen._sum.betragCent ?? 0);
-      return { v, effektiv };
-    }),
-  );
-
-  let best = mitSumme[0];
-  for (const e of mitSumme.slice(1)) {
-    if (e.effektiv < best.effektiv) best = e;
-  }
-  return best.v;
-}
+// Lastverteilung „geringste Schuld zuerst" (§6.9) lebt jetzt in
+// domain/lastverteilung.ts (Cleanup) — von hier (neue PayPal-Anfrage) UND von der
+// Neuzuweisung beim Verwalter-Wegfall (Demote/Remove) genutzt.
 
 // Verwalter-Sicht fürs Frontend — nur was zum Anzeigen/Verlinken nötig ist,
 // kein passwordHash o.ä.

@@ -6,6 +6,7 @@ import { generateInviteToken, inviteExpiry } from '../auth/tokens.js';
 import { buildInviteUrl, email } from '../email/adapter.js';
 import { computeGuthabenCent } from '../domain/guthaben.js';
 import { istLetzterAktiverAdmin, softDeleteUser, verwalterTopfCent } from '../domain/account.js';
+import { reassignOffeneAnfragen } from '../domain/lastverteilung.js';
 import { logger } from '../logger.js';
 
 export const adminRouter = Router();
@@ -341,11 +342,21 @@ adminRouter.patch('/admin/users/:id/admin', async (req, res) => {
     }
   }
 
+  const wirdDemotet = parsed.data.isAdmin === false && ziel.isAdmin;
+
   const user = await prisma.user.update({
     where: { id: ziel.id },
     data: { isAdmin: parsed.data.isAdmin },
     select: { id: true, firstName: true, lastName: true, isAdmin: true, isLeitung: true },
   });
+
+  // Beim Entzug des Verwalter-Rechts: offene PayPal-Anfragen, die dem jetzt
+  // Ex-Verwalter zugewiesen waren, dem least-loaded verbliebenen Verwalter neu
+  // zuweisen (Cleanup) — sonst bleiben sie unbestätigbar. Letzter-Admin-Schutz
+  // (oben) garantiert ein Ziel.
+  if (wirdDemotet) {
+    await reassignOffeneAnfragen(user.id);
+  }
 
   logger.info(
     { mitgliedId: user.id, isAdmin: user.isAdmin, adminId: req.auth!.sub },

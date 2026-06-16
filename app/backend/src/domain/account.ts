@@ -1,4 +1,5 @@
 import { prisma } from '../db.js';
+import { reassignOffeneAnfragen } from './lastverteilung.js';
 
 // Geteilter Soft-Delete-Kern (KONFIGURATION.md §6.7) — genutzt vom Admin-Entfernen
 // und der Selbstlöschung. Der Soft-Delete-Marker ist `User.isActive=false` (das
@@ -29,6 +30,12 @@ export async function softDeleteUser(userId: string): Promise<void> {
       data: { revokedAt: new Date() },
     });
   });
+
+  // War der entfernte User ein Verwalter, seine OFFENEN PayPal-Anfragen dem least-
+  // loaded verbliebenen Verwalter neu zuweisen (Cleanup) — sonst hingen sie
+  // unbestätigbar fest. Nach der Transaktion (User ist jetzt inaktiv → vom
+  // Reassign-Ziel ohnehin ausgeschlossen). Für Nicht-Verwalter: 0 Zeilen, no-op.
+  await reassignOffeneAnfragen(userId);
 }
 
 // Letzter-Admin-Schutz (wiederverwendet aus B2k): true, wenn `userId` ein aktiver
