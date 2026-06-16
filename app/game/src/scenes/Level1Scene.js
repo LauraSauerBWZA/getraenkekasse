@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME, COLORS, CSS, SCENES } from '../constants.js';
 import { Platform } from '../sprites/Platform.js';
+import { Player } from '../sprites/Player.js';
 
 // Plattform-Layout Level 1 (Spec §5). x = Mitte, y = Mitte, w = Breite, t = Typ.
 // Von unten (Start) nach oben (Windenhaken) im Zickzack — wechselnde Seiten
@@ -70,17 +71,16 @@ export class Level1Scene extends Phaser.Scene {
     }
   }
 
-  // B_GAME.2: Platzhalter-Spieler (fällt, landet, Kamera folgt). Steuerung +
-  // Animationen + die echte Player-Klasse kommen in B_GAME.3.
   spawnPlayer() {
-    this.player = this.physics.add
-      .sprite(PLAYER_START.x, PLAYER_START.y, 'player')
-      .setCollideWorldBounds(true);
-
+    this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.physics.add.collider(this.player, this.platforms);
 
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     // Spieler vertikal etwas unter die Bildmitte legen — Klettern „nach oben".
     this.cameras.main.setFollowOffset(0, -GAME.height * 0.15);
+  }
+
+  update() {
+    this.player.update();
   }
 }

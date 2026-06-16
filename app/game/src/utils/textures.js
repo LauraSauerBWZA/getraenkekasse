@@ -33,19 +33,60 @@ function tileTexture(scene, key, base, top) {
   g.destroy();
 }
 
-// Alpinist-Platzhalter (22x30): Körper, Gurt, Helm. Ein einzelner Frame; die
-// Animations-Frames (idle/run/jump/fall) kommen in B_GAME.3.
-function playerTexture(scene, key, bodyColor) {
-  const w = 22;
-  const h = 30;
+// Alpinist-Platzhalter (22x30) in mehreren Posen für die Animationen
+// (idle/run_a/run_b/jump/fall). Beine, Arme und Helmstellung variieren je Pose;
+// Körper/Gurt bleiben gleich. Alle Koordinaten ≥ 0 (generateTexture beschneidet
+// negative Bereiche).
+const PLAYER_W = 22;
+const PLAYER_H = 30;
+
+function playerTexture(scene, key, pose) {
+  const w = PLAYER_W;
   const g = scene.make.graphics({ x: 0, y: 0, add: false });
-  g.fillStyle(bodyColor, 1);
-  g.fillRoundedRect(0, 6, w, h - 6, 4); // Körper/Jacke
+
+  // Beine (Pose-abhängig).
+  g.fillStyle(0x3a2f24, 1);
+  if (pose === 'run_a') {
+    g.fillRect(3, 24, 5, 6);
+    g.fillRect(13, 22, 5, 6);
+  } else if (pose === 'run_b') {
+    g.fillRect(4, 22, 5, 6);
+    g.fillRect(14, 24, 5, 6);
+  } else if (pose === 'jump') {
+    g.fillRect(5, 23, 5, 6);
+    g.fillRect(12, 23, 5, 6);
+  } else if (pose === 'fall') {
+    g.fillRect(1, 24, 5, 6);
+    g.fillRect(16, 24, 5, 6);
+  } else {
+    g.fillRect(5, 24, 5, 6); // idle
+    g.fillRect(12, 24, 5, 6);
+  }
+
+  // Arme (Pose-abhängig).
+  g.fillStyle(COLORS.amber, 1);
+  if (pose === 'jump') {
+    g.fillRect(0, 4, 4, 8);
+    g.fillRect(w - 4, 4, 4, 8);
+  } else if (pose === 'fall') {
+    g.fillRect(0, 13, 4, 7);
+    g.fillRect(w - 4, 13, 4, 7);
+  } else {
+    g.fillRect(0, 9, 4, 9);
+    g.fillRect(w - 4, 9, 4, 9);
+  }
+
+  // Körper/Jacke.
+  g.fillStyle(COLORS.amberDeep, 1);
+  g.fillRoundedRect(2, 8, w - 4, 17, 4);
+  // Klettergurt.
   g.fillStyle(COLORS.ink, 1);
-  g.fillRect(4, 14, w - 8, 3); // Klettergurt
+  g.fillRect(4, 16, w - 8, 2);
+  // Helm.
   g.fillStyle(COLORS.amberGlow, 1);
-  g.fillRoundedRect(2, 0, w - 4, 11, 4); // Helm
-  g.generateTexture(key, w, h);
+  g.fillRoundedRect(3, 0, w - 6, 10, 4);
+
+  g.generateTexture(key, w, PLAYER_H);
   g.destroy();
 }
 
@@ -66,6 +107,10 @@ export function buildTextures(scene) {
   tileTexture(scene, 'tile_ice', COLORS.ice, 0xc8e4f2);
   tileTexture(scene, 'tile_wood', COLORS.wood, 0xb07a4e);
 
-  // Alpinist-Platzhalter (Einzelframe).
-  playerTexture(scene, 'player', COLORS.amberDeep);
+  // Alpinist-Posen für die Animationen (B_GAME.3).
+  playerTexture(scene, 'player_idle', 'idle');
+  playerTexture(scene, 'player_run_a', 'run_a');
+  playerTexture(scene, 'player_run_b', 'run_b');
+  playerTexture(scene, 'player_jump', 'jump');
+  playerTexture(scene, 'player_fall', 'fall');
 }
