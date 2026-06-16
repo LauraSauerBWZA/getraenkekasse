@@ -58,10 +58,7 @@ export class MenuScene extends Phaser.Scene {
 
     start.on('pointerover', () => start.setColor(CSS.amberGlow));
     start.on('pointerout', () => start.setColor(CSS.ink));
-    start.on('pointerup', () => {
-      // B_GAME.1-Stub — ab B_GAME.2: this.scene.start(SCENES.level1)
-      start.setText('… Level kommt in B_GAME.2');
-    });
+    start.on('pointerup', () => this.scene.start(SCENES.level1));
 
     this.add
       .text(width / 2, height - 26, 'Phase B_GAME_ALPINIST · Platzhalter-Grafik', {
