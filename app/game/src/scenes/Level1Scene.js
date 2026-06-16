@@ -81,6 +81,7 @@ export class Level1Scene extends Phaser.Scene {
     this.collectiblesFound = 0;
     this.enemiesDefeated = 0;
     this.invulnerable = false;
+    this.finished = false;
     this.maxHeightM = 0;
     this.startedAt = this.time.now;
 
@@ -93,6 +94,7 @@ export class Level1Scene extends Phaser.Scene {
     this.spawnPlayer();
     this.buildEnemies();
     this.buildCollectibles();
+    this.buildGoal();
     this.setupCombat();
     this.hud = new Hud(this);
 
@@ -180,6 +182,36 @@ export class Level1Scene extends Phaser.Scene {
     });
   }
 
+  buildGoal() {
+    // Hubschrauber als Deko über der obersten Plattform; der Windenhaken
+    // darunter ist der Ziel-Hotspot. Top-Plattform: idx 15 (x 360, y 170).
+    this.add.image(360, 78, 'helicopter');
+    this.goal = this.physics.add.staticImage(360, 128, 'windenhaken');
+    this.physics.add.overlap(this.player, this.goal, () => this.win());
+  }
+
+  win() {
+    if (this.finished) return;
+    this.finished = true;
+    this.stoneTimer.remove();
+    this.physics.pause();
+
+    // Score-Formel (Spec §6): Basis (Collectibles + besiegte Gegner) plus
+    // Höhenbonus (1 Punkt pro gekletterten Meter).
+    const heightBonus = this.maxHeightM;
+    this.scene.start(SCENES.win, {
+      level: 1,
+      score: this.score + heightBonus,
+      baseScore: this.score,
+      heightBonus,
+      heightM: this.maxHeightM,
+      timeMs: this.time.now - this.startedAt,
+      collectiblesFound: this.collectiblesFound,
+      enemiesDefeated: this.enemiesDefeated,
+      livesLost: START_LIVES - this.lives,
+    });
+  }
+
   // Kurzer aufsteigender Punkte-Hinweis (Feedback beim Sammeln/Besiegen).
   popup(x, y, text, color) {
     const t = this.add
@@ -241,6 +273,7 @@ export class Level1Scene extends Phaser.Scene {
   }
 
   update() {
+    if (this.finished) return; // Lauf beendet (Win) — keine Updates mehr.
     this.player.update();
     this.enemies.children.iterate((enemy) => {
       if (enemy) enemy.update();

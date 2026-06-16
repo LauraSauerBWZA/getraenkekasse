@@ -3,6 +3,7 @@ import { GAME, COLORS, PHYS, SCENES } from './constants.js';
 import { BootScene } from './scenes/BootScene.js';
 import { MenuScene } from './scenes/MenuScene.js';
 import { Level1Scene } from './scenes/Level1Scene.js';
+import { WinScene } from './scenes/WinScene.js';
 
 // Phaser-Game-Config. Scale.FIT skaliert den 480x800-Canvas proportional in den
 // Viewport (Desktop wie Mobile), CENTER_BOTH zentriert ihn. Arcade-Physik global
@@ -23,7 +24,7 @@ export function createConfig(parent) {
       default: 'arcade',
       arcade: { gravity: { y: PHYS.gravity }, debug: false },
     },
-    scene: [BootScene, MenuScene, Level1Scene],
+    scene: [BootScene, MenuScene, Level1Scene, WinScene],
   };
 }
 

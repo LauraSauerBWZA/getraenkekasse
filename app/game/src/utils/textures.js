@@ -170,6 +170,39 @@ function drinkTexture(scene) {
   g.destroy();
 }
 
+// Hubschrauber (64x32) — Ziel-Deko oben, fliegt in der WinScene weg.
+function helicopterTexture(scene) {
+  const w = 64;
+  const h = 32;
+  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  g.fillStyle(COLORS.amberDeep, 1);
+  g.fillRoundedRect(8, 10, 36, 16, 6); // Kabine
+  g.fillRect(40, 14, 22, 5); // Heckausleger
+  g.fillStyle(0x3a2f24, 1);
+  g.fillRect(4, 6, 52, 3); // Hauptrotor
+  g.fillRect(30, 3, 3, 8); // Rotormast
+  g.fillRect(58, 8, 3, 13); // Heckrotor
+  g.fillStyle(COLORS.ice, 1);
+  g.fillCircle(18, 18, 5); // Cockpit-Fenster
+  g.generateTexture('helicopter', w, h);
+  g.destroy();
+}
+
+// Windenhaken (20x32): Seil + J-Haken — der Ziel-Hotspot.
+function windenhakenTexture(scene) {
+  const w = 20;
+  const h = 32;
+  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  g.fillStyle(COLORS.inkDim, 1);
+  g.fillRect(9, 0, 2, 16); // Seil
+  g.fillStyle(COLORS.ink, 1);
+  g.fillRect(9, 14, 3, 12); // Haken vertikal
+  g.fillRect(9, 23, 8, 3); // Haken unten
+  g.fillRect(14, 19, 3, 6); // Haken-Spitze
+  g.generateTexture('windenhaken', w, h);
+  g.destroy();
+}
+
 // HUD-Herz (16x16) für die Lebensanzeige.
 function heartTexture(scene) {
   const s = 16;
@@ -218,4 +251,8 @@ export function buildTextures(scene) {
 
   // HUD (B_GAME.6).
   heartTexture(scene);
+
+  // Ziel (B_GAME.7): Hubschrauber + Windenhaken.
+  helicopterTexture(scene);
+  windenhakenTexture(scene);
 }
