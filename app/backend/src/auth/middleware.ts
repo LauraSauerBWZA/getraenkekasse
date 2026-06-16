@@ -2,11 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { COOKIE_NAME, verifyJwt, type JwtPayload } from './jwt.js';
 import { prisma } from '../db.js';
 
-declare module 'express-serve-static-core' {
-  interface Request {
-    auth?: JwtPayload;
-  }
-}
+// `req.auth`-Typ kommt aus der dedizierten Augmentation in src/types/express.d.ts.
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = req.cookies?.[COOKIE_NAME];
