@@ -5,6 +5,7 @@ import { requireAdmin, requireAuth } from '../auth/middleware.js';
 import { generateInviteToken, inviteExpiry } from '../auth/tokens.js';
 import { buildInviteUrl, email } from '../email/adapter.js';
 import { computeGuthabenCent } from '../domain/guthaben.js';
+import { istLetzterAktiverAdmin, softDeleteUser, verwalterTopfCent } from '../domain/account.js';
 import { logger } from '../logger.js';
 
 export const adminRouter = Router();
@@ -210,6 +211,37 @@ adminRouter.post('/admin/korrektur', async (req, res) => {
     'Guthaben-Korrektur gebucht.',
   );
   return res.status(201).json({ transaktion, guthabenCent });
+});
+
+// DELETE /admin/users/:id — Mitglied entfernen (Account-A, §6.7). Soft-Delete
+// (isActive=false) über den geteilten Kern: kein Login mehr, Kasse entkoppelt
+// (KassenTransaktion bleibt, Bestand unverfälscht), raus aus Statistik/Mitglieder-
+// Summe/Deckung. requireAdmin (adminRouter-Gate).
+//   - Letzter aktiver Admin → 400 (App darf nie ohne Verwalter dastehen, B2k).
+//   - Verwalter-Topf ≠ 0 → blockiert NICHT, gibt aber eine Warnung zurück
+//     (Prozess-Hinweis „Topf vorher ausgleichen/übergeben", §6.7).
+adminRouter.delete('/admin/users/:id', async (req, res) => {
+  const ziel = await prisma.user.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, isActive: true, isAdmin: true },
+  });
+  if (!ziel) return res.status(404).json({ error: 'Mitglied nicht gefunden.' });
+  if (!ziel.isActive) return res.status(400).json({ error: 'Mitglied ist bereits entfernt.' });
+
+  if (await istLetzterAktiverAdmin(ziel.id)) {
+    return res.status(400).json({ error: 'Der letzte aktive Verwalter kann nicht entfernt werden.' });
+  }
+
+  const topfCent = ziel.isAdmin ? await verwalterTopfCent(ziel.id) : 0;
+  await softDeleteUser(ziel.id);
+
+  const warnung =
+    topfCent !== 0
+      ? `Achtung: Der Verwalter-Topf war nicht ausgeglichen (${topfCent} Cent). Bitte separat klären (ausgleichen/übergeben).`
+      : null;
+
+  logger.info({ mitgliedId: ziel.id, adminId: req.auth!.sub, topfCent }, 'Mitglied entfernt (Soft-Delete).');
+  return res.json({ ok: true, warnung });
 });
 
 // PATCH /admin/users/:id/leitung — Leitung-Recht vergeben/entziehen (B2j, §4).
