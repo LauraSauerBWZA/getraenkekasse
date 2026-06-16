@@ -1,6 +1,6 @@
 # Konfiguration — Bergwacht Getränkekasse
 
-**Stand:** 15.06.2026 (Update 10: Visual Redirection — kühl/mehrfarbig/Glass/Inter)
+**Stand:** 16.06.2026 (Update 11: B5c-Feinschliff — 3-Tab-Nav, Sticky-Zurück, Kategorie-Marker)
 **Status:** 🟢 Phase B1 abgeschlossen + verifiziert, Phase B2 vorbereitet
 
 ---
@@ -317,16 +317,15 @@ Soft-Delete (`deletedAt`), Mitglieder-Transaktionen mitgelöscht, gekoppelte Kas
 
 ## 7. UI/UX
 
-### 7.1 Bottom-Nav (Mitglied)
+### 7.1 Bottom-Nav (Mitglied) — 3 Tabs (Update 11)
 
 | Tab | Inhalt |
 |---|---|
 | 🏠 Theke | Guthaben groß, Quick-Buchung-CTA |
-| 🍺 Buchen | aktive Getränke nach Kategorie, Confirm-Sheet |
 | 💳 Aufladen | PayPal-Beträge + **Link des zuständigen Verwalters**, Bargeld-Hinweis |
 | 🕒 Verlauf | Historie + Trinkjournal + Achievements |
 
-Admin-/Leitung-Bereiche via Profil-Drawer, je nach Rolle.
+**Buchen** ist **kein** Bottom-Nav-Tab mehr, sondern ein **Unter-Screen** (aktive Getränke nach Kategorie, Confirm-Sheet), erreichbar über den **Theke-CTA „Getränk buchen"** (Route `/buchen` bleibt, Bottom-Nav bleibt sichtbar, sticky Zurück oben). Admin-/Leitung-Bereiche via Profil-Drawer, je nach Rolle. Unter-Screens (Buchen, Admin, Kasse, Leitung, Statistik, Profil …) haben einen **sticky Zurück-Header**.
 
 ### 7.2 Admin-Bereich (jeder Verwalter)
 
@@ -453,6 +452,16 @@ Außerdem: Form-Field-IDs auf Login fehlen → B5 Politur.
 ---
 
 ## 13. Änderungshistorie (kompakt)
+
+**Update 11 (16.06.2026):** B5c-Feinschliff (Präsentation/Nav)
+- Bottom-Nav **3 Tabs** (Theke/Aufladen/Verlauf); Buchen ist Unter-Screen über den
+  Theke-CTA (§7.1). Sticky Zurück-Header auf allen Unter-Screens.
+- Hintergrund durchgehend (fixierter Layer, kein Umbruch auf langen Screens).
+- ScrollList als erkennbarer Kasten (dauerhaft sichtbarer Scrollbalken, Rahmen).
+- Getränke ohne Emoji → **Kategorie-Farbmarker** (alkoholfrei=Blau, alkoholisch=
+  Gold, sonstiges=Teal); Emoji-Input im Drink-Formular entfernt (`icon`-Feld bleibt
+  im Modell, kein Schema-Change).
+- Reine Frontend-Präsentation/Nav-Struktur, keine Logik/Daten/Schema-Änderung.
 
 **Update 10 (15.06.2026):** Visual Redirection — kühl/mehrfarbig/Glass/Inter
 - Design-System neu definiert: dunkler kühler Charcoal-Grund, echtes Glass

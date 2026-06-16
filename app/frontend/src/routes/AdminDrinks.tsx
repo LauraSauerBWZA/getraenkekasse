@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EmptyState, Glass, GlassButton, GlassInput, Loading } from '../components/primitives';
+import { BackBar } from '../components/BackBar';
 import {
   api,
   ApiError,
@@ -105,6 +106,7 @@ export default function AdminDrinks() {
 
   return (
     <div className="bwza-stage" style={{ padding: '0 var(--bwza-page-x) 40px' }}>
+      <BackBar />
       <div style={{ paddingTop: 30, paddingBottom: 18 }}>
         <div className="bwza-eyebrow">Phase B2b · Verwaltung</div>
         <div
@@ -181,11 +183,6 @@ export default function AdminDrinks() {
         </div>
       )}
 
-      <div style={{ marginTop: 22 }}>
-        <GlassButton variant="ghost" full onClick={() => navigate('/admin')}>
-          Zurück
-        </GlassButton>
-      </div>
 
       {formMode && (
         <DrinkForm

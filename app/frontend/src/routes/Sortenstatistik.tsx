@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EmptyState, Glass, GlassButton, Loading } from '../components/primitives';
+import { BackBar } from '../components/BackBar';
 import { ScrollList } from '../components/ScrollList';
 import { api, ApiError, type SortenStat, type SortenStatistik, type StatistikZeitraum } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -56,6 +57,7 @@ export default function Sortenstatistik() {
 
   return (
     <div className="bwza-stage" style={{ padding: '0 var(--bwza-page-x) 40px' }}>
+      <BackBar />
       <div style={{ paddingTop: 30, paddingBottom: 16 }}>
         <div className="bwza-eyebrow">Phase B3 · Statistik</div>
         <div
@@ -121,11 +123,6 @@ export default function Sortenstatistik() {
         </>
       ) : null}
 
-      <div style={{ marginTop: 22 }}>
-        <GlassButton variant="ghost" full onClick={() => navigate(user.isAdmin ? '/admin' : '/leitung')}>
-          Zurück
-        </GlassButton>
-      </div>
     </div>
   );
 }

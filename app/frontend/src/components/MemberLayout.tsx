@@ -4,48 +4,79 @@ import { Avatar, BergMark } from './primitives';
 import { ProfileDrawer } from './ProfileDrawer';
 import { useAuth } from '../lib/auth';
 
+// Bottom-Nav: 3 Tabs (B5c-Feinschliff). „Buchen" ist kein Tab mehr — es ist über
+// den Theke-CTA als Unter-Screen erreichbar (Route /buchen bleibt).
 const TABS = [
   { to: '/', label: 'Theke', icon: '🏠' },
-  { to: '/buchen', label: 'Buchen', icon: '🍺' },
   { to: '/aufladen', label: 'Aufladen', icon: '💳' },
   { to: '/verlauf', label: 'Verlauf', icon: '🕒' },
 ];
 
-// Persistente Shell für die Member-Screens (B5a): schlanker Top-Header mit
-// Avatar→Profil-Drawer + persistente Bottom-Nav (4 Tabs). Funktional mit
-// bestehenden Tokens — kein Ästhetik-Feinschliff (B5b).
+// Persistente Shell für die Member-Screens: sticky Top-Header (Avatar→Drawer,
+// Back-Pfeil auf Nicht-Tab-Routen wie /buchen) + persistente Bottom-Nav (3 Tabs).
 export function MemberLayout({ children }: PropsWithChildren) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [drawer, setDrawer] = useState(false);
 
+  const istTab = TABS.some((t) => t.to === location.pathname);
+
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
-      {/* Top-Header */}
+      {/* Sticky Top-Header */}
       <header
         style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 35,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '10px var(--bwza-page-x)',
+          background: 'var(--bwza-glass)',
+          backdropFilter: 'var(--bwza-blur-nav)',
+          WebkitBackdropFilter: 'var(--bwza-blur-nav)',
           borderBottom: '1px solid var(--bwza-glass-line)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <BergMark size={20} />
-          <span
+        {istTab ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <BergMark size={20} />
+            <span
+              style={{
+                fontFamily: 'var(--bwza-font-display)',
+                fontSize: 15,
+                fontWeight: 600,
+                color: 'var(--bwza-ink)',
+                letterSpacing: -0.2,
+              }}
+            >
+              BWZA
+            </span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => navigate('/')}
             style={{
-              fontFamily: 'var(--bwza-font-display)',
-              fontSize: 15,
-              fontWeight: 600,
+              all: 'unset',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
               color: 'var(--bwza-ink)',
-              letterSpacing: -0.2,
+              fontFamily: 'var(--bwza-font-ui)',
+              fontSize: 14,
+              fontWeight: 600,
             }}
           >
-            BWZA
-          </span>
-        </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            Zurück
+          </button>
+        )}
         <Avatar
           firstName={user?.firstName ?? ''}
           lastName={user?.lastName ?? ''}

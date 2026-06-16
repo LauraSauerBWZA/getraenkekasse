@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EmptyState, Glass, GlassButton, GlassInput, Loading, StatusChip } from '../components/primitives';
+import { BackBar } from '../components/BackBar';
 import { ScrollList } from '../components/ScrollList';
 import { api, ApiError, type AdminInvite } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -104,6 +105,7 @@ export default function Admin() {
 
   return (
     <div className="bwza-stage" style={{ padding: '0 var(--bwza-page-x) 40px' }}>
+      <BackBar />
       <div style={{ paddingTop: 30, paddingBottom: 18 }}>
         <div className="bwza-eyebrow">Phase B2a · Verwaltung</div>
         <div
@@ -559,11 +561,6 @@ export default function Admin() {
         </svg>
       </Glass>
 
-      <div style={{ marginTop: 22 }}>
-        <GlassButton variant="ghost" full onClick={() => navigate('/')}>
-          Zurück
-        </GlassButton>
-      </div>
     </div>
   );
 }

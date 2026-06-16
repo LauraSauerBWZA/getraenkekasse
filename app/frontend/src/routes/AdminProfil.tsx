@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Glass, GlassButton, GlassInput } from '../components/primitives';
+import { BackBar } from '../components/BackBar';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
@@ -62,6 +63,7 @@ export default function AdminProfil() {
 
   return (
     <div className="bwza-stage" style={{ padding: '0 var(--bwza-page-x) 40px' }}>
+      <BackBar />
       <div style={{ paddingTop: 30, paddingBottom: 18 }}>
         <div className="bwza-eyebrow">Phase B2k · Profil</div>
         <div
@@ -119,11 +121,6 @@ export default function AdminProfil() {
         </div>
       </form>
 
-      <div style={{ marginTop: 22 }}>
-        <GlassButton variant="ghost" full onClick={() => navigate('/admin')}>
-          Zurück
-        </GlassButton>
-      </div>
     </div>
   );
 }

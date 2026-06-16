@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EmptyState, Glass, GlassButton, Loading } from '../components/primitives';
+import { BackBar } from '../components/BackBar';
 import {
   api,
   ApiError,
@@ -71,6 +72,7 @@ export default function LeitungKasse() {
 
   return (
     <div className="bwza-stage" style={{ padding: '0 var(--bwza-page-x) 40px' }}>
+      <BackBar />
       <div style={{ paddingTop: 30, paddingBottom: 16 }}>
         <div className="bwza-eyebrow">Phase B2j · Leitung</div>
         <div
@@ -227,11 +229,6 @@ export default function LeitungKasse() {
 
       <Historie historie={historie} />
 
-      <div style={{ marginTop: 22 }}>
-        <GlassButton variant="ghost" full onClick={() => navigate('/')}>
-          Zurück
-        </GlassButton>
-      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EmptyState, Glass, GlassButton, GlassInput, Loading } from '../components/primitives';
+import { BackBar } from '../components/BackBar';
 import { api, ApiError, formatGuthaben, type AdminUser } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
@@ -109,6 +110,7 @@ export default function AdminAufladungBargeld() {
 
   return (
     <div className="bwza-stage" style={{ padding: '0 var(--bwza-page-x) 40px' }}>
+      <BackBar />
       <div style={{ paddingTop: 30, paddingBottom: 18 }}>
         <div className="bwza-eyebrow">Phase B2e · Kasse</div>
         <div
@@ -232,11 +234,6 @@ export default function AdminAufladungBargeld() {
         </Glass>
       )}
 
-      <div style={{ marginTop: 22 }}>
-        <GlassButton variant="ghost" full onClick={() => navigate('/admin')}>
-          Zurück
-        </GlassButton>
-      </div>
     </div>
   );
 }
