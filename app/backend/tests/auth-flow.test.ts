@@ -2284,3 +2284,222 @@ describe('berlinDayKey (Europe/Berlin)', () => {
     expect(berlinDayKey(new Date('2026-08-10T12:00:00Z'))).toBe('2026-08-10');
   });
 });
+
+// Account-A — Mitglied entfernen (Admin) + Konto-Selbstlöschung + Datenexport.
+// Soft-Delete-Marker ist isActive=false (Schema-Realität; §5.1 nennt historisch
+// „deletedAt", existiert aber nicht). Frische, isolierte User pro Fall.
+describe('Account-A — Löschen + Export', () => {
+  async function neuerMember(email: string, firstName: string, opts?: { admin?: boolean }) {
+    const u = await prisma.user.create({
+      data: { email, firstName, lastName: 'A', isAdmin: opts?.admin ?? false },
+    });
+    const inv = generateInviteToken();
+    await prisma.invite.create({ data: { tokenHash: inv.hash, userId: u.id, expiresAt: inviteExpiry() } });
+    const ag = supertest.agent(app);
+    const r = await ag.post('/auth/invite-redeem').send({ token: inv.clear, password: 'Account-Pferd-9' });
+    expect(r.status).toBe(200);
+    return { id: u.id, ag, email };
+  }
+
+  type Summary = { vereinsvermoegenCent: number; mitgliederGuthabenSummeCent: number; deckungCent: number };
+  async function summary(): Promise<Summary> {
+    return (await agent.get('/admin/kasse/summary')).body;
+  }
+
+  it('Admin-Entfernen: isActive=false, Kasse entkoppelt (Bestand unverändert), Aggregate verschieben sich', async () => {
+    const m = await neuerMember('del-mitglied@example.com', 'Delia');
+    // Bargeld-Aufladung 15 € → gekoppelte Mitglieder- + Kassen-Buchung.
+    const auf = await agent
+      .post('/admin/aufladung/bargeld')
+      .send({ userId: m.id, betragCent: 1500, vermerk: 'Start' });
+    expect(auf.status).toBe(201);
+
+    const kassenCountVorher = await prisma.kassenTransaktion.count();
+    const koppelVorher = await prisma.transaktion.findFirst({
+      where: { userId: m.id, kassenTransaktionId: { not: null } },
+    });
+    expect(koppelVorher).toBeTruthy();
+    const vorher = await summary();
+
+    const del = await agent.delete(`/admin/users/${m.id}`);
+    expect(del.status).toBe(200);
+    expect(del.body.ok).toBe(true);
+    expect(del.body.warnung).toBeNull(); // Nicht-Admin, kein Topf
+
+    // isActive=false
+    const dbUser = await prisma.user.findUnique({ where: { id: m.id } });
+    expect(dbUser?.isActive).toBe(false);
+    // Kasse entkoppelt: keine Mitglieder-Transaktion mehr mit Kopplung …
+    const nochGekoppelt = await prisma.transaktion.count({
+      where: { userId: m.id, kassenTransaktionId: { not: null } },
+    });
+    expect(nochGekoppelt).toBe(0);
+    // … aber die KassenTransaktion-Zeilen bleiben erhalten (Bestand unverfälscht).
+    expect(await prisma.kassenTransaktion.count()).toBe(kassenCountVorher);
+
+    const nachher = await summary();
+    // Vereinsvermögen unverändert; Mitglieder-Summe −1500; Deckung +1500.
+    expect(nachher.vereinsvermoegenCent).toBe(vorher.vereinsvermoegenCent);
+    expect(nachher.mitgliederGuthabenSummeCent).toBe(vorher.mitgliederGuthabenSummeCent - 1500);
+    expect(nachher.deckungCent).toBe(vorher.deckungCent + 1500);
+  });
+
+  it('gelöschter User: kein Login mehr + bestehende Session tot + raus aus aktiver Liste', async () => {
+    const m = await neuerMember('del-login@example.com', 'Lasse');
+    // Session lebt anfangs.
+    expect((await m.ag.get('/me/transaktionen')).status).toBe(200);
+
+    expect((await agent.delete(`/admin/users/${m.id}`)).status).toBe(200);
+
+    // Bestehende Session ist sofort tot (revoked + inaktiv).
+    expect((await m.ag.get('/me/transaktionen')).status).toBe(401);
+    // Neuer Login schlägt fehl (403 deaktiviert).
+    const login = await supertest
+      .agent(app)
+      .post('/auth/login')
+      .send({ email: m.email, password: 'Account-Pferd-9' });
+    expect(login.status).toBe(403);
+    // Nicht mehr in der aktiven Mitgliederliste.
+    const users = (await agent.get('/admin/users')).body.users as Array<{ id: string }>;
+    expect(users.some((u) => u.id === m.id)).toBe(false);
+  });
+
+  it('Sortenstatistik schließt Käufe gelöschter User aus (§11)', async () => {
+    const m = await neuerMember('del-stat@example.com', 'Stata');
+    const drink = await prisma.drink.create({
+      data: { name: 'Loesch-Limo-Unique', preisCent: 250, kategorie: 'alkoholfrei' },
+    });
+    await prisma.transaktion.create({
+      data: { typ: 'AUFLADUNG_BARGELD', userId: m.id, erstelltVonId: m.id, betragCent: 1000, notiz: 'Start' },
+    });
+    for (let i = 0; i < 2; i++) {
+      await prisma.transaktion.create({
+        data: { typ: 'KAUF', userId: m.id, erstelltVonId: m.id, drinkId: drink.id, preisAtKaufCent: 250, betragCent: -250 },
+      });
+    }
+
+    const findUnique = (body: any) =>
+      (body.sorten as Array<{ name: string; anzahl: number }>).find((s) => s.name === 'Loesch-Limo-Unique');
+
+    const vorher = await agent.get('/statistik/sorten?zeitraum=monat');
+    expect(findUnique(vorher.body)?.anzahl).toBe(2);
+
+    expect((await agent.delete(`/admin/users/${m.id}`)).status).toBe(200);
+
+    const nachher = await agent.get('/statistik/sorten?zeitraum=monat');
+    expect(findUnique(nachher.body)).toBeUndefined();
+  });
+
+  it('Topf ≠ 0 beim Verwalter: warnt, blockiert aber nicht', async () => {
+    const a = await neuerMember('del-admin-topf@example.com', 'Toni', { admin: true });
+    // Verwalter-Topf befüllen (SPENDE +500 auf seinen Topf).
+    await prisma.kassenTransaktion.create({
+      data: { typ: 'SPENDE', konto: 'VERWALTER', verwalterId: a.id, betragCent: 500, notiz: 'Test-Topf', erstelltVonId: a.id },
+    });
+    const del = await agent.delete(`/admin/users/${a.id}`);
+    expect(del.status).toBe(200);
+    expect(del.body.ok).toBe(true);
+    expect(del.body.warnung).toMatch(/Topf/i);
+    // KassenTransaktion bleibt (Geld war real).
+    expect(await prisma.kassenTransaktion.count({ where: { verwalterId: a.id } })).toBe(1);
+  });
+
+  it('Nicht-Admin → 403; unbekannte ID → 404; bereits entfernt → 400', async () => {
+    const m = await neuerMember('del-guards@example.com', 'Gerd');
+    // Nicht-Admin auf Admin-Endpoint.
+    expect((await memberAgent.delete(`/admin/users/${m.id}`)).status).toBe(403);
+    // Unbekannte ID.
+    expect((await agent.delete('/admin/users/gibts-nicht')).status).toBe(404);
+    // Erstes Entfernen ok, zweites → 400 (bereits entfernt).
+    expect((await agent.delete(`/admin/users/${m.id}`)).status).toBe(200);
+    const zweite = await agent.delete(`/admin/users/${m.id}`);
+    expect(zweite.status).toBe(400);
+    expect(zweite.body.error).toMatch(/bereits/i);
+  });
+
+  it('Letzter aktiver Admin ist nicht löschbar (400) — Admin-Pfad UND Selbstlöschung', async () => {
+    const solo = await neuerMember('del-solo-admin@example.com', 'Sola', { admin: true });
+    // Alle ANDEREN aktiven Admins temporär deaktivieren → solo ist der letzte.
+    const andere = await prisma.user.findMany({
+      where: { isAdmin: true, isActive: true, id: { not: solo.id } },
+      select: { id: true },
+    });
+    const andereIds = andere.map((u) => u.id);
+    await prisma.user.updateMany({ where: { id: { in: andereIds } }, data: { isActive: false } });
+    try {
+      // Admin-Pfad: solo entfernt sich selbst → 400.
+      const viaAdmin = await solo.ag.delete(`/admin/users/${solo.id}`);
+      expect(viaAdmin.status).toBe(400);
+      expect(viaAdmin.body.error).toMatch(/letzte/i);
+      // Selbstlöschung: DELETE /me → 400.
+      const viaMe = await solo.ag.delete('/me');
+      expect(viaMe.status).toBe(400);
+      expect(viaMe.body.error).toMatch(/letzte/i);
+      // solo ist noch aktiv.
+      expect((await prisma.user.findUnique({ where: { id: solo.id } }))?.isActive).toBe(true);
+    } finally {
+      // Andere Admins wiederherstellen (Laura-Agent etc. wieder nutzbar).
+      await prisma.user.updateMany({ where: { id: { in: andereIds } }, data: { isActive: true } });
+    }
+  });
+
+  it('Selbstlöschung (DELETE /me): eigenes isActive=false + Session beendet', async () => {
+    const m = await neuerMember('self-del@example.com', 'Selma');
+    expect((await m.ag.get('/me/transaktionen')).status).toBe(200);
+
+    const del = await m.ag.delete('/me');
+    expect(del.status).toBe(200);
+    expect(del.body.ok).toBe(true);
+
+    expect((await prisma.user.findUnique({ where: { id: m.id } }))?.isActive).toBe(false);
+    // Session beendet.
+    expect((await m.ag.get('/me/transaktionen')).status).toBe(401);
+    // Kein Login mehr.
+    const login = await supertest
+      .agent(app)
+      .post('/auth/login')
+      .send({ email: m.email, password: 'Account-Pferd-9' });
+    expect(login.status).toBe(403);
+  });
+
+  it('Export (GET /me/export): nur eigene Daten, kein fremder/aggregierter/Kassen-Bezug', async () => {
+    const m = await neuerMember('export-me@example.com', 'Expo');
+    const drink = await prisma.drink.create({
+      data: { name: 'Export-Drink-Mein', preisCent: 300, kategorie: 'alkoholisch' },
+    });
+    await prisma.transaktion.create({
+      data: { typ: 'AUFLADUNG_BARGELD', userId: m.id, erstelltVonId: m.id, betragCent: 1000, notiz: 'Start' },
+    });
+    await prisma.transaktion.create({
+      data: { typ: 'KAUF', userId: m.id, erstelltVonId: m.id, drinkId: drink.id, preisAtKaufCent: 300, betragCent: -300 },
+    });
+    // Ein zweites Mitglied mit eigenem, eindeutig benanntem Drink — darf NICHT auftauchen.
+    const other = await neuerMember('export-other@example.com', 'Otto');
+    const fremdDrink = await prisma.drink.create({
+      data: { name: 'Fremd-Drink-Geheim', preisCent: 300, kategorie: 'alkoholisch' },
+    });
+    await prisma.transaktion.create({
+      data: { typ: 'KAUF', userId: other.id, erstelltVonId: other.id, drinkId: fremdDrink.id, preisAtKaufCent: 300, betragCent: -300 },
+    });
+
+    const r = await m.ag.get('/me/export');
+    expect(r.status).toBe(200);
+    expect(r.headers['content-disposition']).toMatch(/attachment/);
+
+    const data = r.body;
+    expect(data.profil.email).toBe('export-me@example.com');
+    expect(data.profil.vorname).toBe('Expo');
+    // eigene Transaktionen inkl. Drink-Name
+    const namen = (data.transaktionen as Array<{ drinkName: string | null }>).map((t) => t.drinkName);
+    expect(namen).toContain('Export-Drink-Mein');
+    expect(Array.isArray(data.aufladungsAnfragen)).toBe(true);
+
+    // KEINE fremden Daten + KEINE Aggregat-/Kassen-Felder.
+    const blob = JSON.stringify(data);
+    expect(blob).not.toContain('Fremd-Drink-Geheim');
+    expect(blob).not.toContain('export-other@example.com');
+    expect(data).not.toHaveProperty('deckungCent');
+    expect(data).not.toHaveProperty('vereinsvermoegenCent');
+    expect(data).not.toHaveProperty('toepfe');
+  });
+});
