@@ -1,6 +1,6 @@
 # Konfiguration — Bergwacht Getränkekasse
 
-**Stand:** 16.06.2026 (Update 11: B5c-Feinschliff — 3-Tab-Nav, Sticky-Zurück, Kategorie-Marker)
+**Stand:** 16.06.2026 (Update 12: B5-Icons — Emojis raus, lucide-Line-Icons; Achievements behalten Emojis)
 **Status:** 🟢 Phase B1 abgeschlossen + verifiziert, Phase B2 vorbereitet
 
 ---
@@ -319,23 +319,28 @@ Soft-Delete (`deletedAt`), Mitglieder-Transaktionen mitgelöscht, gekoppelte Kas
 
 ### 7.1 Bottom-Nav (Mitglied) — 3 Tabs (Update 11)
 
-| Tab | Inhalt |
-|---|---|
-| 🏠 Theke | Guthaben groß, Quick-Buchung-CTA |
-| 💳 Aufladen | PayPal-Beträge + **Link des zuständigen Verwalters**, Bargeld-Hinweis |
-| 🕒 Verlauf | Historie + Trinkjournal + Achievements |
+Icons sind **lucide-react Line-Icons** (Update 12), aktiver Tab in **Teal**, inaktiv in Ink-mute.
 
-**Buchen** ist **kein** Bottom-Nav-Tab mehr, sondern ein **Unter-Screen** (aktive Getränke nach Kategorie, Confirm-Sheet), erreichbar über den **Theke-CTA „Getränk buchen"** (Route `/buchen` bleibt, Bottom-Nav bleibt sichtbar, sticky Zurück oben). Admin-/Leitung-Bereiche via Profil-Drawer, je nach Rolle. Unter-Screens (Buchen, Admin, Kasse, Leitung, Statistik, Profil …) haben einen **sticky Zurück-Header**.
+| Tab | Icon (lucide) | Inhalt |
+|---|---|---|
+| Theke | `Home` | Guthaben groß, Quick-Buchung-CTA |
+| Aufladen | `Wallet` | PayPal-Beträge + **Link des zuständigen Verwalters**, Bargeld-Hinweis |
+| Verlauf | `History` | Historie + Trinkjournal + Achievements |
+
+**Buchen** ist **kein** Bottom-Nav-Tab mehr, sondern ein **Unter-Screen** (aktive Getränke nach Kategorie, Confirm-Sheet), erreichbar über den **Theke-CTA „Getränk buchen"** (Route `/buchen` bleibt, Bottom-Nav bleibt sichtbar, sticky Zurück oben). Admin-/Leitung-Bereiche via Profil-Drawer, je nach Rolle. Unter-Screens (Buchen, Admin, Kasse, Leitung, Statistik, Profil …) haben einen **sticky Zurück-Header** (Zurück-Pfeil = `ChevronLeft`).
 
 ### 7.2 Admin-Bereich (jeder Verwalter)
 
-- 👥 Mitglieder (Salden, Detail, Korrektur, Recht vergeben)
-- ✉️ Mitglied einladen / Verwalter ernennen
-- 🍺 Drink-Katalog
-- 💳 Aufladungs-Anfragen — **gefiltert auf die eigenen zugewiesenen** (plus optional „alle" zur Übersicht, aber bestätigen nur die eigenen)
-- 📊 Sortenstatistik
-- 🏦 Kasse: Gesamtbestand, Töpfe je Verwalter, Box, Deckung, Aktionen (Einkauf, Entnahme, Einlage, Spende, Korrektur), Kassen-Historie
-- 👤 eigenes Profil: paypal.me-Link pflegen
+Card-Labels mit **lucide-Line-Icons** (Update 12, Teal-Akzent) statt Emoji:
+
+- `Users` — Mitglieder (Salden, Detail, Korrektur, Recht vergeben)
+- `UserPlus`/`Mail` — Mitglied einladen / Verwalter ernennen
+- `Beer` — Drink-Katalog
+- `Inbox` — Aufladungs-Anfragen — **gefiltert auf die eigenen zugewiesenen** (plus optional „alle" zur Übersicht, aber bestätigen nur die eigenen)
+- `Banknote` — Bargeld-Aufladung
+- `Landmark` — Kasse: Gesamtbestand, Töpfe je Verwalter, Box, Deckung, Aktionen (Einkauf, Entnahme, Einlage, Spende, Korrektur), Kassen-Historie
+- `BarChart3` — Sortenstatistik
+- `User` — eigenes Profil: paypal.me-Link pflegen
 
 ### 7.3 Leitung-Bereich (read-only)
 
@@ -452,6 +457,14 @@ Außerdem: Form-Field-IDs auf Login fehlen → B5 Politur.
 ---
 
 ## 13. Änderungshistorie (kompakt)
+
+**Update 12 (16.06.2026):** B5-Icons — Emoji-Entkernung + Line-Icon-System
+- **Alle UI-Emojis entfernt** (Bottom-Nav, Admin-Hub-Cards, Leitung, Sektions-Labels,
+  Buttons) → konsistente **lucide-react Line-Icons** (Größe/Stroke/Farbe einheitlich;
+  aktiver Nav-Tab Teal, sonst Ink/Akzent). Neue `Eyebrow`-Komponente (Icon + Kicker).
+- Icon-Mapping §7.1/§7.2. **Achievement-Emojis bleiben** (🏔️🌧️⛺🎒🪙🎖️🧗).
+- **Eine neue Dependency:** `lucide-react`. Drink-Kategorie-Marker + BergMark unverändert.
+- Reine Präsentation, keine Logik-/Endpoint-/Daten-/Schema-Änderung.
 
 **Update 11 (16.06.2026):** B5c-Feinschliff (Präsentation/Nav)
 - Bottom-Nav **3 Tabs** (Theke/Aufladen/Verlauf); Buchen ist Unter-Screen über den
