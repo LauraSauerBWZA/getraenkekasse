@@ -2503,3 +2503,127 @@ describe('Account-A — Löschen + Export', () => {
     expect(data).not.toHaveProperty('toepfe');
   });
 });
+
+// Account-B — Admin-Passwort-Reset + Invite-als-Admin/Leitung. Reset nutzt die
+// bestehende Token-Infra (neuer Invite für bestehenden User), Rollen werden beim
+// Anlegen am User gesetzt. Frische, isolierte User.
+describe('Account-B — Passwort-Reset + Invite-Rolle', () => {
+  async function neuerMember(email: string, firstName: string, password: string) {
+    const u = await prisma.user.create({ data: { email, firstName, lastName: 'B' } });
+    const inv = generateInviteToken();
+    await prisma.invite.create({ data: { tokenHash: inv.hash, userId: u.id, expiresAt: inviteExpiry() } });
+    const ag = supertest.agent(app);
+    const r = await ag.post('/auth/invite-redeem').send({ token: inv.clear, password });
+    expect(r.status).toBe(200);
+    return { id: u.id, ag, email };
+  }
+  // Login-Versuch auf frischem Agent (kein Seiteneffekt auf andere Agents).
+  async function login(email: string, password: string) {
+    return supertest.agent(app).post('/auth/login').send({ email, password });
+  }
+
+  it('Reset: Nicht-Admin → 403, unbekannte ID → 404, inaktiver User → 400', async () => {
+    const m = await neuerMember('reset-guards@example.com', 'Gerda', 'Alt-Pferd-9');
+    // Nicht-Admin (Max).
+    expect((await memberAgent.post(`/admin/users/${m.id}/reset-password`)).status).toBe(403);
+    // Unbekannte ID.
+    expect((await agent.post('/admin/users/gibts-nicht/reset-password')).status).toBe(404);
+    // Inaktiver User → 400 (erst entfernen).
+    expect((await agent.delete(`/admin/users/${m.id}`)).status).toBe(200);
+    const r = await agent.post(`/admin/users/${m.id}/reset-password`);
+    expect(r.status).toBe(400);
+  });
+
+  it('Reset: Link erzeugen, altes Passwort gilt bis Einlösen, danach neues Passwort', async () => {
+    const m = await neuerMember('reset-flow@example.com', 'Rita', 'Alt-Pferd-9');
+
+    // Admin erzeugt den Reset-Token.
+    const reset = await agent.post(`/admin/users/${m.id}/reset-password`);
+    expect(reset.status).toBe(201);
+    expect(typeof reset.body.devToken).toBe('string');
+    const token = reset.body.devToken as string;
+
+    // VOR dem Einlösen: altes Passwort funktioniert noch.
+    expect((await login('reset-flow@example.com', 'Alt-Pferd-9')).status).toBe(200);
+
+    // Reset-Link einlösen → neues Passwort auf BESTEHENDEM User (keine Duplikat-Anlage).
+    const redeem = await supertest
+      .agent(app)
+      .post('/auth/invite-redeem')
+      .send({ token, password: 'Neu-Pferd-9' });
+    expect(redeem.status).toBe(200);
+    expect(redeem.body.user.id).toBe(m.id);
+    expect(await prisma.user.count({ where: { email: 'reset-flow@example.com' } })).toBe(1);
+
+    // NACH dem Einlösen: neues Passwort klappt, altes nicht mehr.
+    expect((await login('reset-flow@example.com', 'Neu-Pferd-9')).status).toBe(200);
+    expect((await login('reset-flow@example.com', 'Alt-Pferd-9')).status).toBe(401);
+
+    // isActive unberührt.
+    expect((await prisma.user.findUnique({ where: { id: m.id } }))?.isActive).toBe(true);
+  });
+
+  it('Reset: abgelaufener Token → Fehler beim Einlösen', async () => {
+    const m = await neuerMember('reset-expired@example.com', 'Elsa', 'Alt-Pferd-9');
+    // Token direkt anlegen mit Ablauf in der Vergangenheit.
+    const inv = generateInviteToken();
+    await prisma.invite.create({
+      data: { tokenHash: inv.hash, userId: m.id, expiresAt: new Date(Date.now() - 1000) },
+    });
+    const redeem = await supertest
+      .agent(app)
+      .post('/auth/invite-redeem')
+      .send({ token: inv.clear, password: 'Neu-Pferd-9' });
+    expect(redeem.status).toBe(400);
+    expect(redeem.body.error).toMatch(/abgelaufen/i);
+  });
+
+  it('Invite-Rolle: isAdmin=true → eingelöster User ist Admin', async () => {
+    const r = await agent.post('/admin/invite').send({
+      email: 'invite-admin@example.com',
+      firstName: 'Sascha',
+      lastName: 'V',
+      isAdmin: true,
+    });
+    expect(r.status).toBe(201);
+    const token = r.body.devToken as string;
+    const ag = supertest.agent(app);
+    const redeem = await ag.post('/auth/invite-redeem').send({ token, password: 'Sascha-Pferd-9' });
+    expect(redeem.status).toBe(200);
+    expect(redeem.body.user.isAdmin).toBe(true);
+    expect(redeem.body.user.isLeitung).toBe(false);
+    // Admin-Zugriff wirkt.
+    expect((await ag.get('/admin/users')).status).toBe(200);
+  });
+
+  it('Invite-Rolle: isLeitung=true → eingelöster User ist Leitung (nicht Admin)', async () => {
+    const r = await agent.post('/admin/invite').send({
+      email: 'invite-leitung@example.com',
+      firstName: 'Nils',
+      lastName: 'L',
+      isLeitung: true,
+    });
+    expect(r.status).toBe(201);
+    const ag = supertest.agent(app);
+    const redeem = await ag.post('/auth/invite-redeem').send({ token: r.body.devToken, password: 'Nils-Pferd-9' });
+    expect(redeem.status).toBe(200);
+    expect(redeem.body.user.isLeitung).toBe(true);
+    expect(redeem.body.user.isAdmin).toBe(false);
+    // Leitung darf Kasse lesen, aber nicht in den Admin-Schreibbereich.
+    expect((await ag.get('/admin/kasse/summary')).status).toBe(200);
+  });
+
+  it('Invite ohne Flags → normales Mitglied', async () => {
+    const r = await agent.post('/admin/invite').send({
+      email: 'invite-plain@example.com',
+      firstName: 'Mia',
+      lastName: 'M',
+    });
+    expect(r.status).toBe(201);
+    const ag = supertest.agent(app);
+    const redeem = await ag.post('/auth/invite-redeem').send({ token: r.body.devToken, password: 'Mia-Pferd-9' });
+    expect(redeem.status).toBe(200);
+    expect(redeem.body.user.isAdmin).toBe(false);
+    expect(redeem.body.user.isLeitung).toBe(false);
+  });
+});
