@@ -55,8 +55,12 @@ adminRouter.post('/admin/invite', async (req, res) => {
   logger.info({ userId: user.id, email: user.email }, 'Invite erzeugt.');
   return res.status(201).json({
     user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName },
-    // Klartext-Token nur im Dev-Response zurückgeben, damit Tests/manuelles Onboarding einfacher sind
-    devToken: process.env.NODE_ENV === 'production' ? undefined : clear,
+    // Klartext-Token IMMER (auch in Prod) an den eingeloggten, requireAdmin-geschützten
+    // Admin zurückgeben: Es gibt KEINEN E-Mail-Versand (Resend gestrichen) → die Anzeige
+    // des Links in der App ist der einzige Weg, den Magic-Link an den Admin zu geben, der
+    // ihn selbst an die Person weiterleitet. Token wird nur als SHA-256-Hash gespeichert,
+    // läuft nach 7 Tagen ab.
+    devToken: clear,
   });
 });
 
@@ -281,8 +285,9 @@ adminRouter.post('/admin/users/:id/reset-password', async (req, res) => {
   logger.info({ userId: user.id, adminId: req.auth!.sub }, 'Passwort-Reset-Link erzeugt.');
   return res.status(201).json({
     user: { id: user.id, email: user.email, firstName: user.firstName },
-    // Klartext-Token nur im Dev-Response (wie /admin/invite) — Frontend baut den Link.
-    devToken: process.env.NODE_ENV === 'production' ? undefined : clear,
+    // Klartext-Token IMMER zurückgeben (wie /admin/invite) — kein E-Mail-Versand, der Admin
+    // braucht den Link auch in Prod, um ihn selbst weiterzuleiten. Nur Hash gespeichert, 7-Tage-Ablauf.
+    devToken: clear,
   });
 });
 
