@@ -1,6 +1,6 @@
 # Konfiguration — Bergwacht Getränkekasse
 
-**Stand:** 16.06.2026 (Update 13: Account-B — Passwort-Reset + Invite-mit-Rolle; Doku-Fix `deletedAt`→`isActive`)
+**Stand:** 16.06.2026 (Update 14: B6 PWA — installierbar/standalone, BergMark-Icons, vite-plugin-pwa)
 **Status:** 🟢 Phase B1 abgeschlossen + verifiziert, Phase B2 vorbereitet
 
 ---
@@ -28,7 +28,7 @@ Web-App zur Digitalisierung der Bergwacht-Zollernalb-Getränkekasse. Ersetzt die
 | Datenbank | SQLite (Dev + Phasen B1-B7) → PostgreSQL (ab Phase B8 Deploy) |
 | Auth | Magic-Link-Invite + Passwort (argon2) + JWT in Cookies |
 | Email | Dev: Konsolen-Output · Prod: TBD (z.B. Resend) |
-| PWA | ab Phase B6 |
+| PWA | **umgesetzt (B6)** — installierbar, standalone, BergMark-Icons, `vite-plugin-pwa` (autoUpdate); SW nur im Secure Context (Handy-Install voll ab HTTPS/B8) |
 | Hosting Phase 1-7 | Lokal in Docker-Sandbox auf Mac Mini |
 | Hosting ab Phase 8 | Hetzner CX22 dediziert |
 
@@ -416,7 +416,7 @@ Phase B1 abgeschlossen. Ab B2 feinere Sub-Phasen. Das Datenmodell wird **von Anf
 | **B3** | Sortenstatistik (Admin + Leitung) | 1 Tag | offen |
 | **B4** | Trinkjournal + Achievements + 30-Tage-Verlauf | 2-3 Tage | offen |
 | **B5** | Design-Politur | 1-2 Tage | offen |
-| **B6** | PWA + Letzter Schliff | 2-3 Tage | offen |
+| **B6** | PWA + Letzter Schliff | 2-3 Tage | **PWA umgesetzt** (installierbar, standalone, Icons, autoUpdate) — SW voll ab HTTPS/B8 |
 | **B7** | DSGVO (DSE, Export, Soft-Delete, Hard-Delete-Job, VVZ) | 2-3 Tage | offen |
 | **B8** | Deploy Hetzner (SQLite → Postgres, Subdomain, AVV) + Testphase | 5-7 Tage | offen |
 | **B9** | Go-Live | 1 Tag | offen |
@@ -459,6 +459,19 @@ Außerdem: Form-Field-IDs auf Login fehlen → B5 Politur.
 ---
 
 ## 13. Änderungshistorie (kompakt)
+
+**Update 14 (16.06.2026):** B6 — PWA (installierbar)
+- App ist **installierbar** (Web-Manifest, `display: standalone`, `orientation: portrait`,
+  Charcoal-Splash `#0D1116`), startet mit **BergMark-Icon** (192/512/maskable 512 +
+  apple-touch 180, aus der BergMark-Geometrie auf Charcoal gerendert).
+- **`vite-plugin-pwa`** (`registerType: autoUpdate`, sauberes Update, kein Stale-Cache);
+  Precache nur App-Shell/statische Assets, **`/api` NICHT gecacht** (Daten live);
+  `navigateFallback: index.html` (SPA-Deep-Links/Refresh in standalone).
+- iOS-Head-Meta (`apple-touch-icon`, `apple-mobile-web-app-*`), `theme-color` → `#0D1116`.
+- **Service-Worker registriert nur im Secure Context** (HTTPS/localhost) — auf dem Mac
+  über `localhost` verifiziert; **Handy-Install + Offline-Shell voll erst ab HTTPS/B8**.
+- Dev-Dependencies (PWA-Freigabe): `vite-plugin-pwa`, `workbox-window`, `sharp` (Icon-
+  Rasterung). Keine Backend-/Logik-/Schema-Änderung.
 
 **Update 13 (16.06.2026):** Account-B — Passwort-Reset + Invite-mit-Rolle + Doku-Fix
 - **Admin-Passwort-Reset:** `POST /admin/users/:id/reset-password` erzeugt einen
