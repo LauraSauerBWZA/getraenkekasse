@@ -3,6 +3,7 @@ import { GAME, COLORS, CSS, SCENES, SCORE, START_LIVES, PHYS, PIXELS_PER_METER }
 import { Platform } from '../sprites/Platform.js';
 import { Player } from '../sprites/Player.js';
 import { Enemy } from '../sprites/Enemy.js';
+import { Collectible } from '../sprites/Collectible.js';
 
 // Plattform-Layout Level 1 (Spec §5). x = Mitte, y = Mitte, w = Breite, t = Typ.
 // Von unten (Start) nach oben (Windenhaken) im Zickzack — wechselnde Seiten
@@ -35,6 +36,25 @@ const WALKER_SPEC = [
   { i: 13, range: 48 },
 ];
 
+// Collectibles: Plattform-Index, x-Versatz zur Plattform-Mitte, Typ.
+// Karabiner häufig, Seile seltener, Getränke (+100) an kniffligen Stellen.
+const COLLECTIBLE_SPEC = [
+  { i: 1, dx: -30, type: 'carabiner' },
+  { i: 2, dx: 30, type: 'carabiner' },
+  { i: 3, dx: 0, type: 'rope' },
+  { i: 4, dx: 0, type: 'carabiner' },
+  { i: 5, dx: -55, type: 'carabiner' },
+  { i: 5, dx: 55, type: 'carabiner' },
+  { i: 6, dx: 0, type: 'drink' },
+  { i: 7, dx: 0, type: 'carabiner' },
+  { i: 8, dx: 0, type: 'rope' },
+  { i: 9, dx: 25, type: 'carabiner' },
+  { i: 11, dx: 0, type: 'drink' },
+  { i: 12, dx: 0, type: 'carabiner' },
+  { i: 13, dx: 0, type: 'rope' },
+  { i: 15, dx: 0, type: 'drink' },
+];
+
 // Start-Position des Spielers: mittig auf dem Boden.
 const PLAYER_START = { x: 240, y: 3140 - 40 };
 
@@ -59,6 +79,7 @@ export class Level1Scene extends Phaser.Scene {
     this.buildPlatforms();
     this.spawnPlayer();
     this.buildEnemies();
+    this.buildCollectibles();
     this.setupCombat();
 
     // ESC → zurück ins Menü (Dev-Komfort; Pause/echtes Menü später).
@@ -129,6 +150,36 @@ export class Level1Scene extends Phaser.Scene {
     stone.body.setSize(14, 14);
   }
 
+  buildCollectibles() {
+    this.collectibles = this.add.group();
+    for (const c of COLLECTIBLE_SPEC) {
+      const p = LEVEL1_PLATFORMS[c.i];
+      // 26px über Plattform-Mitte = knapp über der Oberkante schwebend.
+      this.collectibles.add(new Collectible(this, p.x + c.dx, p.y - 26, c.type));
+    }
+
+    this.physics.add.overlap(this.player, this.collectibles, (_player, item) => {
+      this.score += item.value;
+      this.collectiblesFound += 1;
+      this.popup(item.x, item.y, `+${item.value}`, CSS.amberGlow);
+      item.destroy();
+    });
+  }
+
+  // Kurzer aufsteigender Punkte-Hinweis (Feedback beim Sammeln/Besiegen).
+  popup(x, y, text, color) {
+    const t = this.add
+      .text(x, y, text, { fontFamily: CSS.fontUi, fontSize: '13px', color })
+      .setOrigin(0.5);
+    this.tweens.add({
+      targets: t,
+      y: y - 28,
+      alpha: 0,
+      duration: 700,
+      onComplete: () => t.destroy(),
+    });
+  }
+
   setupCombat() {
     // Bergsteiger: von oben drauf = besiegt, sonst Schaden.
     this.physics.add.overlap(this.player, this.enemies, (player, enemy) => {
@@ -145,6 +196,7 @@ export class Level1Scene extends Phaser.Scene {
   }
 
   defeatEnemy(enemy) {
+    this.popup(enemy.x, enemy.y - 14, `+${SCORE.enemy}`, CSS.success);
     enemy.destroy();
     this.enemiesDefeated += 1;
     this.score += SCORE.enemy;

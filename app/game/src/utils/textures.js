@@ -129,6 +129,47 @@ function rockTexture(scene) {
   g.destroy();
 }
 
+// Collectibles (Spec §5/§8): Karabiner (gold), Seil (orange), Getränk (grün).
+function carabinerTexture(scene) {
+  const s = 16;
+  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  g.lineStyle(3, COLORS.amberGlow, 1);
+  g.strokeRoundedRect(3, 1, 8, 14, 4); // längliche Öse
+  g.lineStyle(2, COLORS.amber, 1);
+  g.beginPath();
+  g.moveTo(11, 4);
+  g.lineTo(14, 7); // Schnapper
+  g.strokePath();
+  g.generateTexture('carabiner', s, s);
+  g.destroy();
+}
+
+function ropeTexture(scene) {
+  const w = 12;
+  const h = 16;
+  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  g.fillStyle(0xd98a4a, 1); // orange
+  for (let y = 0; y < h; y += 4) {
+    g.fillRect(1, y, w - 2, 2); // gewickelte Lagen
+  }
+  g.lineStyle(1, 0x8a5a2a, 0.7);
+  g.strokeRect(1, 0, w - 2, h);
+  g.generateTexture('rope', w, h);
+  g.destroy();
+}
+
+function drinkTexture(scene) {
+  const s = 20;
+  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  g.fillStyle(COLORS.success, 1);
+  g.fillRoundedRect(5, 4, 10, 14, 3); // Flaschen-/Becher-Körper
+  g.fillRect(8, 0, 4, 5); // Hals
+  g.fillStyle(0xffffff, 0.35);
+  g.fillRect(7, 7, 2, 7); // Glanz
+  g.generateTexture('drink', s, s);
+  g.destroy();
+}
+
 // Erzeugt alle (Platzhalter-)Texturen einmalig beim Boot.
 export function buildTextures(scene) {
   // 1x1-Pixel — universell für Balken, Partikel, HUD-Flächen, Tinten.
@@ -157,4 +198,9 @@ export function buildTextures(scene) {
   enemyTexture(scene, 'enemy_walk_a', 0);
   enemyTexture(scene, 'enemy_walk_b', 1);
   rockTexture(scene);
+
+  // Collectibles (B_GAME.5).
+  carabinerTexture(scene);
+  ropeTexture(scene);
+  drinkTexture(scene);
 }
