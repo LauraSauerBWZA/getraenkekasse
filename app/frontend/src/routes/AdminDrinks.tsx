@@ -12,6 +12,8 @@ import { BackBar } from '../components/BackBar';
 import {
   api,
   ApiError,
+  compareDrinkName,
+  drinkSubzeile,
   DRINK_KATEGORIEN,
   type Drink,
   type DrinkInput,
@@ -40,6 +42,16 @@ function parsePreisToCent(input: string): number | null {
   const euro = Number(trimmed);
   if (!Number.isFinite(euro) || euro < 0) return null;
   return Math.round(euro * 100);
+}
+
+// Volumen in ml: leer → null (nicht gesetzt). Sonst ganze positive Zahl, sonst ungültig.
+function parseVolumenMl(input: string): { ok: true; value: number | null } | { ok: false } {
+  const t = input.trim();
+  if (!t) return { ok: true, value: null };
+  if (!/^\d+$/.test(t)) return { ok: false };
+  const n = Number(t);
+  if (!Number.isInteger(n) || n <= 0) return { ok: false };
+  return { ok: true, value: n };
 }
 
 type FormMode = { mode: 'create' } | { mode: 'edit'; drink: Drink };
@@ -75,6 +87,8 @@ export default function AdminDrinks() {
       const list = map.get(d.kategorie);
       if (list) list.push(d);
     }
+    // Innerhalb jeder Kategorie deutsch-alphabetisch (Umlaute, Groß/Klein egal).
+    for (const list of map.values()) list.sort(compareDrinkName);
     return map;
   }, [drinks]);
 
@@ -264,6 +278,20 @@ function DrinkCatalogRow({
               </span>
             )}
           </div>
+          {drinkSubzeile(drink) && (
+            <div
+              style={{
+                marginTop: 2,
+                fontSize: 11.5,
+                color: 'var(--bwza-ink-mute)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {drinkSubzeile(drink)}
+            </div>
+          )}
           <div style={{ marginTop: 2, fontSize: 12, color: 'var(--bwza-ink-mute)' }}>
             {formatPreis(drink.preisCent)}
           </div>
@@ -290,6 +318,8 @@ function DrinkForm({
   );
   const [icon, setIcon] = useState(initial?.icon ?? '');
   const [kategorie, setKategorie] = useState<DrinkKategorie>(initial?.kategorie ?? 'alkoholfrei');
+  const [marke, setMarke] = useState(initial?.marke ?? '');
+  const [volumenStr, setVolumenStr] = useState(initial?.volumenMl != null ? String(initial.volumenMl) : '');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -304,6 +334,12 @@ function DrinkForm({
       setErr('Preis bitte als z.B. "1,50" oder "2" angeben.');
       return;
     }
+    const vol = parseVolumenMl(volumenStr);
+    if (!vol.ok) {
+      setErr('Volumen bitte als ganze Zahl in ml angeben, z.B. 500 oder 330.');
+      return;
+    }
+    const markeTrim = marke.trim();
     setErr(null);
     setBusy(true);
     try {
@@ -314,6 +350,8 @@ function DrinkForm({
           kategorie,
         };
         if (icon.trim()) payload.icon = icon.trim();
+        if (markeTrim) payload.marke = markeTrim;
+        if (vol.value != null) payload.volumenMl = vol.value;
         const r = await api.adminDrinkCreate(payload);
         onSaved(r.drink, true);
       } else {
@@ -325,6 +363,10 @@ function DrinkForm({
         const iconTrim = icon.trim();
         const currentIcon = mode.drink.icon ?? '';
         if (iconTrim !== currentIcon) patch.icon = iconTrim;
+        // marke: leerer String löscht serverseitig (→ null)
+        if (markeTrim !== (mode.drink.marke ?? '')) patch.marke = markeTrim;
+        // volumenMl: null löscht; nur senden wenn tatsächlich geändert
+        if (vol.value !== (mode.drink.volumenMl ?? null)) patch.volumenMl = vol.value;
         if (Object.keys(patch).length === 0) {
           // Nichts geändert — einfach schließen
           onSaved(mode.drink, false);
@@ -405,6 +447,22 @@ function DrinkForm({
             onChange={(e) => setPreisEuro(e.target.value)}
             placeholder="1,50"
             hint="Eingabe in Euro mit Komma oder Punkt, z.B. 1,50 oder 2"
+          />
+
+          <GlassInput
+            label="Marke (optional)"
+            value={marke}
+            onChange={(e) => setMarke(e.target.value)}
+            placeholder="z.B. Coca-Cola"
+          />
+
+          <GlassInput
+            label="Volumen in ml (optional)"
+            type="number"
+            value={volumenStr}
+            onChange={(e) => setVolumenStr(e.target.value)}
+            placeholder="z.B. 500"
+            hint="Ganze Zahl in Millilitern, z.B. 500, 330, 200"
           />
 
           <KategorieSelect value={kategorie} onChange={setKategorie} />

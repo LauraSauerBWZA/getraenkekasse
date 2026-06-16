@@ -3,6 +3,8 @@ import { EmptyState, Glass, GlassButton, KategorieMarker, Loading } from '../com
 import {
   api,
   ApiError,
+  compareDrinkName,
+  drinkSubzeile,
   DRINK_KATEGORIEN,
   formatGuthaben,
   type Drink,
@@ -62,6 +64,8 @@ export default function Buchen() {
       const list = map.get(d.kategorie);
       if (list) list.push(d);
     }
+    // Innerhalb jeder Kategorie deutsch-alphabetisch (Umlaute, Groß/Klein egal).
+    for (const list of map.values()) list.sort(compareDrinkName);
     return map;
   }, [drinks]);
 
@@ -193,6 +197,20 @@ function DrinkRow({ drink, onPick }: { drink: Drink; onPick: () => void }) {
         >
           {drink.name}
         </div>
+        {drinkSubzeile(drink) && (
+          <div
+            style={{
+              marginTop: 2,
+              fontSize: 12,
+              color: 'var(--bwza-ink-mute)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {drinkSubzeile(drink)}
+          </div>
+        )}
         <div style={{ marginTop: 2, fontSize: 12, color: 'var(--bwza-ink-mute)' }}>
           {formatPreis(drink.preisCent)}
         </div>
@@ -297,6 +315,11 @@ function ConfirmSheet({
                 >
                   {drink.name}
                 </div>
+                {drinkSubzeile(drink) && (
+                  <div style={{ marginTop: 2, fontSize: 12.5, color: 'var(--bwza-ink-mute)' }}>
+                    {drinkSubzeile(drink)}
+                  </div>
+                )}
                 <div style={{ marginTop: 2, fontSize: 14, color: 'var(--bwza-ink-dim)' }}>
                   {formatPreis(drink.preisCent)}
                 </div>

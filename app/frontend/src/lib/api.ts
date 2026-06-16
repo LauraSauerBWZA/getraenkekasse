@@ -38,6 +38,8 @@ export interface Drink {
   preisCent: number;
   icon: string | null;
   kategorie: DrinkKategorie;
+  marke: string | null;
+  volumenMl: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -48,6 +50,9 @@ export interface DrinkInput {
   preisCent: number;
   icon?: string;
   kategorie: DrinkKategorie;
+  // marke: leerer String löscht (Update). volumenMl: null löscht, sonst Int > 0.
+  marke?: string | null;
+  volumenMl?: number | null;
 }
 
 export const TRANSAKTION_TYPEN = [
@@ -499,4 +504,31 @@ export function formatGuthaben(cent: number): string {
   const sign = cent < 0 ? '− ' : '';
   const abs = Math.abs(cent);
   return sign + (abs / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+
+// Gebindegröße in ml → deutsche Liter-Anzeige: 500→"0,5 l", 330→"0,33 l", 1000→"1 l".
+// SPIEGEL der kanonischen Backend-Funktion (backend/src/domain/drink-anzeige.ts),
+// die dort unit-getestet ist — Logik 1:1 identisch halten (ICU-unabhängig).
+export function formatVolumen(ml: number): string {
+  const liter = ml / 1000;
+  let s = liter.toFixed(2);
+  s = s.replace(/\.?0+$/, '');
+  s = s.replace('.', ',');
+  return `${s} l`;
+}
+
+// Subzeile „Marke · Größe" — nur vorhandene Teile, mit " · " verbunden; null wenn
+// beides leer (dann keine Subzeile rendern). Konsistent in Buchen + Admin-Katalog.
+export function drinkSubzeile(d: { marke?: string | null; volumenMl?: number | null }): string | null {
+  const parts: string[] = [];
+  const marke = d.marke?.trim();
+  if (marke) parts.push(marke);
+  if (d.volumenMl != null) parts.push(formatVolumen(d.volumenMl));
+  return parts.length ? parts.join(' · ') : null;
+}
+
+// Deutsch-korrekte alphabetische Drink-Sortierung (Umlaute, Groß/Klein egal).
+// Frontend-seitig, weil SQLite-`name asc` keinen Locale-Vergleich macht.
+export function compareDrinkName(a: { name: string }, b: { name: string }): number {
+  return a.name.localeCompare(b.name, 'de', { sensitivity: 'base' });
 }
