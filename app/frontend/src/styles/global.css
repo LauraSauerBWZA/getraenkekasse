@@ -46,6 +46,28 @@ button { font-family: inherit; }
   100% { background-position: -200% 0; }
 }
 
+/* ScrollList: dauerhaft sichtbarer Scrollbalken (B5c-Feinschliff) —
+   gestyltes ::-webkit-scrollbar erzwingt auch auf macOS einen klassischen,
+   nicht-auto-hidenden Balken. Thumb in Teal. */
+.bwza-scrolllist {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bwza-teal) rgba(255,255,255,0.06);
+}
+.bwza-scrolllist::-webkit-scrollbar {
+  width: 10px;
+}
+.bwza-scrolllist::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.06);
+  border-radius: 999px;
+  margin: 2px;
+}
+.bwza-scrolllist::-webkit-scrollbar-thumb {
+  background: var(--bwza-teal);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
 /* Vertikale Skelett-Bühne (mobile-first, 390px Optik) */
 .bwza-stage {
   min-height: 100%;
