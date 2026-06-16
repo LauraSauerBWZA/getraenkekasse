@@ -114,7 +114,15 @@ buchenRouter.post('/transaktionen/:id/storno', async (req, res) => {
   }
 
   const aktuellerUserId = req.auth!.sub;
-  const istAdmin = req.auth!.isAdmin;
+  // Admin-Recht LIVE aus der DB lesen (Cleanup) — nicht aus dem JWT-Claim vom
+  // Login-Zeitpunkt. So wirkt ein Rechtentzug (B2k-Demote) sofort; ein gerade
+  // demoteter/inaktiver User kann keine fremden Transaktionen mehr stornieren.
+  // Gleiches Muster wie requireAdmin/requireAdminOrLeitung (middleware.ts).
+  const aktuellerUser = await prisma.user.findUnique({
+    where: { id: aktuellerUserId },
+    select: { isAdmin: true, isActive: true },
+  });
+  const istAdmin = !!aktuellerUser?.isActive && !!aktuellerUser.isAdmin;
 
   // Verzweigung an der BEDINGUNG, nicht an der Rolle — ein Admin, der eigene
   // KAUF im Fenster zurückrollt, soll genauso ohne Notiz durchkommen wie ein
