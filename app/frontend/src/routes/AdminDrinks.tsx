@@ -500,9 +500,9 @@ function KategorieSelect({
                 fontSize: 12,
                 fontWeight: 600,
                 letterSpacing: 0.2,
-                color: active ? '#3a200a' : 'var(--bwza-ink)',
+                color: active ? 'var(--bwza-teal-ink)' : 'var(--bwza-ink)',
                 background: active
-                  ? 'linear-gradient(180deg, #f4b56a, #d98a4a)'
+                  ? 'linear-gradient(180deg, var(--bwza-teal), var(--bwza-teal-deep))'
                   : 'rgba(0,0,0,0.30)',
                 border: `1px solid ${active ? 'transparent' : 'var(--bwza-glass-line)'}`,
                 boxShadow: active ? 'var(--bwza-shadow-amber)' : 'none',
@@ -536,7 +536,7 @@ function ActiveToggle({
     borderRadius: 999,
     position: 'relative',
     background: isActive
-      ? 'linear-gradient(180deg, #f4b56a, #d98a4a)'
+      ? 'linear-gradient(180deg, var(--bwza-teal), var(--bwza-teal-deep))'
       : 'rgba(0,0,0,0.40)',
     border: '1px solid var(--bwza-glass-line)',
     transition: 'background var(--bwza-dur) var(--bwza-ease)',
@@ -549,7 +549,7 @@ function ActiveToggle({
     width: 20,
     height: 20,
     borderRadius: 999,
-    background: isActive ? '#3a200a' : 'rgba(255,225,180,0.50)',
+    background: isActive ? 'var(--bwza-teal-ink)' : 'rgba(255,255,255,0.55)',
     transition: 'left var(--bwza-dur) var(--bwza-ease), background var(--bwza-dur) var(--bwza-ease)',
   };
   return (

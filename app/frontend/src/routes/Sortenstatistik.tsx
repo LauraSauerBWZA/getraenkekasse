@@ -192,7 +192,7 @@ function SorteRow({ sorte, maxAnzahl }: { sorte: SortenStat; maxAnzahl: number }
           style={{
             width: `${anteil}%`,
             height: '100%',
-            background: 'var(--bwza-accent, #d98a4a)',
+            background: 'var(--bwza-teal)',
             borderRadius: 999,
           }}
         />

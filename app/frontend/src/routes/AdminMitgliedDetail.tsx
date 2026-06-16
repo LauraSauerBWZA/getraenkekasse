@@ -112,10 +112,10 @@ export default function AdminMitgliedDetail() {
           <div
             className={negativ ? 'bwza-neg' : ''}
             style={{
-              fontFamily: 'var(--bwza-font-display)',
+              fontFamily: 'var(--bwza-font-ui)',
               fontSize: 'var(--bwza-text-num)',
-              fontWeight: 600,
-              letterSpacing: -1,
+              fontWeight: 300,
+              letterSpacing: -1.5,
               marginTop: 6,
               color: negativ ? undefined : 'var(--bwza-ink)',
             }}
