@@ -9,6 +9,13 @@
 html, body, #root {
   min-height: 100%;
   margin: 0;
+  /* Kein horizontaler Drift mehr (iOS-Standalone-PWA, viewport-fit=cover):
+     `overflow-x: clip` klippt seitlichen Überlauf, OHNE — anders als
+     `overflow-x: hidden` — die andere Achse auf `auto` zu zwingen oder einen
+     Scroll-Container zu erzeugen. So bleibt `position: sticky` der oberen Leisten
+     intakt. `max-width: 100%` deckelt zusätzlich. Auf Desktop ohne Einfluss. */
+  overflow-x: clip;
+  max-width: 100%;
 }
 
 body {
