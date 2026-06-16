@@ -16,6 +16,10 @@ const inviteSchema = z.object({
   email: z.string().email(),
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
+  // Account-B: direkt mit Rolle einladen (Default false). Wird beim Anlegen am
+  // User gesetzt — der Invite selbst trägt keine Rollen (schlankes Modell).
+  isAdmin: z.boolean().optional(),
+  isLeitung: z.boolean().optional(),
 });
 
 // POST /admin/invite — legt User an (oder reaktiviert) und verschickt Magic-Link
@@ -23,13 +27,16 @@ adminRouter.post('/admin/invite', async (req, res) => {
   const parsed = inviteSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Ungültige Eingaben.', details: parsed.error.flatten() });
 
-  const { email: emailInput, firstName, lastName } = parsed.data;
+  const { email: emailInput, firstName, lastName, isAdmin = false, isLeitung = false } = parsed.data;
   const emailLower = emailInput.toLowerCase();
 
+  // Rolle NUR beim Neuanlegen (create) setzen. Bei Re-Invite eines bestehenden
+  // Users bleibt dessen Rolle unberührt (kein versehentliches Demoten — Rollen-
+  // wechsel läuft über den Detail-Toggle, B2k).
   const user = await prisma.user.upsert({
     where: { email: emailLower },
     update: { firstName, lastName, isActive: true },
-    create: { email: emailLower, firstName, lastName },
+    create: { email: emailLower, firstName, lastName, isAdmin, isLeitung },
   });
 
   const { clear, hash } = generateInviteToken();
@@ -242,6 +249,40 @@ adminRouter.delete('/admin/users/:id', async (req, res) => {
 
   logger.info({ mitgliedId: ziel.id, adminId: req.auth!.sub, topfCent }, 'Mitglied entfernt (Soft-Delete).');
   return res.json({ ok: true, warnung });
+});
+
+// POST /admin/users/:id/reset-password — Admin-Passwort-Reset (Account-B).
+// Erzeugt für den BESTEHENDEN, aktiven User einen neuen einmaligen Token-Invite
+// (gleiche Magic-Link-Infra) und gibt den Klartext-Token zurück; das Frontend
+// baut daraus den kopierbaren Reset-Link (LAN-sicher, wie beim Invite). Eingelöst
+// wird über die bestehende /auth/invite-redeem-Route → setzt das neue Passwort.
+//   - Altes Passwort bleibt gültig bis zum Einlösen (passwordHash unangetastet).
+//   - isActive unberührt (Reset reaktiviert nicht); inaktiv → 400, unbekannt → 404.
+// Kein Email-Versand (Resend gestrichen) — Admin leitet den Link selbst weiter.
+adminRouter.post('/admin/users/:id/reset-password', async (req, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, email: true, firstName: true, isActive: true },
+  });
+  if (!user) return res.status(404).json({ error: 'Mitglied nicht gefunden.' });
+  if (!user.isActive) {
+    return res.status(400).json({ error: 'Mitglied ist deaktiviert — kein Passwort-Reset möglich.' });
+  }
+
+  const { clear, hash } = generateInviteToken();
+  await prisma.invite.create({
+    data: { tokenHash: hash, userId: user.id, expiresAt: inviteExpiry() },
+  });
+
+  const inviteUrl = buildInviteUrl(clear);
+  await email.sendInvite({ to: user.email, firstName: user.firstName, inviteUrl });
+
+  logger.info({ userId: user.id, adminId: req.auth!.sub }, 'Passwort-Reset-Link erzeugt.');
+  return res.status(201).json({
+    user: { id: user.id, email: user.email, firstName: user.firstName },
+    // Klartext-Token nur im Dev-Response (wie /admin/invite) — Frontend baut den Link.
+    devToken: process.env.NODE_ENV === 'production' ? undefined : clear,
+  });
 });
 
 // PATCH /admin/users/:id/leitung — Leitung-Recht vergeben/entziehen (B2j, §4).
