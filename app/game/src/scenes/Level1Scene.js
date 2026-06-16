@@ -1,9 +1,20 @@
 import Phaser from 'phaser';
-import { GAME, COLORS, CSS, SCENES, SCORE, START_LIVES, PHYS, PIXELS_PER_METER } from '../constants.js';
+import {
+  GAME,
+  COLORS,
+  CSS,
+  SCENES,
+  SCORE,
+  START_LIVES,
+  PHYS,
+  PIXELS_PER_METER,
+  TIMEOUT_MS,
+} from '../constants.js';
 import { Platform } from '../sprites/Platform.js';
 import { Player } from '../sprites/Player.js';
 import { Enemy } from '../sprites/Enemy.js';
 import { Collectible } from '../sprites/Collectible.js';
+import { Hud } from '../utils/hud.js';
 
 // Plattform-Layout Level 1 (Spec §5). x = Mitte, y = Mitte, w = Breite, t = Typ.
 // Von unten (Start) nach oben (Windenhaken) im Zickzack — wechselnde Seiten
@@ -70,6 +81,8 @@ export class Level1Scene extends Phaser.Scene {
     this.collectiblesFound = 0;
     this.enemiesDefeated = 0;
     this.invulnerable = false;
+    this.maxHeightM = 0;
+    this.startedAt = this.time.now;
 
     this.physics.world.setBounds(0, 0, GAME.width, GAME.worldHeight);
     this.cameras.main.setBounds(0, 0, GAME.width, GAME.worldHeight);
@@ -81,6 +94,7 @@ export class Level1Scene extends Phaser.Scene {
     this.buildEnemies();
     this.buildCollectibles();
     this.setupCombat();
+    this.hud = new Hud(this);
 
     // ESC → zurück ins Menü (Dev-Komfort; Pause/echtes Menü später).
     this.input.keyboard.on('keydown-ESC', () => this.scene.start(SCENES.menu));
@@ -221,6 +235,11 @@ export class Level1Scene extends Phaser.Scene {
     this.scene.restart();
   }
 
+  // Gekletterte Höhe in Metern (>= 0), relativ zur Start-Position.
+  currentHeightM() {
+    return Math.max(0, Math.round((PLAYER_START.y - this.player.y) / PIXELS_PER_METER));
+  }
+
   update() {
     this.player.update();
     this.enemies.children.iterate((enemy) => {
@@ -233,5 +252,14 @@ export class Level1Scene extends Phaser.Scene {
       if (stone && stone.y > camBottom + 80) stone.destroy();
       return true;
     });
+
+    const heightM = this.currentHeightM();
+    if (heightM > this.maxHeightM) this.maxHeightM = heightM;
+
+    const timeMs = this.time.now - this.startedAt;
+    this.hud.update({ lives: this.lives, score: this.score, heightM, timeMs });
+
+    // Timeout (Spec §7): nach 5 Minuten Game Over.
+    if (timeMs >= TIMEOUT_MS) this.gameOver();
   }
 }

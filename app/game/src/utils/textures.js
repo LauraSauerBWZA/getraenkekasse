@@ -170,6 +170,18 @@ function drinkTexture(scene) {
   g.destroy();
 }
 
+// HUD-Herz (16x16) für die Lebensanzeige.
+function heartTexture(scene) {
+  const s = 16;
+  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  g.fillStyle(COLORS.rescue, 1);
+  g.fillCircle(5, 5, 4);
+  g.fillCircle(11, 5, 4);
+  g.fillTriangle(1, 6, 15, 6, 8, 15);
+  g.generateTexture('heart', s, s);
+  g.destroy();
+}
+
 // Erzeugt alle (Platzhalter-)Texturen einmalig beim Boot.
 export function buildTextures(scene) {
   // 1x1-Pixel — universell für Balken, Partikel, HUD-Flächen, Tinten.
@@ -203,4 +215,7 @@ export function buildTextures(scene) {
   carabinerTexture(scene);
   ropeTexture(scene);
   drinkTexture(scene);
+
+  // HUD (B_GAME.6).
+  heartTexture(scene);
 }
