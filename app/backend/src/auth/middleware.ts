@@ -19,9 +19,18 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return res.status(401).json({ error: 'Session ungültig.' });
   }
 
-  const session = await prisma.session.findUnique({ where: { id: payload.sid } });
+  const session = await prisma.session.findUnique({
+    where: { id: payload.sid },
+    include: { user: { select: { isActive: true } } },
+  });
   if (!session || session.revokedAt || session.expiresAt < new Date()) {
     return res.status(401).json({ error: 'Session abgelaufen.' });
+  }
+  // Soft-gelöschte (inaktive) User fallen auch auf requireAuth-only-Routen durch —
+  // sonst behielte ein nach dem Login entfernter User Zugriff bis Session-Ablauf
+  // (Account-A). Login/Invite sperren bereits separat (auth.ts).
+  if (!session.user.isActive) {
+    return res.status(401).json({ error: 'Account deaktiviert.' });
   }
 
   req.auth = payload;

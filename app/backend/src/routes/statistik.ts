@@ -26,9 +26,16 @@ statistikRouter.get('/statistik/sorten', async (req, res) => {
   const zeitraum = zeitraumSchema.parse(req.query.zeitraum);
   const seit = new Date(Date.now() - ZEITRAUM_TAGE[zeitraum] * 24 * 60 * 60 * 1000);
 
-  // Alle Käufe im Fenster (mit Drink). Kein userId — bewusst.
+  // Alle Käufe im Fenster (mit Drink). Kein userId — bewusst. Käufe soft-
+  // gelöschter User (isActive=false) sind ausgeschlossen (§11, Account-A):
+  // Ausschluss über die User-Relation, kein Transaktion.deletedAt.
   const kaeufe = await prisma.transaktion.findMany({
-    where: { typ: 'KAUF', drinkId: { not: null }, createdAt: { gte: seit } },
+    where: {
+      typ: 'KAUF',
+      drinkId: { not: null },
+      createdAt: { gte: seit },
+      user: { isActive: true },
+    },
     select: { id: true, drinkId: true, preisAtKaufCent: true },
   });
 

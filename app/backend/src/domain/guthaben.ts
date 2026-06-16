@@ -15,7 +15,13 @@ export async function computeGuthabenCent(userId: string): Promise<number> {
 // Summe ALLER Mitglieder-Guthaben als eine Zahl (KONFIGURATION.md §6.8) —
 // = was die Kasse den Mitgliedern insgesamt schuldet. Eingang in die Deckung:
 // Deckung = Vereinsvermögen − diese Summe. Keine Einzelsalden (DSGVO/Leitung).
+// Soft-gelöschte User (isActive=false) sind ausgeschlossen (§11, Account-A): ihre
+// Verbindlichkeit fällt weg, während die Kasse das Geld behält → die Deckung
+// steigt korrekt. Ausschluss über die User-Relation, kein Transaktion.deletedAt.
 export async function computeMitgliederGuthabenSummeCent(): Promise<number> {
-  const agg = await prisma.transaktion.aggregate({ _sum: { betragCent: true } });
+  const agg = await prisma.transaktion.aggregate({
+    _sum: { betragCent: true },
+    where: { user: { isActive: true } },
+  });
   return agg._sum.betragCent ?? 0;
 }
