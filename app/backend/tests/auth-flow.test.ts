@@ -2627,3 +2627,121 @@ describe('Account-B — Passwort-Reset + Invite-Rolle', () => {
     expect(redeem.body.user.isLeitung).toBe(false);
   });
 });
+
+// Vor-Deploy-Cleanup — Storno-Guard DB-backed + Reassign offener Anfragen.
+describe('Cleanup — Storno-DB-Guard + Anfragen-Reassign', () => {
+  async function neuerAdminAgent(email: string, firstName: string) {
+    const u = await prisma.user.create({
+      data: { email, firstName, lastName: 'C', isAdmin: true },
+    });
+    const inv = generateInviteToken();
+    await prisma.invite.create({ data: { tokenHash: inv.hash, userId: u.id, expiresAt: inviteExpiry() } });
+    const ag = supertest.agent(app);
+    const r = await ag.post('/auth/invite-redeem').send({ token: inv.clear, password: 'Cleanup-Pferd-9' });
+    expect(r.status).toBe(200);
+    return { id: u.id, ag };
+  }
+  async function neuerAdmin(email: string, firstName: string) {
+    const u = await prisma.user.create({
+      data: { email, firstName, lastName: 'C', isAdmin: true },
+    });
+    return u.id;
+  }
+  async function neuesMitglied(email: string, firstName: string) {
+    const u = await prisma.user.create({ data: { email, firstName, lastName: 'C' } });
+    return u.id;
+  }
+  async function kauf(userId: string, drinkId: string) {
+    return prisma.transaktion.create({
+      data: { typ: 'KAUF', userId, erstelltVonId: userId, drinkId, preisAtKaufCent: 200, betragCent: -200 },
+    });
+  }
+
+  // 3.2 — Storno-Admin-Guard liest DB-Stand, nicht den JWT-Claim.
+  it('demoteter Admin kann keine fremde Transaktion mehr stornieren (DB-Guard)', async () => {
+    const a = await neuerAdminAgent('cleanup-stornoadmin@example.com', 'Stan');
+    const mId = await neuesMitglied('cleanup-stornomember@example.com', 'Mira');
+    const drink = await prisma.drink.create({
+      data: { name: 'Cleanup-Storno-Limo', preisCent: 200, kategorie: 'alkoholfrei' },
+    });
+    const k1 = await kauf(mId, drink.id);
+    const k2 = await kauf(mId, drink.id);
+
+    // Als aktiver Admin: fremd-Storno klappt (Pflicht-Notiz).
+    const ok = await a.ag.post(`/transaktionen/${k1.id}/storno`).send({ notiz: 'Admin-Korrektur' });
+    expect(ok.status).toBe(201);
+
+    // A wird demotet — der JWT-Claim sagt weiter „admin", die DB nicht mehr.
+    await prisma.user.update({ where: { id: a.id }, data: { isAdmin: false } });
+
+    // Jetzt scheitert der fremd-Storno (DB-Guard greift, nicht der alte Claim).
+    const denied = await a.ag.post(`/transaktionen/${k2.id}/storno`).send({ notiz: 'Versuch' });
+    expect(denied.status).toBe(403);
+    // k2 ist nicht storniert worden.
+    const stornoVorhanden = await prisma.transaktion.findFirst({ where: { typ: 'STORNO', stornoVonId: k2.id } });
+    expect(stornoVorhanden).toBeNull();
+  });
+
+  // 3.3 — Offene PayPal-Anfragen werden beim Verwalter-Wegfall neu zugewiesen.
+  async function offeneAnfrage(mitgliedId: string, verwalterId: string, betragCent = 500) {
+    return prisma.aufladungsAnfrage.create({
+      data: { userId: mitgliedId, betragCent, status: 'OFFEN', zugewiesenerVerwalterId: verwalterId },
+    });
+  }
+  async function assertNeuZugewiesen(anfrageId: string, altVerwalterId: string) {
+    const a = await prisma.aufladungsAnfrage.findUnique({ where: { id: anfrageId } });
+    expect(a?.status).toBe('OFFEN'); // bleibt bestätigbar
+    expect(a?.zugewiesenerVerwalterId).not.toBe(altVerwalterId); // weg vom Wegfallenden
+    // Ziel ist ein aktiver Verwalter → bestätigbar.
+    const ziel = await prisma.user.findUnique({
+      where: { id: a!.zugewiesenerVerwalterId },
+      select: { isAdmin: true, isActive: true },
+    });
+    expect(ziel?.isAdmin).toBe(true);
+    expect(ziel?.isActive).toBe(true);
+  }
+
+  it('Demote: offene Anfrage des Ex-Verwalters wandert zum verbliebenen Verwalter', async () => {
+    const exId = await neuerAdmin('cleanup-demote-ex@example.com', 'Demo');
+    await neuerAdmin('cleanup-demote-ziel@example.com', 'Ziel'); // sichert ≥1 weiteren Admin
+    const mId = await neuesMitglied('cleanup-demote-m@example.com', 'Memb');
+    const anfrage = await offeneAnfrage(mId, exId);
+
+    const r = await agent.patch(`/admin/users/${exId}/admin`).send({ isAdmin: false });
+    expect(r.status).toBe(200);
+
+    await assertNeuZugewiesen(anfrage.id, exId);
+  });
+
+  it('Remove (Account-A): offene Anfrage des entfernten Verwalters wird neu zugewiesen', async () => {
+    const exId = await neuerAdmin('cleanup-remove-ex@example.com', 'Remo');
+    await neuerAdmin('cleanup-remove-ziel@example.com', 'Zilo');
+    const mId = await neuesMitglied('cleanup-remove-m@example.com', 'Memo');
+    const anfrage = await offeneAnfrage(mId, exId);
+
+    const r = await agent.delete(`/admin/users/${exId}`);
+    expect(r.status).toBe(200);
+
+    await assertNeuZugewiesen(anfrage.id, exId);
+    // Der entfernte Verwalter ist inaktiv.
+    expect((await prisma.user.findUnique({ where: { id: exId } }))?.isActive).toBe(false);
+  });
+
+  it('Reassign rührt fremde/erledigte Anfragen nicht an', async () => {
+    const exId = await neuerAdmin('cleanup-noop-ex@example.com', 'Noop');
+    const andererId = await neuerAdmin('cleanup-noop-other@example.com', 'Andy');
+    const mId = await neuesMitglied('cleanup-noop-m@example.com', 'Nemo');
+    // Eine BESTAETIGT-Anfrage des Ex (darf NICHT angefasst werden) + eine OFFENE eines anderen Verwalters.
+    const erledigt = await prisma.aufladungsAnfrage.create({
+      data: { userId: mId, betragCent: 300, status: 'BESTAETIGT', zugewiesenerVerwalterId: exId },
+    });
+    const fremd = await offeneAnfrage(mId, andererId, 400);
+
+    const r = await agent.patch(`/admin/users/${exId}/admin`).send({ isAdmin: false });
+    expect(r.status).toBe(200);
+
+    // BESTAETIGT bleibt beim Ex, fremde OFFENE bleibt beim anderen Verwalter.
+    expect((await prisma.aufladungsAnfrage.findUnique({ where: { id: erledigt.id } }))?.zugewiesenerVerwalterId).toBe(exId);
+    expect((await prisma.aufladungsAnfrage.findUnique({ where: { id: fremd.id } }))?.zugewiesenerVerwalterId).toBe(andererId);
+  });
+});
