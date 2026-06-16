@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { EmptyState, Glass, GlassButton, GlassInput, Loading } from '../components/primitives';
+import { Check } from 'lucide-react';
+import { Eyebrow, EmptyState, Glass, GlassButton, GlassInput, Loading } from '../components/primitives';
 import { BackBar } from '../components/BackBar';
 import { api, ApiError, formatGuthaben, type AdminUser } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -185,7 +186,7 @@ export default function AdminAufladungBargeld() {
 
       {phase === 'erfolg' && erfolg && (
         <Glass tone="amber" style={{ borderRadius: 22, padding: '18px 16px' }}>
-          <div className="bwza-eyebrow">✓ Aufladung gebucht</div>
+          <Eyebrow icon={Check} color="var(--bwza-success)">Aufladung gebucht</Eyebrow>
           <div
             style={{
               marginTop: 6,

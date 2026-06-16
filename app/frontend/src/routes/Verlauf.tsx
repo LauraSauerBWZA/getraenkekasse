@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { EmptyState, Glass, Loading, StatCard } from '../components/primitives';
+import { History } from 'lucide-react';
+import { Eyebrow, EmptyState, Glass, Loading, StatCard } from '../components/primitives';
 import { ScrollList } from '../components/ScrollList';
 import {
   api,
@@ -64,7 +65,7 @@ export default function Verlauf() {
   return (
     <div className="bwza-stage" style={{ padding: '0 var(--bwza-page-x) 40px' }}>
       <div style={{ paddingTop: 30, paddingBottom: 16 }}>
-        <div className="bwza-eyebrow">🕒 Verlauf</div>
+        <Eyebrow icon={History}>Verlauf</Eyebrow>
         <div
           style={{
             fontFamily: 'var(--bwza-font-display)',
@@ -306,7 +307,7 @@ function Historie({ historie }: { historie: MeineHistorie | null }) {
       {historie === null ? (
         <Loading />
       ) : historie.transaktionen.length === 0 ? (
-        <EmptyState title="Noch nichts gebucht" sub="Geht doch los an der Theke 🍺" />
+        <EmptyState title="Noch nichts gebucht" sub="Geht doch los an der Theke" />
       ) : (
         <>
           <ScrollList>

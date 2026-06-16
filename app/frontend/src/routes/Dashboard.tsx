@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { Beer } from 'lucide-react';
 import { Glass, GlassButton } from '../components/primitives';
 import { useAuth } from '../lib/auth';
 import { formatGuthaben } from '../lib/api';
@@ -56,7 +57,10 @@ export default function Dashboard() {
       {/* Quick-Buchung-CTA */}
       <div style={{ marginTop: 16 }}>
         <GlassButton full size="lg" onClick={() => navigate('/buchen')}>
-          🍺 Getränk buchen
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <Beer size={18} strokeWidth={2} aria-hidden />
+            Getränk buchen
+          </span>
         </GlassButton>
       </div>
     </div>

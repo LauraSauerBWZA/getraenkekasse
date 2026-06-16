@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { EmptyState, Glass, GlassButton, GlassInput, Loading, StatusChip } from '../components/primitives';
+import { Banknote, CreditCard } from 'lucide-react';
+import { Eyebrow, EmptyState, Glass, GlassButton, GlassInput, Loading, StatusChip } from '../components/primitives';
 import { ScrollList } from '../components/ScrollList';
 import {
   api,
@@ -147,7 +148,7 @@ export default function Aufladen() {
 
       {/* PayPal-Aufladung */}
       <Glass tone="amber" style={{ borderRadius: 22, padding: '18px 16px' }}>
-        <div className="bwza-eyebrow">💳 PayPal</div>
+        <Eyebrow icon={CreditCard}>PayPal</Eyebrow>
         <div
           style={{
             marginTop: 6,
@@ -269,7 +270,7 @@ export default function Aufladen() {
 
       {/* Bargeld-Hinweis */}
       <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px', marginTop: 14 }}>
-        <div className="bwza-eyebrow">💶 Bargeld</div>
+        <Eyebrow icon={Banknote}>Bargeld</Eyebrow>
         <div style={{ marginTop: 4, fontSize: 13, color: 'var(--bwza-ink)', fontWeight: 600 }}>
           Lieber bar?
         </div>

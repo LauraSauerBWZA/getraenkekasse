@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { EmptyState, Glass, GlassButton, GlassInput, Loading, StatusChip } from '../components/primitives';
+import { BarChart3, Banknote, Beer, Inbox, Landmark, User, Users } from 'lucide-react';
+import { Eyebrow, EmptyState, Glass, GlassButton, GlassInput, Loading, StatusChip } from '../components/primitives';
 import { BackBar } from '../components/BackBar';
 import { ScrollList } from '../components/ScrollList';
 import { api, ApiError, type AdminInvite } from '../lib/api';
@@ -254,7 +255,7 @@ export default function Admin() {
         }}
       >
         <div>
-          <div className="bwza-eyebrow">👥 Mitglieder</div>
+          <Eyebrow icon={Users}>Mitglieder</Eyebrow>
           <div
             style={{
               fontFamily: 'var(--bwza-font-display)',
@@ -300,7 +301,7 @@ export default function Admin() {
         }}
       >
         <div>
-          <div className="bwza-eyebrow">🍺 Katalog</div>
+          <Eyebrow icon={Beer}>Katalog</Eyebrow>
           <div
             style={{
               fontFamily: 'var(--bwza-font-display)',
@@ -346,7 +347,7 @@ export default function Admin() {
         }}
       >
         <div>
-          <div className="bwza-eyebrow">💳 Kasse</div>
+          <Eyebrow icon={Inbox}>Kasse</Eyebrow>
           <div
             style={{
               fontFamily: 'var(--bwza-font-display)',
@@ -392,7 +393,7 @@ export default function Admin() {
         }}
       >
         <div>
-          <div className="bwza-eyebrow">💶 Kasse</div>
+          <Eyebrow icon={Banknote}>Kasse</Eyebrow>
           <div
             style={{
               fontFamily: 'var(--bwza-font-display)',
@@ -438,7 +439,7 @@ export default function Admin() {
         }}
       >
         <div>
-          <div className="bwza-eyebrow">🏦 Kasse</div>
+          <Eyebrow icon={Landmark}>Kasse</Eyebrow>
           <div
             style={{
               fontFamily: 'var(--bwza-font-display)',
@@ -484,7 +485,7 @@ export default function Admin() {
         }}
       >
         <div>
-          <div className="bwza-eyebrow">📊 Statistik</div>
+          <Eyebrow icon={BarChart3}>Statistik</Eyebrow>
           <div
             style={{
               fontFamily: 'var(--bwza-font-display)',
@@ -530,7 +531,7 @@ export default function Admin() {
         }}
       >
         <div>
-          <div className="bwza-eyebrow">👤 Profil</div>
+          <Eyebrow icon={User}>Profil</Eyebrow>
           <div
             style={{
               fontFamily: 'var(--bwza-font-display)',

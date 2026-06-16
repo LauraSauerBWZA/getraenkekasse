@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { EmptyState, Glass, GlassButton, Loading } from '../components/primitives';
+import { BarChart3 } from 'lucide-react';
+import { Eyebrow, EmptyState, Glass, GlassButton, Loading } from '../components/primitives';
 import { BackBar } from '../components/BackBar';
 import {
   api,
@@ -196,7 +197,7 @@ export default function LeitungKasse() {
         }}
       >
         <div>
-          <div className="bwza-eyebrow">📊 Statistik</div>
+          <Eyebrow icon={BarChart3}>Statistik</Eyebrow>
           <div
             style={{
               fontFamily: 'var(--bwza-font-display)',
