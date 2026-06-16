@@ -1,6 +1,6 @@
 # Konfiguration — Bergwacht Getränkekasse
 
-**Stand:** 16.06.2026 (Update 14: B6 PWA — installierbar/standalone, BergMark-Icons, vite-plugin-pwa)
+**Stand:** 16.06.2026 (Update 15: Vor-Deploy-Cleanup — Backend-Build grün, DB-Guards, §5 an Schema angeglichen)
 **Status:** 🟢 Phase B1 abgeschlossen + verifiziert, Phase B2 vorbereitet
 
 ---
@@ -97,6 +97,10 @@ Zwei Buchungs-Ebenen:
 - **Mitglieder-Ebene** (`Transaktion`): Guthaben einzelner Mitglieder
 - **Kassen-Ebene** (`KassenTransaktion`): Vereinsgeld, getrennt nach Verwalter-Töpfen und Bar-Vereinskasse
 
+> **Enum-Hinweis (Update 15):** SQLite unterstützt keine Prisma-Enums. „Enum"-Felder
+> sind real **`String`**-Spalten mit Zod-Validierung (`src/domain/*`). Unten als
+> „String (validiert: …)" geführt. Diese §5 ist gegen das reale `schema.prisma` abgeglichen.
+
 ### 5.1 User
 
 | Feld | Typ | Notiz |
@@ -120,8 +124,8 @@ Zwei Buchungs-Ebenen:
 | `id` | String (cuid) | |
 | `name` | String | „Cola", „Bier klein" |
 | `preisCent` | Int | Aktueller Verkaufspreis |
-| `icon` | String | Emoji-String, optional |
-| `kategorie` | Enum | `alkoholfrei`, `alkoholisch`, `sonstiges` (fest) |
+| `icon` | String, nullable | optional; seit B5c kein Emoji-Eingabefeld mehr, Feld bleibt |
+| `kategorie` | String (validiert) | `alkoholfrei`, `alkoholisch`, `sonstiges` (fest) |
 | `isActive` | Boolean, default true | Soft-Disable statt Hard-Delete |
 | `createdAt` / `updatedAt` | DateTime | |
 
@@ -133,7 +137,7 @@ Jede Bewegung am Guthaben eines Mitglieds. **Niemals löschen** — Audit-Trail.
 |---|---|---|
 | `id` | String (cuid) | |
 | `userId` | String, FK → User | |
-| `typ` | Enum | `KAUF`, `AUFLADUNG_PAYPAL`, `AUFLADUNG_BARGELD`, `KORREKTUR`, `STORNO` |
+| `typ` | String (validiert) | `KAUF`, `AUFLADUNG_PAYPAL`, `AUFLADUNG_BARGELD`, `KORREKTUR`, `STORNO` |
 | `betragCent` | Int | Positiv bei Aufladung/Korrektur+, negativ bei Kauf |
 | `drinkId` | String, FK → Drink, nullable | Nur bei `KAUF` |
 | `preisAtKaufCent` | Int, nullable | Eingefroren bei `KAUF` |
@@ -145,21 +149,24 @@ Jede Bewegung am Guthaben eines Mitglieds. **Niemals löschen** — Audit-Trail.
 
 ### 5.4 Invite
 
+**Schlankes Modell** — der Invite ist nur ein Token, der auf einen User zeigt; Email,
+Namen **und Rollen leben am User**, nicht am Invite.
+
 | Feld | Typ | Notiz |
 |---|---|---|
 | `id` | String (cuid) | |
-| `email` | String | |
-| `firstName` / `lastName` | String | |
-| `isAdmin` / `isLeitung` | Boolean, default false | Direkt mit Recht einladbar |
-| `tokenHash` | String | SHA-256 des Tokens |
+| `tokenHash` | String, unique | SHA-256 des Klartext-Tokens |
+| `userId` | String, FK → User (onDelete: Cascade) | der eingeladene/betroffene User |
+| `createdAt` | DateTime, default now | |
 | `expiresAt` | DateTime | 7 Tage |
-| `redeemedAt` | DateTime, nullable | |
-| `erstelltVonId` | String, FK → User | |
-| `createdAt` | DateTime | |
+| `redeemedAt` | DateTime, nullable | gesetzt beim Einlösen |
+
+**Rollen-Einladung (Account-B):** „Direkt mit Recht einladen" setzt `isAdmin`/`isLeitung`
+**am User beim Anlegen** (`POST /admin/invite`, nur create-Zweig) — nicht am Invite; die
+Redemption setzt nur das Passwort. Der **Passwort-Reset** (Account-B) erzeugt einfach einen
+weiteren Token-Invite für den bestehenden User.
 
 **Hinweis:** B1-Code nennt diese Entität `InviteToken`. Umbenennung auf `Invite` in B2b.
-
-**Realität (Doku-Fix Update 13):** Das `Invite`-Modell ist **schlank** — es trägt nur `tokenHash`, `userId` (FK → User), `expiresAt`, `redeemedAt`. Email/Namen **und Rollen leben am User**, nicht am Invite. „Direkt mit Recht einladen" (Account-B) setzt `isAdmin`/`isLeitung` daher **am User beim Anlegen** (`POST /admin/invite`, nur create-Zweig); die Redemption setzt nur das Passwort. Der Passwort-Reset (Account-B) erzeugt schlicht einen weiteren Token-Invite für den bestehenden User.
 
 ### 5.5 AufladungsAnfrage
 
@@ -170,8 +177,8 @@ PayPal-Aufladungs-Anfrage mit State-Machine und Verwalter-Zuweisung.
 | `id` | String (cuid) | |
 | `userId` | String, FK → User | Wer hat gestellt |
 | `betragCent` | Int | Gewünschter Betrag |
-| `status` | Enum | `OFFEN`, `BESTAETIGT`, `ABGELEHNT` |
-| `zugewiesenerVerwalterId` | String, FK → User | Welcher Verwalter ist zuständig (per Lastverteilung ermittelt) — NEU Update 8 |
+| `status` | String (validiert), default `OFFEN` | `OFFEN`, `BESTAETIGT`, `ABGELEHNT` |
+| `zugewiesenerVerwalterId` | String, FK → User (required) | zuständiger Verwalter (per Lastverteilung); bei Wegfall (Demote/Remove) auf den least-loaded aktiven Verwalter umgehängt (Cleanup) — NEU Update 8 |
 | `requestedAt` | DateTime | |
 | `decidedAt` | DateTime, nullable | |
 | `decidedById` | String, FK → User, nullable | Welcher Verwalter hat entschieden (= zugewiesener) |
@@ -185,8 +192,8 @@ Jede Bewegung am Vereinsgeld. `konto` trennt Verwalter-Töpfe von der Box; `verw
 | Feld | Typ | Notiz |
 |---|---|---|
 | `id` | String (cuid) | |
-| `typ` | Enum | `EINZAHLUNG`, `EINLAGE_BOX`, `EINKAUF`, `ENTNAHME`, `SPENDE`, `KORREKTUR` |
-| `konto` | Enum | `VERWALTER` oder `BOX` |
+| `typ` | String (validiert) | `EINZAHLUNG`, `EINLAGE_BOX`, `EINKAUF`, `ENTNAHME`, `SPENDE`, `KORREKTUR` (AUSLAGE gestrichen, Update 9) |
+| `konto` | String (validiert) | `VERWALTER` oder `BOX` |
 | `verwalterId` | String, FK → User, nullable | Welcher Verwalter-Topf. Gesetzt wenn `konto=VERWALTER`, null bei `BOX` — NEU Update 8 |
 | `betragCent` | Int | Positiv = Zufluss, negativ = Abfluss |
 | `notiz` | String | **Pflicht bei JEDER Kassen-Bewegung** (Update 8) |
@@ -459,6 +466,16 @@ Außerdem: Form-Field-IDs auf Login fehlen → B5 Politur.
 ---
 
 ## 13. Änderungshistorie (kompakt)
+
+**Update 15 (16.06.2026):** Vor-Deploy-Cleanup (kein Verhaltens-Change außer den Guards)
+- **Backend-Build deploy-fest:** eigenes `tsconfig.build.json` (nur `src` → kein TS6059),
+  `build` = `prisma generate && tsc`, `req.auth`-Typ in dedizierter `src/types/express.d.ts`.
+  `pnpm --filter backend build` ist ab jetzt ein echtes Gate.
+- **Storno-Admin-Guard** liest den **DB-Stand** (nicht den JWT-Claim) — Rechtentzug wirkt sofort.
+- **Offene PayPal-Anfragen** eines wegfallenden Verwalters (Demote B2k / Remove Account-A)
+  werden dem **least-loaded** aktiven Verwalter neu zugewiesen (§6.9), bleiben `OFFEN`/bestätigbar.
+- **§5 an reales `schema.prisma` angeglichen:** schlankes `Invite` (nur Token+userId), „Enum"→
+  „String (validiert)" (SQLite), `isActive`, `verwalterId`/`zugewiesenerVerwalterId`, AUSLAGE-Hinweis.
 
 **Update 14 (16.06.2026):** B6 — PWA (installierbar)
 - App ist **installierbar** (Web-Manifest, `display: standalone`, `orientation: portrait`,
