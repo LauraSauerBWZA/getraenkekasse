@@ -200,7 +200,9 @@ export function GlassInput({
           gap: 8,
           padding: '12px 14px',
           borderRadius: 14,
-          background: 'rgba(255,255,255,0.04)',
+          // Kontrast: Feld klar vom dunklen Seitengrund (--bwza-bg) abgesetzt —
+          // deutlich hellerer Füll-Ton + kräftigerer Rest-Rahmen (glass-line-up).
+          background: 'rgba(255,255,255,0.09)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
           border:
@@ -209,7 +211,7 @@ export function GlassInput({
               ? 'rgba(255,92,97,0.55)'
               : focus
                 ? 'rgba(43,212,188,0.55)'
-                : 'var(--bwza-glass-line)'),
+                : 'var(--bwza-glass-line-up)'),
           boxShadow: focus
             ? '0 0 0 4px rgba(43,212,188,0.15), inset 0 1px 0 rgba(255,255,255,0.08)'
             : 'inset 0 1px 0 rgba(255,255,255,0.06)',
@@ -218,6 +220,7 @@ export function GlassInput({
         }}
       >
         <input
+          className="bwza-input"
           type={type}
           value={value}
           onChange={onChange}

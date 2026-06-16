@@ -52,6 +52,16 @@ body::before {
 
 button { font-family: inherit; }
 
+/* Eingabefeld-Kontrast (GlassInput): der getippte Wert ist hell (--bwza-ink),
+   der Platzhalter klar dimmer (--bwza-ink-mute) — so ist Platzhalter eindeutig
+   vom echten Wert unterscheidbar. opacity:1 gegen den browser-eigenen Abdunkler.
+   Nötig als CSS-Regel, weil ::placeholder via Inline-Style nicht erreichbar ist
+   (das `all: unset` am Input setzt sonst die Placeholder-Farbe auf die Textfarbe). */
+.bwza-input::placeholder {
+  color: var(--bwza-ink-mute);
+  opacity: 1;
+}
+
 /* Skeleton-Shimmer (B5b) — dezent, token-nah */
 @keyframes bwza-shimmer {
   0% { background-position: 200% 0; }
