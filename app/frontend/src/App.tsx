@@ -5,6 +5,7 @@ import Login from './routes/Login';
 import SetPassword from './routes/SetPassword';
 import Dashboard from './routes/Dashboard';
 import Admin from './routes/Admin';
+import AdminEinladen from './routes/AdminEinladen';
 import AdminDrinks from './routes/AdminDrinks';
 import AdminAufladungBargeld from './routes/AdminAufladungBargeld';
 import AdminAufladungAnfragen from './routes/AdminAufladungAnfragen';
@@ -99,6 +100,16 @@ export default function App() {
           <Protected>
             <AdminOnly>
               <Admin />
+            </AdminOnly>
+          </Protected>
+        }
+      />
+      <Route
+        path="/admin/einladen"
+        element={
+          <Protected>
+            <AdminOnly>
+              <AdminEinladen />
             </AdminOnly>
           </Protected>
         }

@@ -1,170 +1,23 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, Banknote, Beer, Check, Inbox, Landmark, User, Users } from 'lucide-react';
-import { Eyebrow, EmptyState, Glass, GlassButton, GlassInput, Loading, StatusChip } from '../components/primitives';
+import { BarChart3, Banknote, Beer, Inbox, Landmark, User, UserPlus, Users, type LucideIcon } from 'lucide-react';
+import { Eyebrow, Glass } from '../components/primitives';
 import { BackBar } from '../components/BackBar';
-import { ScrollList } from '../components/ScrollList';
-import { api, ApiError, type AdminInvite } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
-interface InviteSuccess {
-  firstName: string;
-  email: string;
-  inviteUrl: string | null;
-}
-
-const STATUS_LABEL: Record<AdminInvite['status'], string> = {
-  offen: 'offen',
-  eingeloest: 'eingelöst',
-  abgelaufen: 'abgelaufen',
-};
-
-const STATUS_TONE: Record<AdminInvite['status'], 'gold' | 'green' | 'coral'> = {
-  offen: 'gold',
-  eingeloest: 'green',
-  abgelaufen: 'coral',
-};
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('de-DE', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-}
-
-// Tappbare Checkbox-Zeile (Account-B Invite-Rolle). Teal-Häkchen, ganze Zeile klickbar.
-function CheckRow({
-  checked,
-  onChange,
-  label,
-  hint,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-  hint?: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      style={{
-        all: 'unset',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '2px',
-      }}
-    >
-      <span
-        style={{
-          width: 22,
-          height: 22,
-          flexShrink: 0,
-          borderRadius: 6,
-          border: `1px solid ${checked ? 'var(--bwza-teal)' : 'var(--bwza-glass-line)'}`,
-          background: checked ? 'var(--bwza-teal)' : 'transparent',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {checked && <Check size={14} strokeWidth={3} style={{ color: 'var(--bwza-teal-ink)' }} aria-hidden />}
-      </span>
-      <span style={{ minWidth: 0 }}>
-        <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--bwza-ink)' }}>{label}</span>
-        {hint && <span style={{ display: 'block', fontSize: 11, color: 'var(--bwza-ink-mute)' }}>{hint}</span>}
-      </span>
-    </button>
-  );
-}
-
+// Admin-Hub (UI-Fix 3): reine Button-Übersicht. „Mitglied einladen" ist jetzt eine
+// eigene Unterseite (/admin/einladen, AdminEinladen.tsx) statt eines offenen
+// Formulars hier oben — erreichbar über den ersten Hub-Button.
 export default function Admin() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [alsAdmin, setAlsAdmin] = useState(false);
-  const [alsLeitung, setAlsLeitung] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [success, setSuccess] = useState<InviteSuccess | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  const [invites, setInvites] = useState<AdminInvite[] | null>(null);
-  const [invitesError, setInvitesError] = useState<string | null>(null);
-
-  const loadInvites = useCallback(async () => {
-    setInvitesError(null);
-    try {
-      const r = await api.adminInvites();
-      setInvites(r.invites);
-    } catch (e) {
-      setInvitesError(e instanceof ApiError ? e.message : 'Liste konnte nicht geladen werden.');
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadInvites();
-  }, [loadInvites]);
 
   if (!user) return null;
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
-      setErr('Bitte alle Felder ausfüllen.');
-      return;
-    }
-    setErr(null);
-    setBusy(true);
-    try {
-      const res = await api.adminInvite({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        email: email.trim(),
-        isAdmin: alsAdmin,
-        isLeitung: alsLeitung,
-      });
-      const inviteUrl = res.devToken
-        ? `${window.location.origin}/set-password?token=${encodeURIComponent(res.devToken)}`
-        : null;
-      setSuccess({ firstName: res.user.firstName, email: res.user.email, inviteUrl });
-      setFirstName('');
-      setLastName('');
-      setEmail('');
-      setAlsAdmin(false);
-      setAlsLeitung(false);
-      setCopied(false);
-      void loadInvites();
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Invite fehlgeschlagen.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const copyLink = async () => {
-    if (!success?.inviteUrl) return;
-    try {
-      await navigator.clipboard.writeText(success.inviteUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard nicht verfügbar (z.B. http ohne localhost) — Nutzer kann manuell markieren.
-    }
-  };
 
   return (
     <div className="bwza-stage" style={{ padding: '0 var(--bwza-page-x) 40px' }}>
       <BackBar />
       <div style={{ paddingTop: 30, paddingBottom: 18 }}>
-        <div className="bwza-eyebrow">Phase B2a · Verwaltung</div>
+        <div className="bwza-eyebrow">Admin-Bereich</div>
         <div
           style={{
             fontFamily: 'var(--bwza-font-display)',
@@ -175,583 +28,134 @@ export default function Admin() {
             marginTop: 4,
           }}
         >
-          Mitglied einladen
+          Verwaltung
         </div>
         <div style={{ marginTop: 6, fontSize: 13, color: 'var(--bwza-ink-dim)' }}>
-          Neue Mitglieder bekommen einen Magic-Link, mit dem sie ein Passwort setzen.
+          Mitglieder, Katalog, Kasse und mehr.
         </div>
       </div>
 
-      <form onSubmit={submit}>
-        <Glass
-          tone="dark"
-          style={{
-            borderRadius: 22,
-            padding: '18px 16px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          <GlassInput
-            label="Vorname"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            placeholder="Max"
-            autoFocus
-          />
-          <GlassInput
-            label="Nachname"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            placeholder="Mustermann"
-          />
-          <GlassInput
-            label="E-Mail"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="max@bergwacht-zollernalb.de"
-            error={err}
-          />
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 2 }}>
-            <div className="bwza-eyebrow">Rolle (optional)</div>
-            <CheckRow
-              checked={alsAdmin}
-              onChange={setAlsAdmin}
-              label="Als Verwalter (Admin)"
-              hint="Volle Schreibrechte + eigener Kassen-Topf."
-            />
-            <CheckRow
-              checked={alsLeitung}
-              onChange={setAlsLeitung}
-              label="Als Leitung"
-              hint="Read-only Kassen-Einsicht."
-            />
-          </div>
-        </Glass>
-
-        <div style={{ marginTop: 16 }}>
-          <GlassButton type="submit" full size="lg" disabled={busy}>
-            {busy ? 'Sende …' : 'Magic-Link erzeugen'}
-          </GlassButton>
-        </div>
-      </form>
-
-      {success && (
-        <Glass
-          tone="amber"
-          style={{ borderRadius: 22, padding: '18px 16px', marginTop: 18 }}
-        >
-          <div className="bwza-eyebrow">Magic-Link erzeugt</div>
-          <div
-            style={{
-              marginTop: 6,
-              fontFamily: 'var(--bwza-font-display)',
-              fontSize: 18,
-              fontWeight: 600,
-              color: 'var(--bwza-ink)',
-              letterSpacing: -0.2,
-            }}
-          >
-            {success.firstName} ist eingeladen.
-          </div>
-          <div style={{ marginTop: 2, fontSize: 12, color: 'var(--bwza-ink-mute)' }}>
-            {success.email}
-          </div>
-
-          {success.inviteUrl ? (
-            <>
-              <div
-                style={{
-                  marginTop: 14,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: 0.3,
-                  color: 'var(--bwza-ink-dim)',
-                  paddingLeft: 2,
-                }}
-              >
-                MAGIC-LINK ZUM WEITERGEBEN
-              </div>
-              <div
-                style={{
-                  marginTop: 6,
-                  padding: '10px 12px',
-                  borderRadius: 12,
-                  background: 'rgba(0,0,0,0.30)',
-                  border: '1px solid var(--bwza-glass-line)',
-                  fontSize: 12,
-                  // Langer Token MUSS umbrechen: overflow-wrap:anywhere reduziert
-                  // den min-content-Beitrag (anders als break-all allein) → schiebt
-                  // die Karte nicht mehr über den Viewport-Rand (iOS-Pan-Ursache).
-                  wordBreak: 'break-all',
-                  overflowWrap: 'anywhere',
-                  fontFamily: 'var(--bwza-font-ui)',
-                }}
-              >
-                <a
-                  href={success.inviteUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ color: 'var(--bwza-ink)', textDecoration: 'underline' }}
-                >
-                  {success.inviteUrl}
-                </a>
-              </div>
-              <div style={{ marginTop: 12 }}>
-                <GlassButton variant="ghost" size="sm" full onClick={() => void copyLink()}>
-                  {copied ? 'Kopiert' : 'Link kopieren'}
-                </GlassButton>
-              </div>
-              <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--bwza-ink-mute)', lineHeight: 1.45 }}>
-                Link selbst an die Person schicken — es geht <strong>kein automatischer
-                E-Mail-Versand</strong> raus.
-              </div>
-            </>
-          ) : (
-            <div style={{ marginTop: 12, fontSize: 12, color: 'var(--bwza-rescue-soft)', lineHeight: 1.45 }}>
-              Magic-Link konnte nicht angezeigt werden. Bitte die Einladung erneut erzeugen
-              (es wird keine E-Mail verschickt — der Link muss hier kopiert werden).
-            </div>
-          )}
-        </Glass>
-      )}
-
-      <InviteList invites={invites} error={invitesError} />
-
-      <Glass
-        tone="dark"
+      <HubButton
+        icon={UserPlus}
+        kicker="Mitglieder"
+        title="Mitglied einladen"
+        sub="Magic-Link erzeugen, ausgestellte Invites sehen"
+        onClick={() => navigate('/admin/einladen')}
+        first
+      />
+      <HubButton
+        icon={Users}
+        kicker="Mitglieder"
+        title="Mitglieder & Salden"
+        sub="Saldo sehen, Guthaben korrigieren, Transaktionen stornieren"
         onClick={() => navigate('/admin/mitglieder')}
-        style={{
-          borderRadius: 18,
-          padding: '14px 16px',
-          marginTop: 28,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-        }}
-      >
-        <div>
-          <Eyebrow icon={Users}>Mitglieder</Eyebrow>
-          <div
-            style={{
-              fontFamily: 'var(--bwza-font-display)',
-              fontSize: 17,
-              fontWeight: 600,
-              color: 'var(--bwza-ink)',
-              marginTop: 2,
-              letterSpacing: -0.2,
-            }}
-          >
-            Mitglieder & Salden
-          </div>
-          <div style={{ marginTop: 2, fontSize: 11, color: 'var(--bwza-ink-mute)' }}>
-            Saldo sehen, Guthaben korrigieren, Transaktionen stornieren
-          </div>
-        </div>
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          style={{ color: 'var(--bwza-ink-dim)', flexShrink: 0 }}
-          aria-hidden
-        >
-          <path d="M9 18l6-6-6-6" />
-        </svg>
-      </Glass>
-
-      <Glass
-        tone="dark"
+      />
+      <HubButton
+        icon={Beer}
+        kicker="Katalog"
+        title="Drink-Katalog"
+        sub="Sorten pflegen, Preise ändern, ausblenden"
         onClick={() => navigate('/admin/drinks')}
-        style={{
-          borderRadius: 18,
-          padding: '14px 16px',
-          marginTop: 10,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-        }}
-      >
-        <div>
-          <Eyebrow icon={Beer}>Katalog</Eyebrow>
-          <div
-            style={{
-              fontFamily: 'var(--bwza-font-display)',
-              fontSize: 17,
-              fontWeight: 600,
-              color: 'var(--bwza-ink)',
-              marginTop: 2,
-              letterSpacing: -0.2,
-            }}
-          >
-            Drink-Katalog
-          </div>
-          <div style={{ marginTop: 2, fontSize: 11, color: 'var(--bwza-ink-mute)' }}>
-            Sorten pflegen, Preise ändern, ausblenden
-          </div>
-        </div>
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          style={{ color: 'var(--bwza-ink-dim)', flexShrink: 0 }}
-          aria-hidden
-        >
-          <path d="M9 18l6-6-6-6" />
-        </svg>
-      </Glass>
-
-      <Glass
-        tone="dark"
+      />
+      <HubButton
+        icon={Inbox}
+        kicker="Kasse"
+        title="Aufladungs-Anfragen"
+        sub="Offene PayPal-Anfragen bestätigen oder ablehnen"
         onClick={() => navigate('/admin/aufladung-anfragen')}
-        style={{
-          borderRadius: 18,
-          padding: '14px 16px',
-          marginTop: 10,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-        }}
-      >
-        <div>
-          <Eyebrow icon={Inbox}>Kasse</Eyebrow>
-          <div
-            style={{
-              fontFamily: 'var(--bwza-font-display)',
-              fontSize: 17,
-              fontWeight: 600,
-              color: 'var(--bwza-ink)',
-              marginTop: 2,
-              letterSpacing: -0.2,
-            }}
-          >
-            Aufladungs-Anfragen
-          </div>
-          <div style={{ marginTop: 2, fontSize: 11, color: 'var(--bwza-ink-mute)' }}>
-            Offene PayPal-Anfragen bestätigen oder ablehnen
-          </div>
-        </div>
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          style={{ color: 'var(--bwza-ink-dim)', flexShrink: 0 }}
-          aria-hidden
-        >
-          <path d="M9 18l6-6-6-6" />
-        </svg>
-      </Glass>
-
-      <Glass
-        tone="dark"
+      />
+      <HubButton
+        icon={Banknote}
+        kicker="Kasse"
+        title="Bargeld-Aufladung"
+        sub="Einzahlung eines Mitglieds eintragen"
         onClick={() => navigate('/admin/aufladung-bargeld')}
-        style={{
-          borderRadius: 18,
-          padding: '14px 16px',
-          marginTop: 10,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-        }}
-      >
-        <div>
-          <Eyebrow icon={Banknote}>Kasse</Eyebrow>
-          <div
-            style={{
-              fontFamily: 'var(--bwza-font-display)',
-              fontSize: 17,
-              fontWeight: 600,
-              color: 'var(--bwza-ink)',
-              marginTop: 2,
-              letterSpacing: -0.2,
-            }}
-          >
-            Bargeld-Aufladung
-          </div>
-          <div style={{ marginTop: 2, fontSize: 11, color: 'var(--bwza-ink-mute)' }}>
-            Einzahlung eines Mitglieds eintragen
-          </div>
-        </div>
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          style={{ color: 'var(--bwza-ink-dim)', flexShrink: 0 }}
-          aria-hidden
-        >
-          <path d="M9 18l6-6-6-6" />
-        </svg>
-      </Glass>
-
-      <Glass
-        tone="dark"
+      />
+      <HubButton
+        icon={Landmark}
+        kicker="Kasse"
+        title="Vereinskasse"
+        sub="Töpfe, Box, Deckung, Einkauf · Einlage · Spende · Korrektur"
         onClick={() => navigate('/admin/kasse')}
-        style={{
-          borderRadius: 18,
-          padding: '14px 16px',
-          marginTop: 10,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-        }}
-      >
-        <div>
-          <Eyebrow icon={Landmark}>Kasse</Eyebrow>
-          <div
-            style={{
-              fontFamily: 'var(--bwza-font-display)',
-              fontSize: 17,
-              fontWeight: 600,
-              color: 'var(--bwza-ink)',
-              marginTop: 2,
-              letterSpacing: -0.2,
-            }}
-          >
-            Vereinskasse
-          </div>
-          <div style={{ marginTop: 2, fontSize: 11, color: 'var(--bwza-ink-mute)' }}>
-            Töpfe, Box, Deckung, Einkauf · Einlage · Spende · Korrektur
-          </div>
-        </div>
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          style={{ color: 'var(--bwza-ink-dim)', flexShrink: 0 }}
-          aria-hidden
-        >
-          <path d="M9 18l6-6-6-6" />
-        </svg>
-      </Glass>
-
-      <Glass
-        tone="dark"
+      />
+      <HubButton
+        icon={BarChart3}
+        kicker="Statistik"
+        title="Sortenstatistik"
+        sub="Anzahl + Umsatz je Getränk (anonym, Zeitfilter)"
         onClick={() => navigate('/statistik')}
-        style={{
-          borderRadius: 18,
-          padding: '14px 16px',
-          marginTop: 10,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-        }}
-      >
-        <div>
-          <Eyebrow icon={BarChart3}>Statistik</Eyebrow>
-          <div
-            style={{
-              fontFamily: 'var(--bwza-font-display)',
-              fontSize: 17,
-              fontWeight: 600,
-              color: 'var(--bwza-ink)',
-              marginTop: 2,
-              letterSpacing: -0.2,
-            }}
-          >
-            Sortenstatistik
-          </div>
-          <div style={{ marginTop: 2, fontSize: 11, color: 'var(--bwza-ink-mute)' }}>
-            Anzahl + Umsatz je Getränk (anonym, Zeitfilter)
-          </div>
-        </div>
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          style={{ color: 'var(--bwza-ink-dim)', flexShrink: 0 }}
-          aria-hidden
-        >
-          <path d="M9 18l6-6-6-6" />
-        </svg>
-      </Glass>
-
-      <Glass
-        tone="dark"
+      />
+      <HubButton
+        icon={User}
+        kicker="Profil"
+        title="Mein PayPal-Link"
+        sub="paypal.me-Link für zugewiesene Aufladungen pflegen"
         onClick={() => navigate('/admin/profil')}
-        style={{
-          borderRadius: 18,
-          padding: '14px 16px',
-          marginTop: 10,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-        }}
-      >
-        <div>
-          <Eyebrow icon={User}>Profil</Eyebrow>
-          <div
-            style={{
-              fontFamily: 'var(--bwza-font-display)',
-              fontSize: 17,
-              fontWeight: 600,
-              color: 'var(--bwza-ink)',
-              marginTop: 2,
-              letterSpacing: -0.2,
-            }}
-          >
-            Mein PayPal-Link
-          </div>
-          <div style={{ marginTop: 2, fontSize: 11, color: 'var(--bwza-ink-mute)' }}>
-            paypal.me-Link für zugewiesene Aufladungen pflegen
-          </div>
-        </div>
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          style={{ color: 'var(--bwza-ink-dim)', flexShrink: 0 }}
-          aria-hidden
-        >
-          <path d="M9 18l6-6-6-6" />
-        </svg>
-      </Glass>
-
+      />
     </div>
   );
 }
 
-function InviteList({
-  invites,
-  error,
+// Eine Admin-Hub-Karte: Icon-Eyebrow + Titel + Subtext + Chevron. Einheitliches
+// Design/Reihung für alle Einträge (inkl. „Mitglied einladen").
+function HubButton({
+  icon,
+  kicker,
+  title,
+  sub,
+  onClick,
+  first,
 }: {
-  invites: AdminInvite[] | null;
-  error: string | null;
+  icon: LucideIcon;
+  kicker: string;
+  title: string;
+  sub: string;
+  onClick: () => void;
+  first?: boolean;
 }) {
-  return (
-    <div style={{ marginTop: 28 }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          marginBottom: 10,
-        }}
-      >
-        <div
-          style={{
-            fontFamily: 'var(--bwza-font-display)',
-            fontSize: 20,
-            fontWeight: 600,
-            color: 'var(--bwza-ink)',
-            letterSpacing: -0.2,
-          }}
-        >
-          Ausgestellte Invites
-        </div>
-        {invites && (
-          <div style={{ fontSize: 11, color: 'var(--bwza-ink-mute)' }}>
-            {invites.length} {invites.length === 1 ? 'Eintrag' : 'Einträge'}
-          </div>
-        )}
-      </div>
-
-      {error ? (
-        <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--bwza-rescue-soft)' }}>{error}</div>
-        </Glass>
-      ) : invites === null ? (
-        <Loading />
-      ) : invites.length === 0 ? (
-        <EmptyState title="Noch keine Invites" sub="Lade oben das erste Mitglied ein." />
-      ) : (
-        <ScrollList>
-          {invites.map((inv) => (
-            <InviteRow key={inv.id} invite={inv} />
-          ))}
-        </ScrollList>
-      )}
-    </div>
-  );
-}
-
-function InviteRow({ invite }: { invite: AdminInvite }) {
-  const dateLine =
-    invite.status === 'eingeloest' && invite.redeemedAt
-      ? `Eingelöst am ${formatDate(invite.redeemedAt)}`
-      : invite.status === 'abgelaufen'
-        ? `Abgelaufen am ${formatDate(invite.expiresAt)}`
-        : `Läuft ab am ${formatDate(invite.expiresAt)}`;
-
   return (
     <Glass
       tone="dark"
+      onClick={onClick}
       style={{
-        borderRadius: 16,
-        padding: '12px 14px',
+        borderRadius: 18,
+        padding: '14px 16px',
+        marginTop: first ? 0 : 10,
+        cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: 10,
+        gap: 12,
       }}
     >
-      <div style={{ minWidth: 0, flex: 1 }}>
+      <div style={{ minWidth: 0 }}>
+        <Eyebrow icon={icon}>{kicker}</Eyebrow>
         <div
           style={{
             fontFamily: 'var(--bwza-font-display)',
-            fontSize: 15,
+            fontSize: 17,
             fontWeight: 600,
             color: 'var(--bwza-ink)',
-            letterSpacing: -0.1,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
+            marginTop: 2,
+            letterSpacing: -0.2,
           }}
         >
-          {invite.firstName} {invite.lastName}
+          {title}
         </div>
-        <div
-          style={{
-            fontSize: 11,
-            color: 'var(--bwza-ink-mute)',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {invite.email}
-        </div>
-        <div style={{ marginTop: 2, fontSize: 10.5, color: 'var(--bwza-ink-mute)' }}>
-          {dateLine}
-        </div>
+        <div style={{ marginTop: 2, fontSize: 11, color: 'var(--bwza-ink-mute)' }}>{sub}</div>
       </div>
-      <StatusChip label={STATUS_LABEL[invite.status]} tone={STATUS_TONE[invite.status]} />
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        style={{ color: 'var(--bwza-ink-dim)', flexShrink: 0 }}
+        aria-hidden
+      >
+        <path d="M9 18l6-6-6-6" />
+      </svg>
     </Glass>
   );
 }
