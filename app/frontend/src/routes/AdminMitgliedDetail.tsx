@@ -144,7 +144,80 @@ export default function AdminMitgliedDetail() {
 
       <Historie txs={txs} onChanged={() => void load()} />
 
+      {detail && detail.id !== user.id && (
+        <MitgliedEntfernenCard
+          userId={detail.id}
+          name={`${detail.firstName} ${detail.lastName}`}
+          onDone={() => navigate('/admin/mitglieder')}
+        />
+      )}
     </div>
+  );
+}
+
+// Destruktive Aktion „Mitglied entfernen" (Account-A). Soft-Delete im Backend:
+// kein Login mehr, raus aus der aktiven Liste, Kasse entkoppelt (Bestand bleibt).
+// Zweistufig mit klarer Bestätigung. Last-Admin-Schutz + Topf-Warnung kommen vom
+// Backend; die Warnung wird vor dem Weiternavigieren angezeigt.
+function MitgliedEntfernenCard({
+  userId,
+  name,
+  onDone,
+}: {
+  userId: string;
+  name: string;
+  onDone: () => void;
+}) {
+  const [offen, setOffen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const entfernen = async () => {
+    setErr(null);
+    setBusy(true);
+    try {
+      const r = await api.adminDeleteUser(userId);
+      if (r.warnung) window.alert(r.warnung);
+      onDone();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Mitglied konnte nicht entfernt werden.');
+      setBusy(false);
+    }
+  };
+
+  if (!offen) {
+    return (
+      <div style={{ marginTop: 28 }}>
+        <GlassButton variant="danger" full size="md" onClick={() => setOffen(true)}>
+          Mitglied entfernen
+        </GlassButton>
+      </div>
+    );
+  }
+
+  return (
+    <Glass
+      tone="dark"
+      style={{ borderRadius: 18, padding: '16px', marginTop: 28, display: 'flex', flexDirection: 'column', gap: 12 }}
+    >
+      <div className="bwza-eyebrow" style={{ color: 'var(--bwza-rescue-soft)' }}>
+        Mitglied entfernen
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--bwza-ink)', lineHeight: 1.5 }}>
+        <strong>{name}</strong> wird entfernt: kein Login mehr, raus aus der aktiven Liste und aus
+        allen Statistiken. Die Buchungen bleiben in der Kassen-Historie erhalten (der Kassenbestand
+        ändert sich nicht). Restguthaben außerhalb der App klären.
+      </div>
+      {err && <div style={{ fontSize: 12, color: 'var(--bwza-rescue-soft)' }}>{err}</div>}
+      <div style={{ display: 'flex', gap: 10 }}>
+        <GlassButton variant="ghost" full size="md" type="button" disabled={busy} onClick={() => setOffen(false)}>
+          Abbrechen
+        </GlassButton>
+        <GlassButton variant="danger" full size="md" disabled={busy} onClick={() => void entfernen()}>
+          {busy ? 'Entferne …' : 'Endgültig entfernen'}
+        </GlassButton>
+      </div>
+    </Glass>
   );
 }
 

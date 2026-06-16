@@ -250,6 +250,36 @@ export interface MeineHistorie {
   dabeiSeitTage: number;
 }
 
+// Datenexport (Account-A, §9) — nur eigene Daten.
+export interface MeinDatenExport {
+  exportiertAm: string;
+  hinweis: string;
+  profil: {
+    vorname: string;
+    nachname: string;
+    email: string;
+    rollen: { admin: boolean; leitung: boolean };
+    mitgliedSeit: string;
+    guthabenCent: number;
+  };
+  transaktionen: Array<{
+    id: string;
+    typ: TransaktionTyp;
+    betragCent: number;
+    drinkName: string | null;
+    notiz: string | null;
+    createdAt: string;
+  }>;
+  aufladungsAnfragen: Array<{
+    id: string;
+    betragCent: number;
+    status: AufladungsStatus;
+    requestedAt: string;
+    decidedAt: string | null;
+    adminNotiz: string | null;
+  }>;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string, public details?: unknown) {
     super(message);
@@ -349,6 +379,13 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+  // Admin: Mitglied entfernen (Soft-Delete) — warnt bei nicht-ausgeglichenem Topf
+  adminDeleteUser: (id: string) =>
+    request<{ ok: true; warnung: string | null }>(`/admin/users/${id}`, { method: 'DELETE' }),
+  // Member: eigenes Konto löschen (Soft-Delete) → danach ausgeloggt
+  deleteMe: () => request<{ ok: true }>('/me', { method: 'DELETE' }),
+  // Member: eigene Daten als JSON exportieren (nur eigene Daten, §9)
+  meExport: () => request<MeinDatenExport>('/me/export'),
   // Admin: Leitung-Recht vergeben/entziehen (nur isLeitung, nicht isAdmin)
   adminSetLeitung: (id: string, isLeitung: boolean) =>
     request<{ user: { id: string; firstName: string; lastName: string; isAdmin: boolean; isLeitung: boolean } }>(

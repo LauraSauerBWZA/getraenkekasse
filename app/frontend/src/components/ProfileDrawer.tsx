@@ -1,18 +1,61 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Avatar, Glass } from './primitives';
+import { Avatar, Glass, GlassButton } from './primitives';
+import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 // Profil-Drawer (B5a): Bottom-Sheet vom Avatar-Tap. Der Identitäts-Header ist die
 // „Profil"-Fläche (es gibt keinen separaten Member-Profil-Screen); darunter
-// rollenabhängige Einstiege + Logout. Kein Ästhetik-Feinschliff (B5b).
+// rollenabhängige Einstiege + Datenexport/Konto-Löschung + Logout (Account-A).
 export function ProfileDrawer({ onClose }: { onClose: () => void }) {
-  const { user, logout } = useAuth();
+  const { user, logout, setUser } = useAuth();
   const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   if (!user) return null;
 
   const go = (to: string) => {
     onClose();
     navigate(to);
+  };
+
+  // Eigene Daten als JSON herunterladen (Account-A §3.4, §9). Nur eigene Daten.
+  const exportieren = async () => {
+    setErr(null);
+    setExporting(true);
+    try {
+      const data = await api.meExport();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'getraenkekasse-export.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Export fehlgeschlagen.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Eigenes Konto löschen (Account-A §3.3): Soft-Delete + sofort ausgeloggt.
+  const loeschen = async () => {
+    setErr(null);
+    setBusy(true);
+    try {
+      await api.deleteMe();
+      setUser(null);
+      onClose();
+      navigate('/');
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Konto konnte nicht gelöscht werden.');
+      setBusy(false);
+    }
   };
 
   const eintraege: { label: string; sub: string; to: string }[] = [];
@@ -106,6 +149,47 @@ export function ProfileDrawer({ onClose }: { onClose: () => void }) {
               </svg>
             </Glass>
           ))}
+
+          {/* Meine Daten (Account-A): Export + Konto-Löschung */}
+          <div style={{ height: 1, background: 'var(--bwza-glass-line)', margin: '2px 0' }} />
+
+          <GlassButton variant="ghost" full size="md" disabled={exporting} onClick={() => void exportieren()}>
+            {exporting ? 'Exportiere …' : 'Meine Daten exportieren'}
+          </GlassButton>
+
+          {!confirmDelete ? (
+            <GlassButton
+              variant="quiet"
+              full
+              size="md"
+              onClick={() => {
+                setErr(null);
+                setConfirmDelete(true);
+              }}
+              style={{ color: 'var(--bwza-rescue-soft)' }}
+            >
+              Konto löschen
+            </GlassButton>
+          ) : (
+            <Glass tone="dark" style={{ borderRadius: 14, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 12.5, color: 'var(--bwza-ink)', lineHeight: 1.5 }}>
+                Dein Konto wird gelöscht — du wirst abgemeldet und kannst dich nicht mehr einloggen.
+                <strong> Restguthaben bitte vorher mit dem Verwalter klären.</strong>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <GlassButton variant="ghost" full size="sm" disabled={busy} onClick={() => setConfirmDelete(false)}>
+                  Abbrechen
+                </GlassButton>
+                <GlassButton variant="danger" full size="sm" disabled={busy} onClick={() => void loeschen()}>
+                  {busy ? 'Lösche …' : 'Konto löschen'}
+                </GlassButton>
+              </div>
+            </Glass>
+          )}
+
+          {err && (
+            <div style={{ fontSize: 12, color: 'var(--bwza-rescue-soft)', textAlign: 'center' }}>{err}</div>
+          )}
 
           <button
             type="button"
