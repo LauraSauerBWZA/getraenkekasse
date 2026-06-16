@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
-import { GAME, COLORS, CSS, SCENES } from '../constants.js';
+import { GAME, COLORS, CSS, SCENES, SCORE, START_LIVES, PHYS, PIXELS_PER_METER } from '../constants.js';
 import { Platform } from '../sprites/Platform.js';
 import { Player } from '../sprites/Player.js';
+import { Enemy } from '../sprites/Enemy.js';
 
 // Plattform-Layout Level 1 (Spec §5). x = Mitte, y = Mitte, w = Breite, t = Typ.
 // Von unten (Start) nach oben (Windenhaken) im Zickzack — wechselnde Seiten
@@ -25,6 +26,15 @@ export const LEVEL1_PLATFORMS = [
   { x: 360, y: 170, w: 120, t: 'rock' }, // oberste Plattform (Windenhaken-Nähe)
 ];
 
+// Bergsteiger-Gegner: Plattform-Index + Patrouillen-Radius. Auf breiteren
+// Plattformen, die genug Lauffläche bieten.
+const WALKER_SPEC = [
+  { i: 1, range: 55 },
+  { i: 5, range: 70 },
+  { i: 11, range: 55 },
+  { i: 13, range: 48 },
+];
+
 // Start-Position des Spielers: mittig auf dem Boden.
 const PLAYER_START = { x: 240, y: 3140 - 40 };
 
@@ -34,6 +44,13 @@ export class Level1Scene extends Phaser.Scene {
   }
 
   create() {
+    // Lauf-Zustand (wird in B_GAME.6 im HUD angezeigt, in B_GAME.7/.8 gespeichert).
+    this.lives = START_LIVES;
+    this.score = 0;
+    this.collectiblesFound = 0;
+    this.enemiesDefeated = 0;
+    this.invulnerable = false;
+
     this.physics.world.setBounds(0, 0, GAME.width, GAME.worldHeight);
     this.cameras.main.setBounds(0, 0, GAME.width, GAME.worldHeight);
     this.cameras.main.setBackgroundColor(COLORS.bg);
@@ -41,6 +58,8 @@ export class Level1Scene extends Phaser.Scene {
     this.buildBackground();
     this.buildPlatforms();
     this.spawnPlayer();
+    this.buildEnemies();
+    this.setupCombat();
 
     // ESC → zurück ins Menü (Dev-Komfort; Pause/echtes Menü später).
     this.input.keyboard.on('keydown-ESC', () => this.scene.start(SCENES.menu));
@@ -55,7 +74,7 @@ export class Level1Scene extends Phaser.Scene {
 
     for (let y = GAME.worldHeight - 200; y > 200; y -= 400) {
       this.add
-        .text(8, y, `${Math.round((PLAYER_START.y - y) / 7.6)} m`, {
+        .text(8, y, `${Math.round((PLAYER_START.y - y) / PIXELS_PER_METER)} m`, {
           fontFamily: CSS.fontUi,
           fontSize: '10px',
           color: CSS.inkMute,
@@ -80,7 +99,87 @@ export class Level1Scene extends Phaser.Scene {
     this.cameras.main.setFollowOffset(0, -GAME.height * 0.15);
   }
 
+  buildEnemies() {
+    // Laufende Bergsteiger auf festen Plattformen.
+    this.enemies = this.add.group();
+    for (const w of WALKER_SPEC) {
+      const p = LEVEL1_PLATFORMS[w.i];
+      // Gegner-Mitte 23px über Plattform-Mitte = steht auf der Oberkante.
+      const enemy = new Enemy(this, p.x, p.y - 23, w.range);
+      this.enemies.add(enemy);
+    }
+    this.physics.add.collider(this.enemies, this.platforms);
+
+    // Fallende Steine: dynamische Gruppe, periodischer Spawn knapp über dem
+    // Sichtfeld. Sie zerschellen beim Plattform-Kontakt.
+    this.stones = this.physics.add.group();
+    this.physics.add.collider(this.stones, this.platforms, (stone) => stone.destroy());
+    this.stoneTimer = this.time.addEvent({
+      delay: 2500,
+      loop: true,
+      callback: () => this.spawnStone(),
+    });
+  }
+
+  spawnStone() {
+    const camTop = this.cameras.main.scrollY;
+    const x = Phaser.Math.Between(20, GAME.width - 20);
+    const stone = this.stones.create(x, camTop - 20, 'rock');
+    stone.setVelocityY(120);
+    stone.body.setSize(14, 14);
+  }
+
+  setupCombat() {
+    // Bergsteiger: von oben drauf = besiegt, sonst Schaden.
+    this.physics.add.overlap(this.player, this.enemies, (player, enemy) => {
+      const stomping = player.body.velocity.y > 0 && player.body.bottom <= enemy.body.top + 12;
+      if (stomping) this.defeatEnemy(enemy);
+      else this.hitPlayer();
+    });
+
+    // Fallende Steine: immer Schaden (Stein verschwindet).
+    this.physics.add.overlap(this.player, this.stones, (_player, stone) => {
+      stone.destroy();
+      this.hitPlayer();
+    });
+  }
+
+  defeatEnemy(enemy) {
+    enemy.destroy();
+    this.enemiesDefeated += 1;
+    this.score += SCORE.enemy;
+    this.player.setVelocityY(PHYS.jump * 0.7); // Abprall nach oben
+  }
+
+  hitPlayer() {
+    if (this.invulnerable) return;
+    this.lives -= 1;
+    this.invulnerable = true;
+    this.player.setAlpha(0.4);
+    this.player.setVelocityY(-220); // kleiner Rückstoß
+    this.time.delayedCall(1200, () => {
+      this.invulnerable = false;
+      this.player.setAlpha(1);
+    });
+    if (this.lives <= 0) this.gameOver();
+  }
+
+  gameOver() {
+    // B_GAME.10 ersetzt das durch die GameOverScene. Bis dahin: Level neu starten.
+    this.scene.restart();
+  }
+
   update() {
     this.player.update();
+    this.enemies.children.iterate((enemy) => {
+      if (enemy) enemy.update();
+      return true;
+    });
+    // Steine entfernen, die unter das Sichtfeld gefallen sind.
+    const camBottom = this.cameras.main.scrollY + GAME.height;
+    this.stones.children.iterate((stone) => {
+      if (stone && stone.y > camBottom + 80) stone.destroy();
+      return true;
+    });
   }
 }

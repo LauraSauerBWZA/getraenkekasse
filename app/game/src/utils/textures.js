@@ -90,6 +90,45 @@ function playerTexture(scene, key, pose) {
   g.destroy();
 }
 
+// Gegnerischer Bergsteiger (24x24), zwei Lauf-Frames (rescue-rot = feindlich).
+function enemyTexture(scene, key, step) {
+  const s = 24;
+  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  g.fillStyle(0x5a2420, 1); // Beine
+  if (step === 0) {
+    g.fillRect(4, 19, 5, 5);
+    g.fillRect(15, 17, 5, 5);
+  } else {
+    g.fillRect(5, 17, 5, 5);
+    g.fillRect(14, 19, 5, 5);
+  }
+  g.fillStyle(COLORS.rescue, 1); // Körper
+  g.fillRoundedRect(3, 6, s - 6, 14, 3);
+  g.fillStyle(0x3a2f24, 1); // dunkler Helm
+  g.fillRoundedRect(5, 0, s - 10, 8, 3);
+  g.fillStyle(0xffffff, 1); // Augen
+  g.fillRect(8, 3, 2, 2);
+  g.fillRect(14, 3, 2, 2);
+  g.generateTexture(key, s, s);
+  g.destroy();
+}
+
+// Fallender Stein (16x16).
+function rockTexture(scene) {
+  const s = 16;
+  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  g.fillStyle(0x6b6258, 1);
+  g.fillRoundedRect(0, 0, s, s, 4);
+  g.fillStyle(0x4a4036, 1);
+  g.fillRect(3, 4, 3, 3);
+  g.fillRect(9, 8, 3, 3);
+  g.fillRect(6, 11, 2, 2);
+  g.lineStyle(1, 0x2a2420, 0.6);
+  g.strokeRoundedRect(0, 0, s, s, 4);
+  g.generateTexture('rock', s, s);
+  g.destroy();
+}
+
 // Erzeugt alle (Platzhalter-)Texturen einmalig beim Boot.
 export function buildTextures(scene) {
   // 1x1-Pixel — universell für Balken, Partikel, HUD-Flächen, Tinten.
@@ -113,4 +152,9 @@ export function buildTextures(scene) {
   playerTexture(scene, 'player_run_b', 'run_b');
   playerTexture(scene, 'player_jump', 'jump');
   playerTexture(scene, 'player_fall', 'fall');
+
+  // Gegner (B_GAME.4): Bergsteiger (2 Frames) + fallender Stein.
+  enemyTexture(scene, 'enemy_walk_a', 0);
+  enemyTexture(scene, 'enemy_walk_b', 1);
+  rockTexture(scene);
 }
