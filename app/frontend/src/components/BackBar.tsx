@@ -14,7 +14,10 @@ export function BackBar({ to, title }: { to?: string; title?: string }) {
         top: 0,
         zIndex: 30,
         margin: '0 calc(-1 * var(--bwza-page-x)) 8px',
-        padding: '10px var(--bwza-page-x)',
+        // Safe-Area oben: BackBar ist auf Admin-/Leitung-Screens (ohne MemberLayout)
+        // die oberste Leiste → +inset-top schiebt „Zurück" unter die iOS-Statusleiste.
+        // Horizontal weiter exakt var(--bwza-page-x) (passt zur Negativ-Margin oben).
+        padding: 'calc(10px + env(safe-area-inset-top, 0px)) var(--bwza-page-x) 10px',
         display: 'flex',
         alignItems: 'center',
         gap: 10,

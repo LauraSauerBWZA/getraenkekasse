@@ -35,7 +35,14 @@ export function MemberLayout({ children }: PropsWithChildren) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '10px var(--bwza-page-x)',
+          // Safe-Area oben: im iOS-Standalone liegt der Inhalt unter der
+          // Statusleiste (status-bar-style black-translucent). +inset-top schiebt
+          // Zurück/Profil darunter. Seitliche Insets für Querformat/Notch. Desktop
+          // (alle Insets 0) unverändert.
+          paddingTop: 'calc(10px + env(safe-area-inset-top, 0px))',
+          paddingBottom: '10px',
+          paddingLeft: 'calc(var(--bwza-page-x) + env(safe-area-inset-left, 0px))',
+          paddingRight: 'calc(var(--bwza-page-x) + env(safe-area-inset-right, 0px))',
           background: 'var(--bwza-glass)',
           backdropFilter: 'var(--bwza-blur-nav)',
           WebkitBackdropFilter: 'var(--bwza-blur-nav)',
@@ -86,8 +93,10 @@ export function MemberLayout({ children }: PropsWithChildren) {
         />
       </header>
 
-      {/* Inhalt — Platz für die fixierte Bottom-Nav lassen */}
-      <div style={{ flex: 1, paddingBottom: 'calc(var(--bwza-nav-h) + 8px)' }}>{children}</div>
+      {/* Inhalt — Platz für die fixierte Bottom-Nav (inkl. Home-Indicator-Inset) lassen */}
+      <div style={{ flex: 1, paddingBottom: 'calc(var(--bwza-nav-h) + env(safe-area-inset-bottom, 0px) + 8px)' }}>
+        {children}
+      </div>
 
       {/* Bottom-Nav */}
       <nav
@@ -96,7 +105,9 @@ export function MemberLayout({ children }: PropsWithChildren) {
           left: 0,
           right: 0,
           bottom: 0,
-          height: 'var(--bwza-nav-h)',
+          // Höhe wächst um das Home-Indicator-Inset, damit das paddingBottom die
+          // Tab-Höhe nicht staucht (border-box). Seitliche Insets fürs Querformat.
+          height: 'calc(var(--bwza-nav-h) + env(safe-area-inset-bottom, 0px))',
           display: 'flex',
           background: 'var(--bwza-glass)',
           backdropFilter: 'var(--bwza-blur-nav)',
@@ -105,6 +116,8 @@ export function MemberLayout({ children }: PropsWithChildren) {
           boxShadow: 'var(--bwza-shadow-nav)',
           zIndex: 40,
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          paddingLeft: 'env(safe-area-inset-left, 0px)',
+          paddingRight: 'env(safe-area-inset-right, 0px)',
         }}
       >
         {TABS.map((t) => {
