@@ -320,7 +320,13 @@ export const api = {
       body: JSON.stringify({ token, password }),
     }),
   logout: () => request<{ ok: true }>('/auth/logout', { method: 'POST' }),
-  adminInvite: (input: { email: string; firstName: string; lastName: string }) =>
+  adminInvite: (input: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    isAdmin?: boolean;
+    isLeitung?: boolean;
+  }) =>
     request<{
       user: { id: string; email: string; firstName: string; lastName: string };
       devToken?: string;
@@ -328,6 +334,13 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+  // Admin: Passwort-Reset für bestehenden User → liefert Klartext-Token (Dev),
+  // Frontend baut den kopierbaren Reset-Link daraus (wie beim Invite)
+  adminResetPassword: (id: string) =>
+    request<{
+      user: { id: string; email: string; firstName: string };
+      devToken?: string;
+    }>(`/admin/users/${id}/reset-password`, { method: 'POST' }),
   adminInvites: () => request<{ invites: AdminInvite[] }>('/admin/invites'),
   adminDrinks: () => request<{ drinks: Drink[] }>('/admin/drinks'),
   adminDrinkCreate: (input: DrinkInput) =>

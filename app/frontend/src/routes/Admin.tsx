@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, Banknote, Beer, Inbox, Landmark, User, Users } from 'lucide-react';
+import { BarChart3, Banknote, Beer, Check, Inbox, Landmark, User, Users } from 'lucide-react';
 import { Eyebrow, EmptyState, Glass, GlassButton, GlassInput, Loading, StatusChip } from '../components/primitives';
 import { BackBar } from '../components/BackBar';
 import { ScrollList } from '../components/ScrollList';
@@ -33,12 +33,64 @@ function formatDate(iso: string): string {
   });
 }
 
+// Tappbare Checkbox-Zeile (Account-B Invite-Rolle). Teal-Häkchen, ganze Zeile klickbar.
+function CheckRow({
+  checked,
+  onChange,
+  label,
+  hint,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  hint?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      style={{
+        all: 'unset',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '2px',
+      }}
+    >
+      <span
+        style={{
+          width: 22,
+          height: 22,
+          flexShrink: 0,
+          borderRadius: 6,
+          border: `1px solid ${checked ? 'var(--bwza-teal)' : 'var(--bwza-glass-line)'}`,
+          background: checked ? 'var(--bwza-teal)' : 'transparent',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {checked && <Check size={14} strokeWidth={3} style={{ color: 'var(--bwza-teal-ink)' }} aria-hidden />}
+      </span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--bwza-ink)' }}>{label}</span>
+        {hint && <span style={{ display: 'block', fontSize: 11, color: 'var(--bwza-ink-mute)' }}>{hint}</span>}
+      </span>
+    </button>
+  );
+}
+
 export default function Admin() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
+  const [alsAdmin, setAlsAdmin] = useState(false);
+  const [alsLeitung, setAlsLeitung] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState<InviteSuccess | null>(null);
@@ -76,6 +128,8 @@ export default function Admin() {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim(),
+        isAdmin: alsAdmin,
+        isLeitung: alsLeitung,
       });
       const inviteUrl = res.devToken
         ? `${window.location.origin}/set-password?token=${encodeURIComponent(res.devToken)}`
@@ -84,6 +138,8 @@ export default function Admin() {
       setFirstName('');
       setLastName('');
       setEmail('');
+      setAlsAdmin(false);
+      setAlsLeitung(false);
       setCopied(false);
       void loadInvites();
     } catch (e) {
@@ -158,6 +214,22 @@ export default function Admin() {
             placeholder="max@bergwacht-zollernalb.de"
             error={err}
           />
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 2 }}>
+            <div className="bwza-eyebrow">Rolle (optional)</div>
+            <CheckRow
+              checked={alsAdmin}
+              onChange={setAlsAdmin}
+              label="Als Verwalter (Admin)"
+              hint="Volle Schreibrechte + eigener Kassen-Topf."
+            />
+            <CheckRow
+              checked={alsLeitung}
+              onChange={setAlsLeitung}
+              label="Als Leitung"
+              hint="Read-only Kassen-Einsicht."
+            />
+          </div>
         </Glass>
 
         <div style={{ marginTop: 16 }}>

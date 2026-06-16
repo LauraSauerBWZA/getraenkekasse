@@ -142,6 +142,8 @@ export default function AdminMitgliedDetail() {
         />
       )}
 
+      {detail && detail.isActive && <PasswortResetCard userId={detail.id} />}
+
       <Historie txs={txs} onChanged={() => void load()} />
 
       {detail && detail.id !== user.id && (
@@ -415,6 +417,102 @@ function LeitungToggle({
           {busy ? '…' : isLeitung ? 'Entziehen' : 'Vergeben'}
         </GlassButton>
       </div>
+    </Glass>
+  );
+}
+
+// Passwort-Reset (Account-B): erzeugt einen Reset-Link und zeigt ihn kopierbar an
+// (Muster: Invite-Link aus B2a.3). Kein Email-Versand — Admin schickt den Link
+// selbst. Altes Passwort bleibt gültig, bis das Mitglied den Link einlöst.
+function PasswortResetCard({ userId }: { userId: string }) {
+  const [link, setLink] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const erzeugen = async () => {
+    setErr(null);
+    setBusy(true);
+    try {
+      const r = await api.adminResetPassword(userId);
+      setLink(
+        r.devToken
+          ? `${window.location.origin}/set-password?token=${encodeURIComponent(r.devToken)}`
+          : null,
+      );
+      setCopied(false);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Reset-Link konnte nicht erzeugt werden.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copy = async () => {
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard nicht verfügbar — Nutzer markiert manuell.
+    }
+  };
+
+  return (
+    <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px', marginTop: 14 }}>
+      <div style={{ minWidth: 0 }}>
+        <div className="bwza-eyebrow">Passwort zurücksetzen</div>
+        <div style={{ marginTop: 3, fontSize: 12, color: 'var(--bwza-ink-dim)', lineHeight: 1.45 }}>
+          Erzeugt einen einmaligen Link zum Setzen eines neuen Passworts. Das alte Passwort gilt,
+          bis der Link eingelöst wird. Link dem Mitglied selbst schicken (kein E-Mail-Versand).
+        </div>
+        {err && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--bwza-rescue-soft)' }}>{err}</div>}
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <GlassButton variant="ghost" full size="sm" disabled={busy} onClick={() => void erzeugen()}>
+          {busy ? 'Erzeuge …' : link ? 'Neuen Link erzeugen' : 'Reset-Link erzeugen'}
+        </GlassButton>
+      </div>
+
+      {link && (
+        <>
+          <div
+            style={{
+              marginTop: 12,
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: 0.3,
+              color: 'var(--bwza-ink-dim)',
+              paddingLeft: 2,
+            }}
+          >
+            RESET-LINK ZUM WEITERGEBEN
+          </div>
+          <div
+            style={{
+              marginTop: 6,
+              padding: '10px 12px',
+              borderRadius: 12,
+              background: 'rgba(0,0,0,0.30)',
+              border: '1px solid var(--bwza-glass-line)',
+              fontSize: 12,
+              wordBreak: 'break-all',
+              fontFamily: 'var(--bwza-font-ui)',
+            }}
+          >
+            <a href={link} target="_blank" rel="noreferrer" style={{ color: 'var(--bwza-ink)', textDecoration: 'underline' }}>
+              {link}
+            </a>
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <GlassButton variant="ghost" size="sm" full onClick={() => void copy()}>
+              {copied ? 'Kopiert' : 'Link kopieren'}
+            </GlassButton>
+          </div>
+        </>
+      )}
     </Glass>
   );
 }
