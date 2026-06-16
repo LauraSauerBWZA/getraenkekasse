@@ -15,7 +15,12 @@ html, body, #root {
      Scroll-Container zu erzeugen. So bleibt `position: sticky` der oberen Leisten
      intakt. `max-width: 100%` deckelt zusätzlich. Auf Desktop ohne Einfluss. */
   overflow-x: clip;
+  width: 100%;
   max-width: 100%;
+  /* `overflow-x: clip` allein stoppt im iOS-Standalone-PWA das horizontale
+     Gummiband/Pan NICHT — `overscroll-behavior-x: none` sperrt die X-Achse hart
+     (kein Wischen/Verschieben nach links/rechts mehr). Y-Scroll bleibt normal. */
+  overscroll-behavior-x: none;
 }
 
 body {
