@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { EmptyState, Glass, GlassButton, Loading } from '../components/primitives';
+import { EmptyState, Glass, GlassButton, KategorieMarker, Loading } from '../components/primitives';
 import {
   api,
   ApiError,
@@ -177,23 +177,7 @@ function DrinkRow({ drink, onPick }: { drink: Drink; onPick: () => void }) {
         cursor: 'pointer',
       }}
     >
-      <div
-        aria-hidden
-        style={{
-          width: 40,
-          height: 40,
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 24,
-          background: 'rgba(0,0,0,0.30)',
-          borderRadius: 12,
-          border: '1px solid var(--bwza-glass-line)',
-        }}
-      >
-        {drink.icon ?? '·'}
-      </div>
+      <KategorieMarker kategorie={drink.kategorie} size={40} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
           style={{
@@ -300,23 +284,7 @@ function ConfirmSheet({
                 marginTop: 8,
               }}
             >
-              <div
-                aria-hidden
-                style={{
-                  width: 56,
-                  height: 56,
-                  flexShrink: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 36,
-                  background: 'rgba(0,0,0,0.30)',
-                  borderRadius: 14,
-                  border: '1px solid var(--bwza-glass-line)',
-                }}
-              >
-                {drink.icon ?? '·'}
-              </div>
+              <KategorieMarker kategorie={drink.kategorie} size={56} />
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div
                   style={{
@@ -451,23 +419,7 @@ function LastBookingCard({
         gap: 12,
       }}
     >
-      <div
-        aria-hidden
-        style={{
-          width: 40,
-          height: 40,
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 22,
-          background: 'rgba(0,0,0,0.30)',
-          borderRadius: 12,
-          border: '1px solid var(--bwza-glass-line)',
-        }}
-      >
-        {booking.drink.icon ?? '·'}
-      </div>
+      <KategorieMarker kategorie={booking.drink.kategorie} size={40} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
           style={{

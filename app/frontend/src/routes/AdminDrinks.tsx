@@ -7,7 +7,7 @@ import {
   type FormEvent,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { EmptyState, Glass, GlassButton, GlassInput, Loading } from '../components/primitives';
+import { EmptyState, Glass, GlassButton, GlassInput, KategorieMarker, Loading } from '../components/primitives';
 import { BackBar } from '../components/BackBar';
 import {
   api,
@@ -234,23 +234,7 @@ function DrinkCatalogRow({
           minWidth: 0,
         }}
       >
-        <div
-          aria-hidden
-          style={{
-            width: 36,
-            height: 36,
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 22,
-            background: 'rgba(0,0,0,0.30)',
-            borderRadius: 10,
-            border: '1px solid var(--bwza-glass-line)',
-          }}
-        >
-          {drink.icon ?? '·'}
-        </div>
+        <KategorieMarker kategorie={drink.kategorie} size={36} />
         <div style={{ minWidth: 0, flex: 1 }}>
           <div
             style={{
@@ -421,13 +405,6 @@ function DrinkForm({
             onChange={(e) => setPreisEuro(e.target.value)}
             placeholder="1,50"
             hint="Eingabe in Euro mit Komma oder Punkt, z.B. 1,50 oder 2"
-          />
-
-          <GlassInput
-            label="Icon (Emoji, optional)"
-            value={icon}
-            onChange={(e) => setIcon(e.target.value)}
-            placeholder="🥤"
           />
 
           <KategorieSelect value={kategorie} onChange={setKategorie} />

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { EmptyState, Glass, GlassButton, Loading } from '../components/primitives';
+import { EmptyState, Glass, GlassButton, KategorieMarker, Loading } from '../components/primitives';
 import { BackBar } from '../components/BackBar';
 import { ScrollList } from '../components/ScrollList';
 import { api, ApiError, type SortenStat, type SortenStatistik, type StatistikZeitraum } from '../lib/api';
@@ -132,23 +132,7 @@ function SorteRow({ sorte, maxAnzahl }: { sorte: SortenStat; maxAnzahl: number }
   return (
     <Glass tone="dark" style={{ borderRadius: 16, padding: '12px 14px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div
-          aria-hidden
-          style={{
-            width: 38,
-            height: 38,
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 22,
-            background: 'rgba(0,0,0,0.30)',
-            borderRadius: 12,
-            border: '1px solid var(--bwza-glass-line)',
-          }}
-        >
-          {sorte.icon ?? '·'}
-        </div>
+        <KategorieMarker kategorie={sorte.kategorie ?? ''} size={38} />
         <div style={{ minWidth: 0, flex: 1 }}>
           <div
             style={{

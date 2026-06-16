@@ -466,6 +466,42 @@ export function Skeleton({ w = '100%', h = 14, radius = 8, style = {} }: { w?: n
   );
 }
 
+// ─────────── KategorieMarker (B5c-Feinschliff) ───────────
+// Kategorie-farbiger Marker statt Emoji: getönter Glass-Container + Farbpunkt.
+// Zuordnung (Vorschlag der Spec): alkoholfrei=Blau, alkoholisch=Gold, sonstiges=
+// Teal. Konsistent in Buchen, Drink-Katalog und Sortenstatistik.
+const KATEGORIE_MARKER: Record<string, { solid: string; tint: string; line: string }> = {
+  alkoholfrei: { solid: '#4D8EF7', tint: 'rgba(77,142,247,0.16)', line: 'rgba(77,142,247,0.45)' },
+  alkoholisch: { solid: '#F4B740', tint: 'rgba(244,183,64,0.16)', line: 'rgba(244,183,64,0.45)' },
+  sonstiges: { solid: '#2BD4BC', tint: 'rgba(43,212,188,0.16)', line: 'rgba(43,212,188,0.45)' },
+};
+export function KategorieMarker({ kategorie, size = 40 }: { kategorie: string; size?: number }) {
+  const m = KATEGORIE_MARKER[kategorie] ?? {
+    solid: 'var(--bwza-ink-mute)',
+    tint: 'rgba(255,255,255,0.06)',
+    line: 'var(--bwza-glass-line)',
+  };
+  const dot = Math.max(8, Math.round(size * 0.3));
+  return (
+    <div
+      aria-hidden
+      style={{
+        width: size,
+        height: size,
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: m.tint,
+        borderRadius: 'var(--bwza-radius-sm)',
+        border: `1px solid ${m.line}`,
+      }}
+    >
+      <span style={{ width: dot, height: dot, borderRadius: 'var(--bwza-radius-pill)', background: m.solid }} />
+    </div>
+  );
+}
+
 // Einheitlicher Lade-Platzhalter (ersetzt das nackte „Lädt …") — ein paar
 // Skeleton-Zeilen in einer Glass-Card, gegen Layout-Sprünge.
 export function Loading({ zeilen = 3 }: { zeilen?: number }) {
