@@ -72,6 +72,8 @@ model Drink {
   preisCent  Int
   icon       String?
   kategorie  String
+  marke      String?  // optionale Marke/Brauerei, z.B. „Coca-Cola", „Augustiner"
+  volumenMl  Int?     // optionale Gebindegröße in Millilitern, z.B. 500, 330, 200
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

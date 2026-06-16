@@ -13,11 +13,15 @@ drinksRouter.use(requireAuth, requireAdmin);
 // preisCent: ganzzahlig, >= 0 (kostenlose Drinks erlaubt, negativ nicht)
 // icon: optional, Emoji-String, max 8 Zeichen (Emoji + ggf. Modifier)
 // kategorie: aus fester Liste
+// marke: optional, max 40 Zeichen (leer = nicht gesetzt)
+// volumenMl: optional, ganzzahlig > 0 wenn gesetzt; null löscht den Wert (Update)
 const createSchema = z.object({
   name: z.string().trim().min(1).max(80),
   preisCent: z.number().int().min(0),
   icon: z.string().trim().max(8).optional(),
   kategorie: drinkKategorieSchema,
+  marke: z.string().trim().max(40).optional(),
+  volumenMl: z.number().int().positive().nullable().optional(),
 });
 
 const updateSchema = createSchema.partial().refine(
@@ -50,6 +54,9 @@ drinksRouter.post('/admin/drinks', async (req, res) => {
       preisCent: parsed.data.preisCent,
       icon: parsed.data.icon ?? null,
       kategorie: parsed.data.kategorie,
+      // leere Marke → null; Volumen null/undefined → null (nicht gesetzt)
+      marke: parsed.data.marke ? parsed.data.marke : null,
+      volumenMl: parsed.data.volumenMl ?? null,
     },
   });
 
@@ -73,6 +80,9 @@ drinksRouter.patch('/admin/drinks/:id', async (req, res) => {
   if (parsed.data.preisCent !== undefined) data.preisCent = parsed.data.preisCent;
   if (parsed.data.icon !== undefined) data.icon = parsed.data.icon === '' ? null : parsed.data.icon;
   if (parsed.data.kategorie !== undefined) data.kategorie = parsed.data.kategorie;
+  // marke: leerer String löscht (→ null), wie beim icon. volumenMl: null löscht.
+  if (parsed.data.marke !== undefined) data.marke = parsed.data.marke === '' ? null : parsed.data.marke;
+  if (parsed.data.volumenMl !== undefined) data.volumenMl = parsed.data.volumenMl;
 
   const drink = await prisma.drink.update({ where: { id: existing.id }, data });
   logger.info({ drinkId: drink.id }, 'Drink aktualisiert.');

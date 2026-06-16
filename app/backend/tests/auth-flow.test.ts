@@ -31,6 +31,7 @@ const { buildApp } = await import('../src/index.js');
 const { prisma } = await import('../src/db.js');
 const { generateInviteToken, inviteExpiry } = await import('../src/auth/tokens.js');
 const { berlinDayKey } = await import('../src/routes/journal.js');
+const { formatVolumen } = await import('../src/domain/drink-anzeige.js');
 const supertest = (await import('supertest')).default;
 
 const app = buildApp();
@@ -293,6 +294,59 @@ describe('Admin-Drink-CRUD', () => {
     const cola = list.body.drinks.find((d: { name: string }) => d.name === 'Cola');
     const r = await agent.patch(`/admin/drinks/${cola.id}/active`).send({ isActive: 'ja' });
     expect(r.status).toBe(400);
+  });
+
+  // ── Marke + Volumen (optionale Zusatzfelder, additiv) ──────────────
+  it('legt Drink mit Marke + Volumen an', async () => {
+    const r = await agent.post('/admin/drinks').send({
+      name: 'Spezi',
+      preisCent: 180,
+      kategorie: 'alkoholfrei',
+      marke: 'Paulaner',
+      volumenMl: 500,
+    });
+    expect(r.status).toBe(201);
+    expect(r.body.drink).toMatchObject({ name: 'Spezi', marke: 'Paulaner', volumenMl: 500 });
+  });
+
+  it('legt Drink ohne Marke/Volumen an → beide null', async () => {
+    const r = await agent.post('/admin/drinks').send({
+      name: 'Tonic',
+      preisCent: 200,
+      kategorie: 'alkoholfrei',
+    });
+    expect(r.status).toBe(201);
+    expect(r.body.drink.marke).toBeNull();
+    expect(r.body.drink.volumenMl).toBeNull();
+  });
+
+  it('weist Volumen 0 / negativ / nicht-ganzzahlig zurück', async () => {
+    for (const volumenMl of [0, -330, 1.5]) {
+      const r = await agent.post('/admin/drinks').send({
+        name: `Ungültig ${volumenMl}`,
+        preisCent: 100,
+        kategorie: 'sonstiges',
+        volumenMl,
+      });
+      expect(r.status).toBe(400);
+    }
+  });
+
+  it('setzt Marke + Volumen per Update auf einen bestehenden Drink', async () => {
+    const list = await agent.get('/admin/drinks');
+    const wasser = list.body.drinks.find((d: { name: string }) => d.name === 'Wasser');
+    const r = await agent.patch(`/admin/drinks/${wasser.id}`).send({ marke: 'Adelholzener', volumenMl: 750 });
+    expect(r.status).toBe(200);
+    expect(r.body.drink).toMatchObject({ marke: 'Adelholzener', volumenMl: 750 });
+  });
+
+  it('löscht Marke (leer) + Volumen (null) per Update → null', async () => {
+    const list = await agent.get('/admin/drinks');
+    const wasser = list.body.drinks.find((d: { name: string }) => d.name === 'Wasser');
+    const r = await agent.patch(`/admin/drinks/${wasser.id}`).send({ marke: '', volumenMl: null });
+    expect(r.status).toBe(200);
+    expect(r.body.drink.marke).toBeNull();
+    expect(r.body.drink.volumenMl).toBeNull();
   });
 });
 
@@ -2743,5 +2797,16 @@ describe('Cleanup — Storno-DB-Guard + Anfragen-Reassign', () => {
     // BESTAETIGT bleibt beim Ex, fremde OFFENE bleibt beim anderen Verwalter.
     expect((await prisma.aufladungsAnfrage.findUnique({ where: { id: erledigt.id } }))?.zugewiesenerVerwalterId).toBe(exId);
     expect((await prisma.aufladungsAnfrage.findUnique({ where: { id: fremd.id } }))?.zugewiesenerVerwalterId).toBe(andererId);
+  });
+});
+
+describe('formatVolumen', () => {
+  it('formatiert ml deutsch als Liter', () => {
+    expect(formatVolumen(500)).toBe('0,5 l');
+    expect(formatVolumen(330)).toBe('0,33 l');
+    expect(formatVolumen(200)).toBe('0,2 l');
+    expect(formatVolumen(1000)).toBe('1 l');
+    expect(formatVolumen(1500)).toBe('1,5 l');
+    expect(formatVolumen(250)).toBe('0,25 l');
   });
 });
