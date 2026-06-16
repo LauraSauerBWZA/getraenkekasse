@@ -50,7 +50,8 @@ export default function SetPassword() {
     return (
       <div className="bwza-stage" style={{ padding: '60px var(--bwza-page-x)' }}>
         <div style={{ color: 'var(--bwza-rescue-soft)', fontSize: 14 }}>
-          Kein Magic-Link-Token in der URL. Bitte den Link aus der Einladungs-Email vollständig öffnen.
+          Kein Magic-Link-Token in der URL. Bitte den vollständigen Magic-Link öffnen, den du von
+          der Verwaltung bekommen hast.
         </div>
       </div>
     );

@@ -301,10 +301,15 @@ export default function Admin() {
                   {copied ? 'Kopiert' : 'Link kopieren'}
                 </GlassButton>
               </div>
+              <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--bwza-ink-mute)', lineHeight: 1.45 }}>
+                Link selbst an die Person schicken — es geht <strong>kein automatischer
+                E-Mail-Versand</strong> raus.
+              </div>
             </>
           ) : (
-            <div style={{ marginTop: 12, fontSize: 12, color: 'var(--bwza-ink-mute)' }}>
-              Der Magic-Link wurde per E-Mail versendet.
+            <div style={{ marginTop: 12, fontSize: 12, color: 'var(--bwza-rescue-soft)', lineHeight: 1.45 }}>
+              Magic-Link konnte nicht angezeigt werden. Bitte die Einladung erneut erzeugen
+              (es wird keine E-Mail verschickt — der Link muss hier kopiert werden).
             </div>
           )}
         </Glass>
