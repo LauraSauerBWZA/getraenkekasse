@@ -1,6 +1,6 @@
 # Konfiguration — Bergwacht Getränkekasse
 
-**Stand:** 16.06.2026 (Update 15: Vor-Deploy-Cleanup — Backend-Build grün, DB-Guards, §5 an Schema angeglichen)
+**Stand:** 16.06.2026 (Update 16: Drink-Erweiterung — optionale Felder `marke`/`volumenMl`, Subzeile-Anzeige, deutsche Sortierung)
 **Status:** 🟢 Phase B1 abgeschlossen + verifiziert, Phase B2 vorbereitet
 
 ---
@@ -126,8 +126,15 @@ Zwei Buchungs-Ebenen:
 | `preisCent` | Int | Aktueller Verkaufspreis |
 | `icon` | String, nullable | optional; seit B5c kein Emoji-Eingabefeld mehr, Feld bleibt |
 | `kategorie` | String (validiert) | `alkoholfrei`, `alkoholisch`, `sonstiges` (fest) |
+| `marke` | String, nullable | optional; Marke/Brauerei (z.B. „Coca-Cola", „Augustiner") — NEU Update 16 |
+| `volumenMl` | Int, nullable | optional; Gebindegröße in Millilitern (z.B. 500, 330, 200) — NEU Update 16 |
 | `isActive` | Boolean, default true | Soft-Disable statt Hard-Delete |
 | `createdAt` / `updatedAt` | DateTime | |
+
+**Anzeige (Update 16):** Name fett + gedämpfte Subzeile „Marke · Größe" (nur vorhandene Teile,
+mit „ · " verbunden; keine Subzeile wenn beides leer). `volumenMl` wird als deutsche Liter-Angabe
+gezeigt (`formatVolumen`: 500→„0,5 l", 330→„0,33 l", 1000→„1 l"). Drink-Listen sind je
+Kategorie deutsch-alphabetisch sortiert (`localeCompare 'de'`, Umlaute + Groß/Klein egal).
 
 ### 5.3 Transaktion (Mitglieder-Ebene)
 
@@ -466,6 +473,19 @@ Außerdem: Form-Field-IDs auf Login fehlen → B5 Politur.
 ---
 
 ## 13. Änderungshistorie (kompakt)
+
+**Update 16 (16.06.2026):** Drink-Erweiterung (additiv, kein Breaking Change)
+- **Zwei optionale Felder am Drink:** `marke String?` (Marke/Brauerei) und `volumenMl Int?`
+  (Gebindegröße in ml). Beide nullable, **additive** Schema-Änderung → kein Daten-Verlust,
+  bestehende Drinks bleiben gültig (`marke`/`volumenMl` = null).
+- **Anzeige:** Subzeile „Marke · Größe" unter dem Namen (nur vorhandene Teile; `formatVolumen`:
+  500→„0,5 l") in Buchen (DrinkRow + ConfirmSheet) und Admin-Katalog-Zeile.
+- **Sortierung:** Drink-Listen je Kategorie deutsch-alphabetisch (`localeCompare 'de'`,
+  Umlaute + Groß/Klein egal) — vorher SQLite-Bytevergleich.
+- **Validierung:** `volumenMl` ganzzahlig > 0 wenn gesetzt; leere `marke`/`volumenMl: null`
+  löschen den Wert. Kein `icon`-Feld umbenannt/gelöscht (bleibt ungenutzt). Keine neue Dependency.
+- **Deploy-Hinweis:** Prod braucht ein additives `prisma db push` (vorher DB-Backup) — siehe
+  Bündel-Bericht.
 
 **Update 15 (16.06.2026):** Vor-Deploy-Cleanup (kein Verhaltens-Change außer den Guards)
 - **Backend-Build deploy-fest:** eigenes `tsconfig.build.json` (nur `src` → kein TS6059),
