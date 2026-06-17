@@ -1,8 +1,68 @@
 import { COLORS } from '../constants.js';
 
-// Platzhalter-Texturen prozedural erzeugen — keine PNG-Assets in dieser Phase.
-// Echte Pixel-Art wird später als eigene Aufgabe ergänzt; sie ersetzt diese
-// Texturen unter denselben Keys, der Rest des Codes bleibt unverändert.
+// Prozedurale Pixel-Art im Game-Boy-Color-Stil (Phase B_GAME3_PIXELART).
+// Alles in Code gezeichnet (kein PNG). Sprites werden in niedriger Auflösung als
+// Zeichen-Grid „gedacht" und über `drawPixels` mit einer zentralen Palette zu
+// Texturen gebacken; ein Scale-Faktor trifft exakt die bestehenden Textur-Maße
+// (Hitboxen/Positionen bleiben unangetastet, Spec §3).
+
+// Zentrale GBC-Palette: kräftig, begrenzt, klare dunkle Outline. Zeichen → Farbe;
+// '.' = transparent. Mehrfach genutzte Töne halten die Sprites farblich stimmig.
+const PALETTE = {
+  '.': null, // transparent
+  o: 0x241826, // Outline (fast schwarz, violettstichig)
+  // Alpinist
+  r: 0xe2403a, // Jacke rot
+  R: 0x9e2730, // Jacke rot dunkel (Schatten)
+  b: 0x3f74e0, // Hose blau
+  B: 0x274a9e, // Hose blau dunkel
+  k: 0xf3c393, // Haut
+  K: 0xcf9460, // Haut Schatten
+  y: 0xf7d24a, // Helm gelb
+  Y: 0xd29a26, // Helm gelb dunkel
+  p: 0x6b7280, // Rucksack grau
+  P: 0x444a59, // Rucksack dunkel
+  w: 0xf4f0e9, // weiß
+  // Brocken
+  l: 0xc2bbae, // heller Stein
+  L: 0x938b7c, // heller Stein Schatten
+  e: 0x6b6358, // heller Stein Outline-Ersatz
+  d: 0x4c4658, // großer Brocken
+  D: 0x2c2738, // großer Brocken Schatten
+  c: 0x12101a, // Riss
+  // Collectibles
+  s: 0xcdd2dc, // Silber hell
+  S: 0x8a90a0, // Silber dunkel
+  n: 0xe09a3c, // Seil orange
+  N: 0xa96a22, // Seil orange dunkel
+  g: 0x57c07a, // Getränk grün
+  G: 0x2e7d4f, // Getränk grün dunkel
+  f: 0xfff4d6, // Schaum/Glanz hell
+  // Gold/Glanz (Emblem, Ziel, Akzente)
+  a: 0xf7d24a, // gold
+  q: 0xfff1a8, // gold hell / Funkeln
+  // Heli
+  h: 0xeceff4, // weiß-grau (Heli-Body)
+  H: 0xb6bcc8, // grau Schatten
+};
+
+// Backt ein Zeichen-Grid (Array gleicher-Länge-Strings) mit `scale` zu einer
+// Textur. Jede Zelle = scale×scale Pixel. Texturmaß = cols*scale × rows*scale.
+function drawPixels(scene, key, grid, scale = 2, palette = PALETTE) {
+  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  const rows = grid.length;
+  const cols = grid[0].length;
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const col = palette[grid[y][x]];
+      if (col === undefined || col === null) continue;
+      g.fillStyle(col, 1);
+      g.fillRect(x * scale, y * scale, scale, scale);
+    }
+  }
+  g.generateTexture(key, cols * scale, rows * scale);
+  g.destroy();
+}
 
 // Zeichnet ein Rechteck (optional gerundet, optional Rahmen) und registriert es
 // als Textur unter `key`.
@@ -233,16 +293,19 @@ function windenhakenTexture(scene) {
   g.destroy();
 }
 
-// HUD-Herz (16x16) für die Lebensanzeige.
+// HUD-Herz (16x16) — GBC-Pixel-Art (8x8-Grid ×2). Proof für den drawPixels-Helper.
+const HEART_GRID = [
+  '.oo..oo.',
+  'orrrrrro',
+  'orfrrrro',
+  'orrrrrro',
+  '.orrrro.',
+  '..orro..',
+  '...oo...',
+  '........',
+];
 function heartTexture(scene) {
-  const s = 16;
-  const g = scene.make.graphics({ x: 0, y: 0, add: false });
-  g.fillStyle(COLORS.rescue, 1);
-  g.fillCircle(5, 5, 4);
-  g.fillCircle(11, 5, 4);
-  g.fillTriangle(1, 6, 15, 6, 8, 15);
-  g.generateTexture('heart', s, s);
-  g.destroy();
+  drawPixels(scene, 'heart', HEART_GRID, 2);
 }
 
 // Erzeugt alle (Platzhalter-)Texturen einmalig beim Boot.
