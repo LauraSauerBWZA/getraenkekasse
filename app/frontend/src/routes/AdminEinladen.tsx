@@ -144,12 +144,16 @@ export default function AdminEinladen() {
             gap: 12,
           }}
         >
+          {/* Kein autoFocus: würde beim Seiteneintritt die iOS-Soft-Tastatur
+              öffnen + den Visual Viewport verschieben → die sticky BackBar (top:0,
+              Layout-Viewport) wirkt dann nicht mehr fixiert. Die funktionierenden
+              Referenzseiten (AdminMitglieder/AdminMitgliedDetail) fokussieren beim
+              Laden ebenfalls nichts. */}
           <GlassInput
             label="Vorname"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
             placeholder="Max"
-            autoFocus
           />
           <GlassInput
             label="Nachname"
