@@ -80,61 +80,74 @@ function rectTexture(scene, key, w, h, fill, opts = {}) {
   g.destroy();
 }
 
-// Alpinist-Platzhalter (22x30) in mehreren Posen für die Animationen
-// (idle/run_a/run_b/jump/fall). Beine, Arme und Helmstellung variieren je Pose;
-// Körper/Gurt bleiben gleich. Alle Koordinaten ≥ 0 (generateTexture beschneidet
-// negative Bereiche).
-const PLAYER_W = 22;
-const PLAYER_H = 30;
+// Alpinist (22x30 = 11x15-Grid ×2): freundlicher Bergwacht-Kletterer, gelber
+// Helm, rote Jacke, blaue Hose, weißes Brust-Emblem mit rotem Kreuz (stilisiert,
+// kein DRK-1:1). Posen idle/run_a/run_b (Boot-Wechsel = Kletter-Wiggle),
+// jump (Arme hoch, Beine zusammen), fall (Arme/Beine ausgebreitet).
+const ALPINIST_HEAD = [
+  '...oooo....',
+  '..oyyyyo...',
+  '..oyYYyo...',
+  '..oooooo...',
+  '...okko....',
+  '..orrrro...',
+  '.orrrrrro..',
+  '.orwwwwro..',
+  '.orwxxwro..',
+  '.orwwwwro..',
+  '.orrrrrro..',
+  '..oRRRRo...',
+  '..obbbbo...',
+  '..obbbbo...',
+];
+
+const ALPINIST_JUMP = [
+  '.k.oooo.k..',
+  '.royyyyor..',
+  '.royYYyor..',
+  '.roooooor..',
+  '..rokkor...',
+  '..orrrro...',
+  '.orrrrrro..',
+  '.orwwwwro..',
+  '.orwxxwro..',
+  '.orwwwwro..',
+  '.orrrrrro..',
+  '..oRRRRo...',
+  '..obbbbo...',
+  '..obbbbo...',
+  '..oooooo...',
+];
+
+const ALPINIST_FALL = [
+  '...oooo....',
+  '..oyyyyo...',
+  '..oyYYyo...',
+  '..oooooo...',
+  '...okko....',
+  'k.orrrro.k.',
+  '.rorrrror..',
+  '.orwwwwro..',
+  '.orwxxwro..',
+  '.orwwwwro..',
+  '.orrrrrro..',
+  '..oRRRRo...',
+  '..obbbbo...',
+  '.obb..bbo..',
+  '.oo....oo..',
+];
+
+function alpinistGrid(pose) {
+  if (pose === 'jump') return ALPINIST_JUMP;
+  if (pose === 'fall') return ALPINIST_FALL;
+  let boots = '..oo..oo...'; // idle
+  if (pose === 'run_a') boots = '.ooo..o....';
+  else if (pose === 'run_b') boots = '....o..ooo.';
+  return [...ALPINIST_HEAD, boots];
+}
 
 function playerTexture(scene, key, pose) {
-  const w = PLAYER_W;
-  const g = scene.make.graphics({ x: 0, y: 0, add: false });
-
-  // Beine (Pose-abhängig).
-  g.fillStyle(0x3a2f24, 1);
-  if (pose === 'run_a') {
-    g.fillRect(3, 24, 5, 6);
-    g.fillRect(13, 22, 5, 6);
-  } else if (pose === 'run_b') {
-    g.fillRect(4, 22, 5, 6);
-    g.fillRect(14, 24, 5, 6);
-  } else if (pose === 'jump') {
-    g.fillRect(5, 23, 5, 6);
-    g.fillRect(12, 23, 5, 6);
-  } else if (pose === 'fall') {
-    g.fillRect(1, 24, 5, 6);
-    g.fillRect(16, 24, 5, 6);
-  } else {
-    g.fillRect(5, 24, 5, 6); // idle
-    g.fillRect(12, 24, 5, 6);
-  }
-
-  // Arme (Pose-abhängig).
-  g.fillStyle(COLORS.amber, 1);
-  if (pose === 'jump') {
-    g.fillRect(0, 4, 4, 8);
-    g.fillRect(w - 4, 4, 4, 8);
-  } else if (pose === 'fall') {
-    g.fillRect(0, 13, 4, 7);
-    g.fillRect(w - 4, 13, 4, 7);
-  } else {
-    g.fillRect(0, 9, 4, 9);
-    g.fillRect(w - 4, 9, 4, 9);
-  }
-
-  // Körper/Jacke.
-  g.fillStyle(COLORS.amberDeep, 1);
-  g.fillRoundedRect(2, 8, w - 4, 17, 4);
-  // Klettergurt.
-  g.fillStyle(COLORS.ink, 1);
-  g.fillRect(4, 16, w - 8, 2);
-  // Helm.
-  g.fillStyle(COLORS.amberGlow, 1);
-  g.fillRoundedRect(3, 0, w - 6, 10, 4);
-
-  g.generateTexture(key, w, PLAYER_H);
-  g.destroy();
+  drawPixels(scene, key, alpinistGrid(pose), 2);
 }
 
 // Kleiner fallender Stein (16x16) — Treffer = Rückwurf.
