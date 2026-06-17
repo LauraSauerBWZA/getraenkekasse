@@ -150,36 +150,42 @@ function playerTexture(scene, key, pose) {
   drawPixels(scene, key, alpinistGrid(pose), 2);
 }
 
-// Kleiner fallender Stein (16x16) — Treffer = Rückwurf.
+// Kleiner Stein (16x16 = 8x8-Grid ×2): hell, rundlich, freundlich — signalisiert
+// „nur Rückwurf". Heller Grauton mit Glanz, helle Outline.
+const ROCK_GRID = [
+  '..eeee..',
+  '.elllle.',
+  'elflllle',
+  'elllllLe',
+  'elLllLLe',
+  '.eLLLLe.',
+  '..eeee..',
+  '........',
+];
 function rockTexture(scene) {
-  const s = 16;
-  const g = scene.make.graphics({ x: 0, y: 0, add: false });
-  g.fillStyle(0x6b6258, 1);
-  g.fillRoundedRect(0, 0, s, s, 4);
-  g.fillStyle(0x4a4036, 1);
-  g.fillRect(3, 4, 3, 3);
-  g.fillRect(9, 8, 3, 3);
-  g.fillRect(6, 11, 2, 2);
-  g.lineStyle(1, 0x2a2420, 0.6);
-  g.strokeRoundedRect(0, 0, s, s, 4);
-  g.generateTexture('rock', s, s);
-  g.destroy();
+  drawPixels(scene, 'rock', ROCK_GRID, 2);
 }
 
-// Großer Felsbrocken (28x28) — dunkel, deutlich größer; Treffer kostet ein Leben.
+// Großer Brocken (28x28 = 14x14-Grid ×2): dunkel, kantig, mit Rissen — wirkt
+// bedrohlich, signalisiert „−1 Leben". Klar von dem kleinen Stein unterscheidbar.
+const BOULDER_GRID = [
+  '...oooooo.....',
+  '..odddddoo....',
+  '.oddddddddo...',
+  'oddddddddddo..',
+  'oddccdddddDo..',
+  'oddcddddcdDo..',
+  'odddddccddDo..',
+  'oddddddcddDo..',
+  'oddDddddddDo..',
+  '.oDddDdddDo...',
+  '.oDDdddDDDo...',
+  '..oDDDDDDo....',
+  '...oooooo.....',
+  '..............',
+];
 function boulderTexture(scene) {
-  const s = 28;
-  const g = scene.make.graphics({ x: 0, y: 0, add: false });
-  g.fillStyle(0x39322b, 1);
-  g.fillRoundedRect(0, 0, s, s, 7);
-  g.fillStyle(0x241f19, 1);
-  g.fillRect(5, 7, 5, 5);
-  g.fillRect(16, 14, 6, 6);
-  g.fillRect(9, 19, 4, 4);
-  g.lineStyle(2, 0x14110d, 0.7);
-  g.strokeRoundedRect(0, 0, s, s, 7);
-  g.generateTexture('boulder', s, s);
-  g.destroy();
+  drawPixels(scene, 'boulder', BOULDER_GRID, 2);
 }
 
 // Collectibles (Spec §5/§8): Karabiner (gold), Seil (orange), Getränk (grün).
