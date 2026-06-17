@@ -170,6 +170,50 @@ function drinkTexture(scene) {
   g.destroy();
 }
 
+// Durchgehende Felswand-Kachel (64x64, B_GAME2): Fels mit Greif-Optik —
+// vertikales Seil + horizontales Felsband (Leiste) eingebacken, damit die
+// gekachelte Wand „kletterbar" wirkt.
+function wallTexture(scene) {
+  const s = 64;
+  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  g.fillStyle(COLORS.rock, 1);
+  g.fillRect(0, 0, s, s);
+  // dunkle Sprenkel
+  g.fillStyle(0x3a322a, 1);
+  g.fillRect(40, 10, 6, 6);
+  g.fillRect(8, 34, 5, 5);
+  g.fillRect(50, 48, 6, 5);
+  // Felsband / Leiste (Greifkante)
+  g.fillStyle(0x6a5d4d, 1);
+  g.fillRect(0, 46, s, 5);
+  // hängendes Seil
+  g.fillStyle(COLORS.inkDim, 1);
+  g.fillRect(18, 0, 3, s);
+  g.fillStyle(COLORS.amberDeep, 1);
+  g.fillRect(17, 28, 5, 4); // Knoten
+  // Kachelrahmen (dezent)
+  g.lineStyle(1, 0x000000, 0.18);
+  g.strokeRect(0, 0, s, s);
+  g.generateTexture('wall', s, s);
+  g.destroy();
+}
+
+// Überhang-Block (170x46, B_GAME2): ragt von einer Seite in die Wand, blockiert
+// eine Spur — dunkler Fels, klar als Hindernis lesbar.
+function overhangTexture(scene) {
+  const w = 170;
+  const h = 46;
+  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  g.fillStyle(0x2a241d, 1);
+  g.fillRoundedRect(0, 0, w, h, 8);
+  g.fillStyle(COLORS.rock, 1);
+  g.fillRect(0, 0, w, 6); // helle Oberkante
+  g.lineStyle(1, 0x000000, 0.3);
+  g.strokeRoundedRect(0, 0, w, h, 8);
+  g.generateTexture('overhang', w, h);
+  g.destroy();
+}
+
 // Hubschrauber (64x32) — Ziel-Deko oben, fliegt in der WinScene weg.
 function helicopterTexture(scene) {
   const w = 64;
@@ -255,4 +299,8 @@ export function buildTextures(scene) {
   // Ziel (B_GAME.7): Hubschrauber + Windenhaken.
   helicopterTexture(scene);
   windenhakenTexture(scene);
+
+  // Felswand + Überhänge (B_GAME2).
+  wallTexture(scene);
+  overhangTexture(scene);
 }

@@ -40,7 +40,8 @@ export const CSS = {
 export const GAME = {
   width: 480,
   height: 800,
-  worldHeight: 3200,
+  // B_GAME2: hohe Felswand (~2,5 Min Auto-Climb bei CLIMB.speed).
+  worldHeight: 11000,
 };
 
 // Arcade-Physik (Spec §6). Mario-artig: kein Reibungs-Slide, responsive.
@@ -74,8 +75,9 @@ export const SCORE = {
 export const START_LIVES = 3;
 export const TIMEOUT_MS = 300_000; // 5 Minuten (Spec §7 GameOver-Timeout)
 
-// Umrechnung Pixel → Höhenmeter für HUD/Score. Welt ~3040px Kletterweg ≈ 400 m.
-export const PIXELS_PER_METER = 7.6;
+// Umrechnung Pixel → Höhenmeter für HUD/Score. B_GAME2: ~10800px Kletterweg
+// ≈ 500 m Wandhöhe (Spec §9).
+export const PIXELS_PER_METER = 21.5;
 
 // Szenen-Keys, zentral, um Tippfehler bei scene.start() zu vermeiden.
 export const SCENES = {
