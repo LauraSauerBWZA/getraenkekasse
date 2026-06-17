@@ -208,7 +208,19 @@ export default function AdminEinladen() {
           >
             {success.firstName} ist eingeladen.
           </div>
-          <div style={{ marginTop: 2, fontSize: 12, color: 'var(--bwza-ink-mute)' }}>
+          <div
+            style={{
+              marginTop: 2,
+              fontSize: 12,
+              color: 'var(--bwza-ink-mute)',
+              // Mailadressen haben keine Leerzeichen → ohne overflow-wrap bricht der
+              // Default sie NICHT und die Karte schiebt über den Viewport-Rand
+              // (Ursache des Seitwärts-Scrolls + mit-wandernder sticky BackBar).
+              overflowWrap: 'anywhere',
+              wordBreak: 'break-word',
+              minWidth: 0,
+            }}
+          >
             {success.email}
           </div>
 
@@ -246,7 +258,14 @@ export default function AdminEinladen() {
                   href={success.inviteUrl}
                   target="_blank"
                   rel="noreferrer"
-                  style={{ color: 'var(--bwza-ink)', textDecoration: 'underline' }}
+                  style={{
+                    color: 'var(--bwza-ink)',
+                    textDecoration: 'underline',
+                    // Der Anker selbst bricht den langen Token mit (zusätzlich zum
+                    // break-all/anywhere am Container) — nichts ragt über den Rand.
+                    overflowWrap: 'anywhere',
+                    wordBreak: 'break-all',
+                  }}
                 >
                   {success.inviteUrl}
                 </a>
