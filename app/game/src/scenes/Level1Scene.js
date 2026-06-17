@@ -8,7 +8,7 @@ import {
   PIXELS_PER_METER,
   TIMEOUT_MS,
 } from '../constants.js';
-import { WALL, OVERHANGS, wallSegments } from '../levels/level1.js';
+import { WALL, OVERHANGS, wallSegments, isInGap } from '../levels/level1.js';
 import { Player } from '../sprites/Player.js';
 import { Hud } from '../utils/hud.js';
 import { TouchControls } from '../utils/mobile.js';
@@ -189,6 +189,11 @@ export class Level1Scene extends Phaser.Scene {
       duration: 700,
       onComplete: () => t.destroy(),
     });
+  }
+
+  // Liegt y in einer Lücke (kein Halt)? Vom Player für Fallen/Sprung genutzt.
+  isInGap(y) {
+    return isInGap(y);
   }
 
   // Gekletterte Höhe in Metern (>= 0), relativ zur Start-Position.

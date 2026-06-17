@@ -17,6 +17,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.body.setAllowGravity(false); // beim Klettern keine Schwerkraft
     this.body.setSize(16, 28).setOffset(3, 2);
 
+    this.jumping = false;
+
     this.cursors = scene.input.keyboard.createCursorKeys();
     this.createAnims(scene);
     this.play('climb');
@@ -59,11 +61,59 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  update() {
-    // Auto-Climb: konstante Aufwärtsgeschwindigkeit, keine Schwerkraft.
+  // Sprung-Intent aus Tastatur ODER Touch.
+  jumpInput() {
+    const touch = this.scene.touch;
+    return (
+      Phaser.Input.Keyboard.JustDown(this.cursors.space) ||
+      Phaser.Input.Keyboard.JustDown(this.cursors.up) ||
+      (touch && touch.consumeJump())
+    );
+  }
+
+  startJump() {
+    this.jumping = true;
+    this.body.setAllowGravity(true); // Bogen unter Welt-Schwerkraft
+    this.setVelocityY(CLIMB.jumpVy);
+  }
+
+  endJump() {
+    this.jumping = false;
     this.body.setAllowGravity(false);
-    this.setVelocityY(-CLIMB.speed);
+    this.setVelocityY(-CLIMB.speed); // wieder an der Wand klettern
+  }
+
+  update() {
     this.applySteer();
-    this.play('climb', true);
+
+    const inGap = this.scene.isInGap ? this.scene.isInGap(this.y) : false;
+    if (this.jumpInput() && !this.jumping) this.startJump();
+
+    if (this.jumping) {
+      // Bogen: Wieder-Fangen an der Wand, sobald wir fallen UND nicht (mehr) in
+      // einer Lücke sind — gelang der Sprung, geschieht das oberhalb der Lücke;
+      // misslang er, weiter unten (Höhenverlust statt Tod).
+      if (this.body.velocity.y >= 0 && !inGap) this.endJump();
+    } else if (inGap) {
+      // Kein Halt → fallen statt klettern (Schwerkraft an, kein Aufstieg).
+      this.body.setAllowGravity(true);
+      if (this.body.velocity.y < 0) this.setVelocityY(0);
+    } else {
+      // Auto-Climb.
+      this.body.setAllowGravity(false);
+      this.setVelocityY(-CLIMB.speed);
+    }
+
+    this.updateAnim(inGap);
+  }
+
+  updateAnim(inGap) {
+    if (this.jumping) {
+      this.play(this.body.velocity.y < 0 ? 'jump' : 'fall', true);
+    } else if (inGap) {
+      this.play('fall', true);
+    } else {
+      this.play('climb', true);
+    }
   }
 }

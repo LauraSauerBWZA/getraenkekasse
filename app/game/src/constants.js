@@ -58,8 +58,7 @@ export const PHYS = {
 export const CLIMB = {
   speed: 70, // px/s stetiger Aufstieg an der Wand
   steerSpeed: 185, // px/s horizontale Lenkung
-  jumpVy: -520, // Sprung-Impuls (Bogen-Spitze ~150px bei jumpGravity)
-  jumpGravity: 900, // Schwerkraft NUR während des Sprungs
+  jumpVy: -430, // Sprung-Impuls; Bogen-Spitze ~150px bei Welt-Gravity 600
   smallKnockback: 100, // Rückwurf-Distanz kleiner Stein (px Höhenverlust)
   stunMs: 1200, // Unverwundbarkeit/Blink nach Treffer
 };
