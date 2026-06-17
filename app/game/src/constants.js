@@ -40,7 +40,7 @@ export const CSS = {
 export const GAME = {
   width: 480,
   height: 800,
-  // B_GAME2: hohe Felswand (~2,5 Min Auto-Climb bei CLIMB.speed).
+  // B_GAME2: hohe Felswand (~2 Min Forced-Scroll bei SCROLL-Speed).
   worldHeight: 11000,
 };
 
@@ -50,17 +50,25 @@ export const PHYS = {
   gravity: 600,
 };
 
-// Auto-Climb-Mechanik (Phase B_GAME2_KLETTERN). Finale Balancing-Werte aus dem
-// Pass B_GAME2.6 (im Bündel-Bericht dokumentiert) — Laura kann beim Playtest
-// nachjustieren.
-export const CLIMB = {
-  speed: 70, // px/s Grund-Tempo (Vorwärtsdrang, wenn keine Taste)
-  fastSpeed: 155, // px/s mit ↑ (schneller hoch)
-  downSpeed: 115, // px/s mit ↓ (kontrolliert runter)
-  steerSpeed: 185, // px/s horizontale Lenkung
-  jumpVy: -450, // Sprung-Impuls; Bogen-Spitze ~170px bei Welt-Gravity 600
-  smallKnockback: 100, // Rückwurf-Distanz kleiner Stein (px Höhenverlust)
-  stunMs: 1200, // Unverwundbarkeit/Blink nach Treffer (ms)
+// Freie Spielerbewegung (Forced-Scroll-Mechanik, NACHSCHLAG2). Der Spieler
+// bewegt sich frei im Ausschnitt; die Geschwindigkeit muss über der maximalen
+// Kamera-Scroll-Geschwindigkeit liegen, damit man mithalten/ausweichen kann.
+export const MOVE = {
+  speed: 210, // px/s freie Bewegung (← → ↑ ↓)
+  jumpVy: -460, // Sprung-Burst nach oben (Bogen, schnelles Ausweichen)
+};
+
+// Auto-Scroll-Kamera (NACHSCHLAG2.1): scrollt eigenständig hoch, Speed steigt
+// linear mit dem Höhen-Fortschritt (Beschleunigungskurve = linear).
+export const SCROLL = {
+  startSpeed: 55, // px/s am Anfang (unten)
+  endSpeed: 135, // px/s am Wand-Ende (oben)
+};
+
+// Treffer/Reset-Folgen.
+export const HIT = {
+  stunMs: 1200, // Unverwundbarkeit/Blink nach Treffer/Reset (ms)
+  smallKnockback: 90, // kleiner Stein: Schub nach unten (px, Richtung Gefahr)
 };
 
 // Herabfallende Felsbrocken (Spec §3). Finale Balancing-Werte (B_GAME2.6).

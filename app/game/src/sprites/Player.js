@@ -1,12 +1,11 @@
 import Phaser from 'phaser';
-import { CLIMB } from '../constants.js';
+import { MOVE } from '../constants.js';
 
-// Der Alpinist — Auto-Climb-Mechanik (Phase B_GAME2_KLETTERN).
+// Der Alpinist — Forced-Scroll-Mechanik (Phase B_GAME2_KLETTERN, NACHSCHLAG2).
 //
-// Er klettert kontinuierlich und stetig nach oben (CLIMB.speed), Schwerkraft ist
-// dabei AUS. Der Spieler lenkt nur links/rechts (← → bzw. Touch). Die
-// Sprung-Mechanik (Bogen über Lücken/Überhänge) + die Lücken-Logik kommen in
-// B_GAME2.3 — hier klettert er erstmal durchgehend bis zum Wand-Ende.
+// Die Kamera scrollt eigenständig hoch (Scene); der Spieler bewegt sich frei im
+// Ausschnitt (← → ↑ ↓), ohne Schwerkraft und ohne Auto-Climb. Keine Taste =
+// stehenbleiben. SPACE = kurzer Sprung-Burst nach oben (schnelles Ausweichen).
 export class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
     super(scene, x, y, 'player_idle');
@@ -14,25 +13,24 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     scene.physics.add.existing(this);
 
     this.setCollideWorldBounds(true);
-    this.body.setAllowGravity(false); // beim Klettern keine Schwerkraft
+    this.body.setAllowGravity(false);
     this.body.setSize(16, 28).setOffset(3, 2);
 
     this.jumping = false;
+    this.moving = false;
 
     this.cursors = scene.input.keyboard.createCursorKeys();
     this.createAnims(scene);
-    this.play('climb');
+    this.play('idle');
   }
 
   createAnims(scene) {
     const a = scene.anims;
-    if (a.exists('climb')) return; // einmalig global registrieren
-    // Klettern: dieselben zwei Posen wie die alte Lauf-Animation, als Greifen
-    // links/rechts gelesen.
+    if (a.exists('climb')) return;
     a.create({
       key: 'climb',
       frames: [{ key: 'player_run_a' }, { key: 'player_run_b' }],
-      frameRate: 6,
+      frameRate: 8,
       repeat: -1,
     });
     a.create({ key: 'idle', frames: [{ key: 'player_idle' }], frameRate: 1, repeat: -1 });
@@ -40,70 +38,69 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     a.create({ key: 'fall', frames: [{ key: 'player_fall' }], frameRate: 1 });
   }
 
-  // Lenkung aus Tastatur ODER Touch zusammenführen.
-  steerInput() {
-    const touch = this.scene.touch;
-    const left = this.cursors.left.isDown || (touch && touch.left);
-    const right = this.cursors.right.isDown || (touch && touch.right);
-    return { left, right };
-  }
-
-  applySteer() {
-    const { left, right } = this.steerInput();
-    if (left && !right) {
-      this.setVelocityX(-CLIMB.steerSpeed);
-      this.setFlipX(true);
-    } else if (right && !left) {
-      this.setVelocityX(CLIMB.steerSpeed);
-      this.setFlipX(false);
-    } else {
-      this.setVelocityX(0);
-    }
-  }
-
-  // Sprung-Intent: SPACE (Desktop) oder Tap (Touch). ↑ ist seit NACHSCHLAG.1
-  // NICHT mehr Sprung, sondern Tempo (siehe applyVerticalTempo).
+  // Sprung-Intent: SPACE (Desktop) oder Tap (Touch).
   jumpInput() {
     const touch = this.scene.touch;
     return Phaser.Input.Keyboard.JustDown(this.cursors.space) || (touch && touch.consumeJump());
   }
 
-  // Vertikales Tempo (NACHSCHLAG.1): ↑ schneller hoch, ↓ langsamer/runter,
-  // sonst Grund-Tempo. Moduliert den Auto-Climb, ersetzt ihn nicht.
-  applyVerticalTempo() {
-    this.body.setAllowGravity(false);
-    const up = this.cursors.up.isDown;
-    const down = this.cursors.down.isDown;
-    if (up && !down) this.setVelocityY(-CLIMB.fastSpeed);
-    else if (down && !up) this.setVelocityY(CLIMB.downSpeed);
-    else this.setVelocityY(-CLIMB.speed);
+  // Bewegungs-Intent (−1/0/1 je Achse) aus Tastatur ODER Touch.
+  moveInput() {
+    let mx = (this.cursors.right.isDown ? 1 : 0) - (this.cursors.left.isDown ? 1 : 0);
+    let my = (this.cursors.down.isDown ? 1 : 0) - (this.cursors.up.isDown ? 1 : 0);
+    const touch = this.scene.touch;
+    if (touch && touch.active) {
+      if (touch.moveX) mx = touch.moveX;
+      if (touch.moveY) my = touch.moveY;
+    }
+    return { mx, my };
   }
 
-  // Sprung = kurzes Hochschnellen (Brocken ausweichen). Bogen unter
-  // Welt-Schwerkraft, danach Wieder-Fangen an der (durchgehenden) Wand.
+  applyFreeMove() {
+    this.body.setAllowGravity(false);
+    let { mx, my } = this.moveInput();
+    if (mx && my) {
+      // Diagonale nicht schneller als die Achsen.
+      mx *= Math.SQRT1_2;
+      my *= Math.SQRT1_2;
+    }
+    this.setVelocity(mx * MOVE.speed, my * MOVE.speed);
+    if (mx < 0) this.setFlipX(true);
+    else if (mx > 0) this.setFlipX(false);
+    this.moving = mx !== 0 || my !== 0;
+  }
+
+  // Sprung-Burst: Bogen unter Welt-Schwerkraft, ← → lenkt in der Luft.
   startJump() {
     this.jumping = true;
     this.body.setAllowGravity(true);
-    this.setVelocityY(CLIMB.jumpVy);
+    this.setVelocityY(MOVE.jumpVy);
   }
 
   endJump() {
     this.jumping = false;
     this.body.setAllowGravity(false);
-    this.setVelocityY(-CLIMB.speed); // wieder an der Wand
+    this.setVelocityY(0);
+  }
+
+  applyAirControl() {
+    const mx = (this.cursors.right.isDown ? 1 : 0) - (this.cursors.left.isDown ? 1 : 0);
+    const touch = this.scene.touch;
+    const tx = touch && touch.active ? touch.moveX : 0;
+    const dir = tx || mx;
+    this.setVelocityX(dir * MOVE.speed);
+    if (dir < 0) this.setFlipX(true);
+    else if (dir > 0) this.setFlipX(false);
   }
 
   update() {
-    this.applySteer();
-
     if (this.jumpInput() && !this.jumping) this.startJump();
 
     if (this.jumping) {
-      // Bogen vorbei (fällt wieder) → wieder fangen.
+      this.applyAirControl();
       if (this.body.velocity.y >= 0) this.endJump();
     } else {
-      // Auto-Climb mit ↑/↓-Tempo-Modulation.
-      this.applyVerticalTempo();
+      this.applyFreeMove();
     }
 
     this.updateAnim();
@@ -112,9 +109,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   updateAnim() {
     if (this.jumping) {
       this.play(this.body.velocity.y < 0 ? 'jump' : 'fall', true);
+    } else if (this.moving) {
+      this.play('climb', true);
     } else {
-      const descending = this.cursors.down.isDown && !this.cursors.up.isDown;
-      this.play(descending ? 'fall' : 'climb', true);
+      this.play('idle', true);
     }
   }
 }

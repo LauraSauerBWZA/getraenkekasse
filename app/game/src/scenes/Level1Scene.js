@@ -7,7 +7,8 @@ import {
   START_LIVES,
   PIXELS_PER_METER,
   TIMEOUT_MS,
-  CLIMB,
+  SCROLL,
+  HIT,
   BROCKEN,
 } from '../constants.js';
 import { WALL, OVERHANGS, COLLECTIBLES } from '../levels/level1.js';
@@ -16,10 +17,10 @@ import { Collectible } from '../sprites/Collectible.js';
 import { Hud } from '../utils/hud.js';
 import { TouchControls } from '../utils/mobile.js';
 
-// Auto-Climb-Felswand (Phase B_GAME2_KLETTERN). Der Spieler klettert automatisch
-// hoch; gelenkt wird nur ←→. Diese Szene baut die durchgehende Wand mit Lücken
-// und Überhängen auf. Sprung (B_GAME2.3), Brocken (B_GAME2.4) und Collectibles
-// (B_GAME2.5) kommen in den folgenden Sub-Commits.
+// Forced-Scroll-Felswand (Phase B_GAME2_KLETTERN, NACHSCHLAG2). Die Kamera
+// scrollt eigenständig nach oben (Speed steigt mit der Höhe); der Spieler bewegt
+// sich frei im Ausschnitt und muss mithalten. Höhe/Score ergeben sich aus dem
+// Kamera-Fortschritt; das Wand-Ende zu erreichen = überleben bis oben → WinScene.
 export class Level1Scene extends Phaser.Scene {
   constructor() {
     super(SCENES.level1);
@@ -38,6 +39,11 @@ export class Level1Scene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, GAME.width, GAME.worldHeight);
     this.cameras.main.setBounds(0, 0, GAME.width, GAME.worldHeight);
     this.cameras.main.setBackgroundColor(COLORS.bg);
+
+    // Forced-Scroll: Kamera startet am unteren Wand-Ende und scrollt eigenständig
+    // hoch (kein startFollow). scrollY läuft von startScrollY → 0 (Wand-Ende).
+    this.startScrollY = GAME.worldHeight - GAME.height;
+    this.cameras.main.setScroll(0, this.startScrollY);
 
     this.buildBackground();
     this.buildWall();
@@ -87,18 +93,17 @@ export class Level1Scene extends Phaser.Scene {
   }
 
   spawnPlayer() {
-    this.player = new Player(this, GAME.width / 2, WALL.startY);
-    // Überhänge blockieren den Aufstieg in ihrer Spur → ausweichen.
+    // Start in der Mitte des anfänglichen Ausschnitts (Kamera folgt NICHT).
+    this.player = new Player(this, GAME.width / 2, this.startScrollY + GAME.height / 2);
+    // Überhänge blockieren eine Spur → ausweichen.
     this.physics.add.collider(this.player, this.overhangs);
-
-    this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
-    this.cameras.main.setFollowOffset(0, -GAME.height * 0.15);
   }
 
+  // Ziel-Deko am Wand-Ende; der Sieg wird über den Kamera-Fortschritt ausgelöst
+  // (Spieler sieht Hubschrauber/Windenhaken, wenn die Kamera oben ankommt).
   buildGoal() {
     this.add.image(GAME.width / 2, WALL.goalY - 56, 'helicopter');
-    this.goal = this.physics.add.staticImage(GAME.width / 2, WALL.goalY, 'windenhaken');
-    this.physics.add.overlap(this.player, this.goal, () => this.win());
+    this.add.image(GAME.width / 2, WALL.goalY, 'windenhaken');
   }
 
   showTouchHint() {
@@ -106,7 +111,7 @@ export class Level1Scene extends Phaser.Scene {
     const { width, height } = this.scale;
     const style = { fontFamily: CSS.fontUi, fontSize: '13px', color: CSS.inkMute };
     const a = this.add
-      .text(width / 2, height * 0.4, '↤  Hälfte halten zum Lenken  ↦', style)
+      .text(width / 2, height * 0.4, 'halten = bewegen (auch hoch/runter)', style)
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(99);
@@ -185,13 +190,14 @@ export class Level1Scene extends Phaser.Scene {
     else this.hitPlayerSmall(); // kleiner Stein: Rückwurf
   }
 
-  // Kleiner Stein: Höhenverlust (Rückwurf) + kurze Unverwundbarkeit, kein Tod.
+  // Kleiner Stein: Schub nach unten (Richtung Gefahr) + kurze Unverwundbarkeit,
+  // kein Lebensverlust.
   hitPlayerSmall() {
     this.invulnerable = true;
     this.player.setAlpha(0.4);
-    this.player.y = Math.min(WALL.bottomY - 20, this.player.y + CLIMB.smallKnockback);
+    this.player.y += HIT.smallKnockback;
     this.popup(this.player.x, this.player.y - 26, 'Rückwurf!', CSS.rescue);
-    this.time.delayedCall(CLIMB.stunMs, () => {
+    this.time.delayedCall(HIT.stunMs, () => {
       this.invulnerable = false;
       this.player.setAlpha(1);
     });
@@ -244,7 +250,7 @@ export class Level1Scene extends Phaser.Scene {
     this.invulnerable = true;
     this.player.setAlpha(0.4);
     this.popup(this.player.x, this.player.y - 26, '−1 ♥', CSS.rescue);
-    this.time.delayedCall(CLIMB.stunMs, () => {
+    this.time.delayedCall(HIT.stunMs, () => {
       this.invulnerable = false;
       this.player.setAlpha(1);
     });
@@ -265,25 +271,53 @@ export class Level1Scene extends Phaser.Scene {
     });
   }
 
-  // Gekletterte Höhe in Metern (>= 0), relativ zur Start-Position.
+  // Höhe in Metern aus dem KAMERA-Fortschritt (nicht aus der Spieler-Position):
+  // scrollY läuft von startScrollY → 0, daher monoton steigend.
   currentHeightM() {
-    return Math.max(0, Math.round((WALL.startY - this.player.y) / PIXELS_PER_METER));
+    return Math.round((this.startScrollY - this.cameras.main.scrollY) / PIXELS_PER_METER);
+  }
+
+  // Kamera eigenständig nach oben scrollen; Speed steigt linear mit dem Höhen-
+  // Fortschritt (Beschleunigungskurve).
+  scrollCamera(delta) {
+    const cam = this.cameras.main;
+    const progress = Phaser.Math.Clamp((this.startScrollY - cam.scrollY) / this.startScrollY, 0, 1);
+    const speed = Phaser.Math.Linear(SCROLL.startSpeed, SCROLL.endSpeed, progress);
+    cam.scrollY = Math.max(0, cam.scrollY - (speed * delta) / 1000);
+  }
+
+  // Spieler im sichtbaren Ausschnitt halten. NACHSCHLAG2.1: oben UND unten
+  // geclampt (spielbar ohne Tod). Der untere Clamp wird in NACHSCHLAG2.3 durch
+  // das „Rausdrücken kostet ein Leben" ersetzt.
+  clampPlayerToView() {
+    const cam = this.cameras.main;
+    const top = cam.scrollY + 18;
+    const bottom = cam.scrollY + GAME.height - 18;
+    if (this.player.y < top) {
+      this.player.y = top;
+      if (this.player.body.velocity.y < 0) this.player.body.velocity.y = 0;
+    } else if (this.player.y > bottom) {
+      this.player.y = bottom;
+      if (this.player.body.velocity.y > 0) this.player.body.velocity.y = 0;
+    }
   }
 
   update(time, delta) {
     if (this.finished) return;
+
+    this.scrollCamera(delta);
     this.player.update();
+    this.clampPlayerToView();
     this.updateBrocken(delta);
 
     const heightM = this.currentHeightM();
     if (heightM > this.maxHeightM) this.maxHeightM = heightM;
 
     const timeMs = this.time.now - this.startedAt;
-    // Anzeige + Score basieren auf der MAX erreichten Höhe (NACHSCHLAG.1):
-    // beim Runter-/wieder-Hochfahren springt die Höhe nicht zurück, kein
-    // Doppelzählen.
     this.hud.update({ lives: this.lives, score: this.score, heightM: this.maxHeightM, timeMs });
 
+    // Kamera am Wand-Ende angekommen → durchgehalten → Sieg.
+    if (this.cameras.main.scrollY <= 0) this.win();
     if (timeMs >= TIMEOUT_MS) this.gameOver('timeout');
   }
 }

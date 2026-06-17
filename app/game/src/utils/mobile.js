@@ -1,27 +1,29 @@
-// Touch-Steuerung für die Auto-Climb-Mechanik (Phase B_GAME2_KLETTERN, Spec §6).
+// Touch-Steuerung für die Forced-Scroll-Mechanik (NACHSCHLAG2, Spec-Vorgabe:
+// Swipe/Halten = bewegen, Tap = Sprung).
 //
-//   • Bildschirmhälfte gedrückt HALTEN → in diese Richtung lenken (links/rechts),
-//     solange gehalten
-//   • Kurzes TIPPEN (Tap) irgendwo → Sprung
+//   • Finger HALTEN → Spieler bewegt sich in Richtung der Berührung relativ zur
+//     Bildschirmmitte (frei in 2D: hoch/runter/seitlich), mit Deadzone in der
+//     Mitte
+//   • Kurzes TIPPEN (Tap) → Sprung
 //
-// Der Auto-Climb macht „hoch" überflüssig — Lenken + Springen genügen. Tap vs.
-// Halten wird über Dauer + Bewegung unterschieden. Multitouch-fähig; auf Geräten
-// ohne Touch inert (Maus löst nichts aus).
-const TAP_MS = 220; // kürzer = Tap (Sprung)
-const TAP_MOVE = 18; // Bewegung darüber zählt nicht mehr als Tap
+// Auf Geräten ohne Touch inert (Maus löst nichts aus).
+const TAP_MS = 220;
+const TAP_MOVE = 18;
+const DEADZONE = 30; // px um die Mitte → keine Bewegung
 
 export class TouchControls {
   constructor(scene) {
     this.scene = scene;
-    this.left = false;
-    this.right = false;
+    this.moveX = 0;
+    this.moveY = 0;
     this.jumpQueued = false;
-    this.held = new Map(); // pointerId → { side, t, x, moved }
+    this.held = new Map(); // pointerId → { t, x, y, moved }
+    this.activeId = null; // der Pointer, der gerade bewegt
 
     this.active = scene.sys.game.device.input.touch;
     if (!this.active) return;
 
-    scene.input.addPointer(2); // bis zu 3 gleichzeitige Pointer
+    scene.input.addPointer(2);
 
     this.onDown = this.onDown.bind(this);
     this.onMove = this.onMove.bind(this);
@@ -33,46 +35,43 @@ export class TouchControls {
     scene.events.once('destroy', () => this.destroy());
   }
 
-  sideOf(pointer) {
-    return pointer.x < this.scene.scale.width / 2 ? 'left' : 'right';
+  computeMove(pointer) {
+    if (pointer.id !== this.activeId) return;
+    const dx = pointer.x - this.scene.scale.width / 2;
+    const dy = pointer.y - this.scene.scale.height / 2;
+    this.moveX = Math.abs(dx) < DEADZONE ? 0 : Math.sign(dx);
+    this.moveY = Math.abs(dy) < DEADZONE ? 0 : Math.sign(dy);
   }
 
   onDown(pointer) {
-    this.held.set(pointer.id, {
-      side: this.sideOf(pointer),
-      t: this.scene.time.now,
-      x: pointer.x,
-      moved: false,
-    });
-    this.recompute();
+    this.held.set(pointer.id, { t: this.scene.time.now, x: pointer.x, y: pointer.y, moved: false });
+    if (this.activeId === null) this.activeId = pointer.id;
+    this.computeMove(pointer);
   }
 
   onMove(pointer) {
     const h = this.held.get(pointer.id);
     if (!h) return;
-    if (Math.abs(pointer.x - h.x) > TAP_MOVE) h.moved = true;
-    h.side = this.sideOf(pointer);
-    this.recompute();
+    if (Math.abs(pointer.x - h.x) > TAP_MOVE || Math.abs(pointer.y - h.y) > TAP_MOVE) h.moved = true;
+    this.computeMove(pointer);
   }
 
   onUp(pointer) {
     const h = this.held.get(pointer.id);
     if (h) {
       const dt = this.scene.time.now - h.t;
-      // Kurz + kaum bewegt = Tap → Sprung.
       if (dt < TAP_MS && !h.moved) this.jumpQueued = true;
       this.held.delete(pointer.id);
     }
-    this.recompute();
-  }
-
-  // Lenk-Richtung aus allen aktuell gehaltenen Pointern ableiten.
-  recompute() {
-    this.left = false;
-    this.right = false;
-    for (const h of this.held.values()) {
-      if (h.side === 'left') this.left = true;
-      else this.right = true;
+    if (pointer.id === this.activeId) {
+      this.activeId = null;
+      this.moveX = 0;
+      this.moveY = 0;
+      // Falls noch ein Finger liegt: der übernimmt die Bewegung.
+      for (const id of this.held.keys()) {
+        this.activeId = id;
+        break;
+      }
     }
   }
 
