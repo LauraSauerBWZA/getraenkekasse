@@ -79,46 +79,39 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     else this.setVelocityY(-CLIMB.speed);
   }
 
+  // Sprung = kurzes Hochschnellen (Brocken ausweichen). Bogen unter
+  // Welt-Schwerkraft, danach Wieder-Fangen an der (durchgehenden) Wand.
   startJump() {
     this.jumping = true;
-    this.body.setAllowGravity(true); // Bogen unter Welt-Schwerkraft
+    this.body.setAllowGravity(true);
     this.setVelocityY(CLIMB.jumpVy);
   }
 
   endJump() {
     this.jumping = false;
     this.body.setAllowGravity(false);
-    this.setVelocityY(-CLIMB.speed); // wieder an der Wand klettern
+    this.setVelocityY(-CLIMB.speed); // wieder an der Wand
   }
 
   update() {
     this.applySteer();
 
-    const inGap = this.scene.isInGap ? this.scene.isInGap(this.y) : false;
     if (this.jumpInput() && !this.jumping) this.startJump();
 
     if (this.jumping) {
-      // Bogen: Wieder-Fangen an der Wand, sobald wir fallen UND nicht (mehr) in
-      // einer Lücke sind — gelang der Sprung, geschieht das oberhalb der Lücke;
-      // misslang er, weiter unten (Höhenverlust statt Tod).
-      if (this.body.velocity.y >= 0 && !inGap) this.endJump();
-    } else if (inGap) {
-      // Kein Halt → fallen statt klettern (Schwerkraft an, kein Aufstieg).
-      this.body.setAllowGravity(true);
-      if (this.body.velocity.y < 0) this.setVelocityY(0);
+      // Bogen vorbei (fällt wieder) → wieder fangen.
+      if (this.body.velocity.y >= 0) this.endJump();
     } else {
       // Auto-Climb mit ↑/↓-Tempo-Modulation.
       this.applyVerticalTempo();
     }
 
-    this.updateAnim(inGap);
+    this.updateAnim();
   }
 
-  updateAnim(inGap) {
+  updateAnim() {
     if (this.jumping) {
       this.play(this.body.velocity.y < 0 ? 'jump' : 'fall', true);
-    } else if (inGap) {
-      this.play('fall', true);
     } else {
       const descending = this.cursors.down.isDown && !this.cursors.up.isDown;
       this.play(descending ? 'fall' : 'climb', true);

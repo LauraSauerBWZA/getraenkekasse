@@ -1,6 +1,7 @@
 import { GAME } from '../constants.js';
 
-// Level-1-Geometrie für die Auto-Climb-Felswand (Phase B_GAME2_KLETTERN).
+// Level-1-Geometrie für die Auto-Climb-Felswand (Phase B_GAME2_KLETTERN, ab
+// NACHSCHLAG.3 mit frei befahrbarer Wand: keine Lücken/Griffzonen mehr).
 // y wächst nach unten (Phaser): großes y = unten/Start, kleines y = oben/Ziel.
 
 export const WALL = {
@@ -10,71 +11,37 @@ export const WALL = {
   goalY: 150, // Windenhaken-Hotspot
 };
 
-// Lücken (griffloses Band) — erzwingen einen Sprung (Logik in B_GAME2.3).
-// Aufsteigend nach y, mit Mittelpunkt + Bandgrenzen (±70px).
-function buildGaps() {
-  const gaps = [];
-  for (let y = 2800; y <= 9200; y += 1600) {
-    gaps.push({ center: y, yTop: y - 70, yBottom: y + 70 });
-  }
-  return gaps;
-}
-export const GAPS = buildGaps();
-
-// Überhänge — blockieren je eine Spur (links/rechts), zwingen zum Ausweichen.
-// Gleichmäßige Kadenz, aber nicht zu nah an einer Lücke (sonst unfair).
+// Überhänge — ragen von einer Seite (links/rechts) in die Wand und blockieren
+// eine Spur. Einziges festes Hindernis; erzwingen seitliches Ausweichen.
 function buildOverhangs() {
   const list = [];
   let i = 0;
   for (let y = 10000; y > 1000; y -= 1100) {
-    const tooNearGap = GAPS.some((g) => Math.abs(g.center - y) < 160);
-    if (!tooNearGap) list.push({ y, side: i % 2 === 0 ? 'left' : 'right' });
+    list.push({ y, side: i % 2 === 0 ? 'left' : 'right' });
     i += 1;
   }
   return list;
 }
 export const OVERHANGS = buildOverhangs();
 
-// Durchgehende Wand = [topY, bottomY] abzüglich der Lücken → Segmente, die als
-// gekachelte TileSprites gerendert werden.
-export function wallSegments() {
-  const segs = [];
-  let top = WALL.topY;
-  for (const g of GAPS) {
-    if (g.yTop > top) segs.push({ top, bottom: g.yTop });
-    top = g.yBottom;
-  }
-  if (WALL.bottomY > top) segs.push({ top, bottom: WALL.bottomY });
-  return segs;
-}
-
-// Prüft, ob eine y-Position in einer Lücke liegt (kein Halt → fallen/springen).
-export function isInGap(y) {
-  return GAPS.some((g) => y >= g.yTop && y <= g.yBottom);
-}
-
-// Sammelbares entlang der Kletterroute (Spec §4.2). Karabiner häufig (Zickzack),
-// Seile seltener, Getränke knapp oberhalb einer Lücke (Belohnung fürs
-// Überspringen = riskante Stelle). Positionen in Lücken werden ausgelassen.
+// Sammelbares entlang der Kletterroute (Spec §4.2). Karabiner im Zickzack
+// (häufig), Seile seltener, Getränke vereinzelt an riskanten Höhen.
 export function buildCollectibles() {
   const items = [];
 
   let toggle = 0;
   for (let y = WALL.startY - 500; y > WALL.goalY + 200; y -= 700) {
-    if (isInGap(y)) continue;
     items.push({ x: toggle % 2 === 0 ? 150 : 330, y, type: 'carabiner' });
     toggle += 1;
   }
 
   for (let y = WALL.startY - 1200; y > WALL.goalY + 400; y -= 2400) {
-    if (isInGap(y)) continue;
     items.push({ x: 240, y, type: 'rope' });
   }
 
-  // Getränke an jeder zweiten Lücke (≈3 Stück, riskante Stellen).
-  GAPS.forEach((g, i) => {
-    if (i % 2 === 0) items.push({ x: 240, y: g.yTop - 60, type: 'drink' });
-  });
+  for (let y = WALL.startY - 2600; y > WALL.goalY + 800; y -= 3200) {
+    items.push({ x: 240, y, type: 'drink' });
+  }
 
   return items;
 }

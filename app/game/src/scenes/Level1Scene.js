@@ -10,7 +10,7 @@ import {
   CLIMB,
   BROCKEN,
 } from '../constants.js';
-import { WALL, OVERHANGS, COLLECTIBLES, wallSegments, isInGap } from '../levels/level1.js';
+import { WALL, OVERHANGS, COLLECTIBLES } from '../levels/level1.js';
 import { Player } from '../sprites/Player.js';
 import { Collectible } from '../sprites/Collectible.js';
 import { Hud } from '../utils/hud.js';
@@ -71,15 +71,13 @@ export class Level1Scene extends Phaser.Scene {
     }
   }
 
-  // Durchgehende Wand als gekachelte Segmente (Lücken bleiben offen = Himmel),
+  // Durchgehende, frei befahrbare Wand (ein TileSprite über die ganze Höhe)
   // plus solide Überhang-Blöcke, die je eine Spur blockieren.
   buildWall() {
-    for (const seg of wallSegments()) {
-      const h = seg.bottom - seg.top;
-      this.add
-        .tileSprite(GAME.width / 2, (seg.top + seg.bottom) / 2, GAME.width, h, 'wall')
-        .setScrollFactor(1);
-    }
+    const h = WALL.bottomY - WALL.topY;
+    this.add
+      .tileSprite(GAME.width / 2, (WALL.topY + WALL.bottomY) / 2, GAME.width, h, 'wall')
+      .setScrollFactor(1);
 
     this.overhangs = this.physics.add.staticGroup();
     for (const o of OVERHANGS) {
@@ -265,11 +263,6 @@ export class Level1Scene extends Phaser.Scene {
       duration: 700,
       onComplete: () => t.destroy(),
     });
-  }
-
-  // Liegt y in einer Lücke (kein Halt)? Vom Player für Fallen/Sprung genutzt.
-  isInGap(y) {
-    return isInGap(y);
   }
 
   // Gekletterte Höhe in Metern (>= 0), relativ zur Start-Position.

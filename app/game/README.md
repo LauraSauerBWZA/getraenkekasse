@@ -38,7 +38,9 @@ src/
 public/assets/      sprites/ + sounds/ (später echte Assets)
 ```
 
-## Steuerung
+## Steuerung (Auto-Climb, ab B_GAME2_KLETTERN)
 
-- **Desktop:** ← → bewegen, Leertaste springen
-- **Mobile:** Swipe links/rechts bewegen, Tap unten springen (ab B_GAME.9)
+Der Alpinist klettert automatisch hoch; gesteuert wird Tempo + Seite + Sprung.
+
+- **Desktop:** ← → lenken · ↑ schneller hoch / ↓ langsamer–stopp–runter · **Leertaste** springen (Brocken ausweichen) · ESC Menü
+- **Mobile:** Bildschirmhälfte halten = lenken · kurzer Tap = springen (Tempo ist auf Mobile das Grund-Tempo)
