@@ -7,6 +7,7 @@ import { buildInviteUrl, email } from '../email/adapter.js';
 import { computeGuthabenCent } from '../domain/guthaben.js';
 import { istLetzterAktiverAdmin, softDeleteUser, verwalterTopfCent } from '../domain/account.js';
 import { reassignOffeneAnfragen } from '../domain/lastverteilung.js';
+import { buildGesamtExport, buildMemberExport } from '../domain/export.js';
 import { logger } from '../logger.js';
 
 export const adminRouter = Router();
@@ -169,6 +170,47 @@ adminRouter.get('/admin/users/:id', async (req, res) => {
 
   const guthabenCent = await computeGuthabenCent(user.id);
   return res.json({ user: { ...user, guthabenCent }, transaktionen });
+});
+
+// GET /admin/users/:id/export — Admin exportiert die Daten EINES Mitglieds als
+// JSON-Download (DSGVO §9). Gleiche Serialisierungs-Form wie der frühere
+// /me/export (gemeinsamer Helper buildMemberExport), nur für die per :id gewählte
+// Person. requireAdmin (adminRouter-Gate). Unbekannte ID → 404.
+adminRouter.get('/admin/users/:id/export', async (req, res) => {
+  const core = await buildMemberExport(req.params.id);
+  if (!core) return res.status(404).json({ error: 'Mitglied nicht gefunden.' });
+
+  const exportData = {
+    exportiertAm: new Date().toISOString(),
+    hinweis:
+      'Daten eines einzelnen Mitglieds aus der Bergwacht-Getränkekasse (Admin-Export, DSGVO §9).',
+    ...core,
+  };
+
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="getraenkekasse-mitglied-${req.params.id}.json"`,
+  );
+  return res.send(JSON.stringify(exportData, null, 2));
+});
+
+// GET /admin/export — Gesamt-Export als JSON-Download (DSGVO §9): alle aktiven
+// Mitglieder mit ihren Transaktionen + alle Kassen-Transaktionen + Drink-Katalog
+// (gemeinsamer Helper buildGesamtExport). requireAdmin (adminRouter-Gate).
+adminRouter.get('/admin/export', async (_req, res) => {
+  const core = await buildGesamtExport();
+
+  const exportData = {
+    exportiertAm: new Date().toISOString(),
+    hinweis:
+      'Gesamt-Export der Bergwacht-Getränkekasse: alle aktiven Mitglieder mit Transaktionen, Kassen-Transaktionen und Drink-Katalog (Admin-Export, DSGVO §9).',
+    ...core,
+  };
+
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="getraenkekasse-gesamt-export.json"');
+  return res.send(JSON.stringify(exportData, null, 2));
 });
 
 // POST /admin/korrektur — manuelle Guthaben-Korrektur eines Mitglieds (B2g, §4).

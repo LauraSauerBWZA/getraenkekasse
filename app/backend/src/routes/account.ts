@@ -1,8 +1,6 @@
 import { Router } from 'express';
-import { prisma } from '../db.js';
 import { requireAuth } from '../auth/middleware.js';
 import { COOKIE_NAME } from '../auth/jwt.js';
-import { computeGuthabenCent } from '../domain/guthaben.js';
 import { istLetzterAktiverAdmin, softDeleteUser } from '../domain/account.js';
 import { logger } from '../logger.js';
 
@@ -30,75 +28,7 @@ accountRouter.delete('/me', async (req, res) => {
   return res.json({ ok: true });
 });
 
-// GET /me/export — Datenexport (Account-A §3.4, DSGVO §9). NUR eigene Daten als
-// JSON: Profil + eigene Transaktionen (inkl. Drink-Name) + eigene Aufladungs-
-// Anfragen. BEWUSST NICHT: fremde Daten, aggregierte App-Statistiken, Kassen-
-// Daten (§9). Frontend lädt das als Datei herunter.
-accountRouter.get('/me/export', async (req, res) => {
-  const userId = req.auth!.sub;
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      isAdmin: true,
-      isLeitung: true,
-      createdAt: true,
-    },
-  });
-  if (!user) return res.status(404).json({ error: 'User nicht gefunden.' });
-
-  const [txs, anfragen, guthabenCent] = await Promise.all([
-    prisma.transaktion.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      include: { drink: { select: { name: true } } },
-    }),
-    prisma.aufladungsAnfrage.findMany({
-      where: { userId },
-      orderBy: { requestedAt: 'desc' },
-      select: {
-        id: true,
-        betragCent: true,
-        status: true,
-        requestedAt: true,
-        decidedAt: true,
-        adminNotiz: true,
-      },
-    }),
-    computeGuthabenCent(userId),
-  ]);
-
-  const transaktionen = txs.map((t) => ({
-    id: t.id,
-    typ: t.typ,
-    betragCent: t.betragCent,
-    drinkName: t.drink?.name ?? null,
-    notiz: t.notiz,
-    createdAt: t.createdAt,
-  }));
-
-  const exportData = {
-    exportiertAm: new Date().toISOString(),
-    hinweis:
-      'Eigene Daten aus der Bergwacht-Getränkekasse. Keine fremden, aggregierten oder Kassen-Daten enthalten.',
-    profil: {
-      vorname: user.firstName,
-      nachname: user.lastName,
-      email: user.email,
-      rollen: { admin: user.isAdmin, leitung: user.isLeitung },
-      mitgliedSeit: user.createdAt,
-      guthabenCent,
-    },
-    transaktionen,
-    aufladungsAnfragen: anfragen,
-  };
-
-  // Als Download-freundliche JSON-Datei ausliefern.
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="getraenkekasse-export.json"');
-  return res.send(JSON.stringify(exportData, null, 2));
-});
+// Datenexport ist seit „Export admin-exklusiv" KEINE Mitglieder-Funktion mehr.
+// Der frühere GET /me/export ist entfernt — Export läuft ausschließlich über die
+// Admin-Routen GET /admin/users/:id/export (einzeln) und GET /admin/export
+// (gesamt), beide hinter requireAdmin (routes/admin.ts, domain/export.ts).

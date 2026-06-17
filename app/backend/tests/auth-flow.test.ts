@@ -2516,7 +2516,7 @@ describe('Account-A — Löschen + Export', () => {
     expect(login.status).toBe(403);
   });
 
-  it('Export (GET /me/export): nur eigene Daten, kein fremder/aggregierter/Kassen-Bezug', async () => {
+  it('Export: Mitglied-Selbst-Export entfernt (404); Admin exportiert EINZELN (gleiche Form, nur dieses Mitglied)', async () => {
     const m = await neuerMember('export-me@example.com', 'Expo');
     const drink = await prisma.drink.create({
       data: { name: 'Export-Drink-Mein', preisCent: 300, kategorie: 'alkoholisch' },
@@ -2527,7 +2527,8 @@ describe('Account-A — Löschen + Export', () => {
     await prisma.transaktion.create({
       data: { typ: 'KAUF', userId: m.id, erstelltVonId: m.id, drinkId: drink.id, preisAtKaufCent: 300, betragCent: -300 },
     });
-    // Ein zweites Mitglied mit eigenem, eindeutig benanntem Drink — darf NICHT auftauchen.
+    // Ein zweites Mitglied mit eigenem, eindeutig benanntem Drink — darf im
+    // EINZEL-Export von Expo NICHT auftauchen.
     const other = await neuerMember('export-other@example.com', 'Otto');
     const fremdDrink = await prisma.drink.create({
       data: { name: 'Fremd-Drink-Geheim', preisCent: 300, kategorie: 'alkoholisch' },
@@ -2536,7 +2537,13 @@ describe('Account-A — Löschen + Export', () => {
       data: { typ: 'KAUF', userId: other.id, erstelltVonId: other.id, drinkId: fremdDrink.id, preisAtKaufCent: 300, betragCent: -300 },
     });
 
-    const r = await m.ag.get('/me/export');
+    // Mitglieder-Selbst-Export ist abgeschaltet: die Route ist entfernt; der
+    // unbekannte Pfad fällt auf den adminRouter-Gate (requireAdmin) durch → das
+    // Nicht-Admin-Mitglied bekommt 403, exportiert also definitiv nicht mehr.
+    expect((await m.ag.get('/me/export')).status).toBe(403);
+
+    // Admin exportiert dieses eine Mitglied — gleiche Serialisierungs-Form wie früher /me/export.
+    const r = await agent.get(`/admin/users/${m.id}/export`);
     expect(r.status).toBe(200);
     expect(r.headers['content-disposition']).toMatch(/attachment/);
 
@@ -2548,13 +2555,84 @@ describe('Account-A — Löschen + Export', () => {
     expect(namen).toContain('Export-Drink-Mein');
     expect(Array.isArray(data.aufladungsAnfragen)).toBe(true);
 
-    // KEINE fremden Daten + KEINE Aggregat-/Kassen-Felder.
+    // NUR dieses Mitglied: KEINE fremden Daten + KEINE Aggregat-/Kassen-Felder.
     const blob = JSON.stringify(data);
     expect(blob).not.toContain('Fremd-Drink-Geheim');
     expect(blob).not.toContain('export-other@example.com');
     expect(data).not.toHaveProperty('deckungCent');
     expect(data).not.toHaveProperty('vereinsvermoegenCent');
     expect(data).not.toHaveProperty('toepfe');
+  });
+});
+
+// „Export admin-exklusiv" — Guards (Nicht-Admin → 403, anonym → 401) + Gesamt-
+// Export. Frische, isolierte Mitglieder pro Block; `agent` = Admin Laura.
+describe('Export admin-exklusiv (Guards + Gesamt)', () => {
+  async function neuerMember(email: string, firstName: string) {
+    const u = await prisma.user.create({ data: { email, firstName, lastName: 'Exp', isAdmin: false } });
+    const inv = generateInviteToken();
+    await prisma.invite.create({ data: { tokenHash: inv.hash, userId: u.id, expiresAt: inviteExpiry() } });
+    const ag = supertest.agent(app);
+    const r = await ag.post('/auth/invite-redeem').send({ token: inv.clear, password: 'Export-Pferd-9' });
+    expect(r.status).toBe(200);
+    return { id: u.id, ag };
+  }
+
+  it('Einzel-Export: anonym → 401, Nicht-Admin → 403', async () => {
+    const m = await neuerMember('exp-guard-einzel@example.com', 'Gina');
+    const anon = supertest.agent(app);
+    expect((await anon.get(`/admin/users/${m.id}/export`)).status).toBe(401);
+    expect((await m.ag.get(`/admin/users/${m.id}/export`)).status).toBe(403);
+  });
+
+  it('Gesamt-Export: anonym → 401, Nicht-Admin → 403', async () => {
+    const m = await neuerMember('exp-guard-gesamt@example.com', 'Gustav');
+    const anon = supertest.agent(app);
+    expect((await anon.get('/admin/export')).status).toBe(401);
+    expect((await m.ag.get('/admin/export')).status).toBe(403);
+  });
+
+  it('Einzel-Export: unbekannte ID → 404', async () => {
+    expect((await agent.get('/admin/users/gibts-nicht/export')).status).toBe(404);
+  });
+
+  it('Gesamt-Export (Admin): aktive Mitglieder + Transaktionen + Kassen-Transaktionen + Drink-Katalog', async () => {
+    const m = await neuerMember('exp-gesamt-mit@example.com', 'Greta');
+    const drink = await prisma.drink.create({
+      data: { name: 'Gesamt-Export-Drink', preisCent: 250, kategorie: 'alkoholfrei' },
+    });
+    // Bargeld-Aufladung erzeugt Mitglieder- UND Kassen-Transaktion atomar.
+    await agent.post('/admin/aufladung/bargeld').send({ userId: m.id, betragCent: 1000, vermerk: 'Gesamt-Export-Vermerk' });
+    await prisma.transaktion.create({
+      data: { typ: 'KAUF', userId: m.id, erstelltVonId: m.id, drinkId: drink.id, preisAtKaufCent: 250, betragCent: -250 },
+    });
+
+    const r = await agent.get('/admin/export');
+    expect(r.status).toBe(200);
+    expect(r.headers['content-disposition']).toMatch(/attachment/);
+
+    const data = r.body;
+    expect(Array.isArray(data.mitglieder)).toBe(true);
+    expect(Array.isArray(data.kassenTransaktionen)).toBe(true);
+    expect(Array.isArray(data.drinkKatalog)).toBe(true);
+
+    // Greta ist als aktives Mitglied mit ihren Transaktionen drin.
+    const greta = (data.mitglieder as Array<{ profil: { email: string }; transaktionen: Array<{ drinkName: string | null }> }>)
+      .find((u) => u.profil.email === 'exp-gesamt-mit@example.com');
+    expect(greta).toBeDefined();
+    expect(greta!.transaktionen.map((t) => t.drinkName)).toContain('Gesamt-Export-Drink');
+
+    // Drink-Katalog + Kassen-Bezug vorhanden.
+    expect((data.drinkKatalog as Array<{ name: string }>).some((d) => d.name === 'Gesamt-Export-Drink')).toBe(true);
+    expect(JSON.stringify(data.kassenTransaktionen)).toContain('Gesamt-Export-Vermerk');
+
+    // Soft-gelöschte (inaktive) User bleiben außen vor.
+    const inactive = await prisma.user.create({
+      data: { email: 'exp-inactive@example.com', firstName: 'Inaktiv', lastName: 'Exp', isActive: false },
+    });
+    const r2 = await agent.get('/admin/export');
+    expect(JSON.stringify(r2.body.mitglieder)).not.toContain('exp-inactive@example.com');
+    await prisma.user.delete({ where: { id: inactive.id } });
   });
 });
 
