@@ -44,11 +44,23 @@ export const GAME = {
 };
 
 // Arcade-Physik (Spec §6). Mario-artig: kein Reibungs-Slide, responsive.
+// (Aus B_GAME_ALPINIST; ab B_GAME2 trägt CLIMB die Bewegungswerte.)
 export const PHYS = {
   gravity: 600,
   jump: -430,
   maxFall: 460,
   speed: 170,
+};
+
+// Auto-Climb-Mechanik (Phase B_GAME2_KLETTERN). Werte sind Startwerte zum Tunen
+// (Balancing-Pass B_GAME2.6, finale Werte dort dokumentiert).
+export const CLIMB = {
+  speed: 70, // px/s stetiger Aufstieg an der Wand
+  steerSpeed: 185, // px/s horizontale Lenkung
+  jumpVy: -520, // Sprung-Impuls (Bogen-Spitze ~150px bei jumpGravity)
+  jumpGravity: 900, // Schwerkraft NUR während des Sprungs
+  smallKnockback: 100, // Rückwurf-Distanz kleiner Stein (px Höhenverlust)
+  stunMs: 1200, // Unverwundbarkeit/Blink nach Treffer
 };
 
 // Punkte pro Aktion (Spec §5/§6).

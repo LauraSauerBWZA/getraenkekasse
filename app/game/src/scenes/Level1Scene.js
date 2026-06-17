@@ -161,7 +161,8 @@ export class Level1Scene extends Phaser.Scene {
 
   spawnPlayer() {
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
-    this.physics.add.collider(this.player, this.platforms);
+    // Auto-Climb (B_GAME2): kein Plattform-Collider mehr — der Aufstieg ist
+    // geschwindigkeitsgetrieben, nicht schwerkraft-/landungsbasiert.
 
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     // Spieler vertikal etwas unter die Bildmitte legen — Klettern „nach oben".
