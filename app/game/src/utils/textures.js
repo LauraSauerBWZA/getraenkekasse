@@ -90,30 +90,7 @@ function playerTexture(scene, key, pose) {
   g.destroy();
 }
 
-// Gegnerischer Bergsteiger (24x24), zwei Lauf-Frames (rescue-rot = feindlich).
-function enemyTexture(scene, key, step) {
-  const s = 24;
-  const g = scene.make.graphics({ x: 0, y: 0, add: false });
-  g.fillStyle(0x5a2420, 1); // Beine
-  if (step === 0) {
-    g.fillRect(4, 19, 5, 5);
-    g.fillRect(15, 17, 5, 5);
-  } else {
-    g.fillRect(5, 17, 5, 5);
-    g.fillRect(14, 19, 5, 5);
-  }
-  g.fillStyle(COLORS.rescue, 1); // Körper
-  g.fillRoundedRect(3, 6, s - 6, 14, 3);
-  g.fillStyle(0x3a2f24, 1); // dunkler Helm
-  g.fillRoundedRect(5, 0, s - 10, 8, 3);
-  g.fillStyle(0xffffff, 1); // Augen
-  g.fillRect(8, 3, 2, 2);
-  g.fillRect(14, 3, 2, 2);
-  g.generateTexture(key, s, s);
-  g.destroy();
-}
-
-// Fallender Stein (16x16).
+// Kleiner fallender Stein (16x16) — Treffer = Rückwurf.
 function rockTexture(scene) {
   const s = 16;
   const g = scene.make.graphics({ x: 0, y: 0, add: false });
@@ -126,6 +103,22 @@ function rockTexture(scene) {
   g.lineStyle(1, 0x2a2420, 0.6);
   g.strokeRoundedRect(0, 0, s, s, 4);
   g.generateTexture('rock', s, s);
+  g.destroy();
+}
+
+// Großer Felsbrocken (28x28) — dunkel, deutlich größer; Treffer kostet ein Leben.
+function boulderTexture(scene) {
+  const s = 28;
+  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  g.fillStyle(0x39322b, 1);
+  g.fillRoundedRect(0, 0, s, s, 7);
+  g.fillStyle(0x241f19, 1);
+  g.fillRect(5, 7, 5, 5);
+  g.fillRect(16, 14, 6, 6);
+  g.fillRect(9, 19, 4, 4);
+  g.lineStyle(2, 0x14110d, 0.7);
+  g.strokeRoundedRect(0, 0, s, s, 7);
+  g.generateTexture('boulder', s, s);
   g.destroy();
 }
 
@@ -283,10 +276,9 @@ export function buildTextures(scene) {
   playerTexture(scene, 'player_jump', 'jump');
   playerTexture(scene, 'player_fall', 'fall');
 
-  // Gegner (B_GAME.4): Bergsteiger (2 Frames) + fallender Stein.
-  enemyTexture(scene, 'enemy_walk_a', 0);
-  enemyTexture(scene, 'enemy_walk_b', 1);
+  // Felsbrocken (B_GAME2.4): kleiner Stein (Rückwurf) + großer Brocken (−1 Leben).
   rockTexture(scene);
+  boulderTexture(scene);
 
   // Collectibles (B_GAME.5).
   carabinerTexture(scene);

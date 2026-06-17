@@ -7,6 +7,8 @@ import {
   START_LIVES,
   PIXELS_PER_METER,
   TIMEOUT_MS,
+  CLIMB,
+  BROCKEN,
 } from '../constants.js';
 import { WALL, OVERHANGS, wallSegments, isInGap } from '../levels/level1.js';
 import { Player } from '../sprites/Player.js';
@@ -40,6 +42,7 @@ export class Level1Scene extends Phaser.Scene {
     this.buildWall();
     this.spawnPlayer();
     this.buildGoal();
+    this.buildBrocken();
 
     this.touch = new TouchControls(this);
     this.hud = new Hud(this, { onMenu: () => this.scene.start(SCENES.menu) });
@@ -124,6 +127,63 @@ export class Level1Scene extends Phaser.Scene {
     });
   }
 
+  // Herabfallende Brocken (Spec §3): periodischer Spawn oberhalb des Sichtfelds,
+  // Rate steigt mit der Höhe. Akkumulator in update() statt fixem Timer, damit
+  // die Rate dynamisch mit der Kletterhöhe sinkt.
+  buildBrocken() {
+    this.brocken = this.physics.add.group();
+    this.brockenAccum = 0;
+    this.physics.add.overlap(this.player, this.brocken, (_p, b) => this.handleBrockenHit(b));
+  }
+
+  spawnBrocken() {
+    const big = Math.random() < BROCKEN.bigChance;
+    const camTop = this.cameras.main.scrollY;
+    const x = Phaser.Math.Between(24, GAME.width - 24);
+    const b = this.brocken.create(x, camTop - 30, big ? 'boulder' : 'rock');
+    b.setData('big', big);
+    b.body.setAllowGravity(false);
+    b.setVelocityY(BROCKEN.fallSpeed);
+    b.body.setSize(big ? 22 : 12, big ? 22 : 12);
+  }
+
+  updateBrocken(delta) {
+    // Spawn-Intervall sinkt linear mit der Höhe (Wandhöhe ~500 m, Spec §9).
+    const frac = Phaser.Math.Clamp(this.maxHeightM / 500, 0, 1);
+    const interval = Phaser.Math.Linear(BROCKEN.rateStartMs, BROCKEN.rateMinMs, frac);
+    this.brockenAccum += delta;
+    if (this.brockenAccum >= interval) {
+      this.brockenAccum = 0;
+      this.spawnBrocken();
+    }
+    // Brocken unter dem Sichtfeld entfernen.
+    const camBottom = this.cameras.main.scrollY + GAME.height;
+    this.brocken.children.iterate((b) => {
+      if (b && b.y > camBottom + 80) b.destroy();
+      return true;
+    });
+  }
+
+  handleBrockenHit(b) {
+    if (this.invulnerable) return;
+    const big = b.getData('big');
+    b.destroy();
+    if (big) this.hitPlayer(); // großer Brocken: −1 Leben
+    else this.hitPlayerSmall(); // kleiner Stein: Rückwurf
+  }
+
+  // Kleiner Stein: Höhenverlust (Rückwurf) + kurze Unverwundbarkeit, kein Tod.
+  hitPlayerSmall() {
+    this.invulnerable = true;
+    this.player.setAlpha(0.4);
+    this.player.y = Math.min(WALL.bottomY - 20, this.player.y + CLIMB.smallKnockback);
+    this.popup(this.player.x, this.player.y - 26, 'Rückwurf!', CSS.rescue);
+    this.time.delayedCall(CLIMB.stunMs, () => {
+      this.invulnerable = false;
+      this.player.setAlpha(1);
+    });
+  }
+
   win() {
     if (this.finished) return;
     this.finished = true;
@@ -164,13 +224,14 @@ export class Level1Scene extends Phaser.Scene {
     if (this.brockenTimer) this.brockenTimer.remove();
   }
 
-  // Treffer-Schaden mit Unverwundbarkeits-Fenster (Brocken-Logik in B_GAME2.4).
+  // Großer Brocken: −1 Leben mit Unverwundbarkeits-Fenster (Blink).
   hitPlayer() {
     if (this.invulnerable) return;
     this.lives -= 1;
     this.invulnerable = true;
     this.player.setAlpha(0.4);
-    this.time.delayedCall(1200, () => {
+    this.popup(this.player.x, this.player.y - 26, '−1 ♥', CSS.rescue);
+    this.time.delayedCall(CLIMB.stunMs, () => {
       this.invulnerable = false;
       this.player.setAlpha(1);
     });
@@ -201,9 +262,10 @@ export class Level1Scene extends Phaser.Scene {
     return Math.max(0, Math.round((WALL.startY - this.player.y) / PIXELS_PER_METER));
   }
 
-  update() {
+  update(time, delta) {
     if (this.finished) return;
     this.player.update();
+    this.updateBrocken(delta);
 
     const heightM = this.currentHeightM();
     if (heightM > this.maxHeightM) this.maxHeightM = heightM;

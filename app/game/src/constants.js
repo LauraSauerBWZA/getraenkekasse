@@ -63,6 +63,14 @@ export const CLIMB = {
   stunMs: 1200, // Unverwundbarkeit/Blink nach Treffer
 };
 
+// Herabfallende Felsbrocken (Spec §3). Startwerte zum Tunen (B_GAME2.6).
+export const BROCKEN = {
+  fallSpeed: 190, // px/s Fallgeschwindigkeit (schneller als Climb → ausweichbar)
+  rateStartMs: 2500, // Spawn-Intervall unten
+  rateMinMs: 1200, // Spawn-Intervall ganz oben (schwerer)
+  bigChance: 0.3, // 30% große Brocken (−1 Leben), 70% kleine (Rückwurf)
+};
+
 // Punkte pro Aktion (Spec §5/§6).
 export const SCORE = {
   karabiner: 50,
