@@ -286,20 +286,40 @@ export class Level1Scene extends Phaser.Scene {
     cam.scrollY = Math.max(0, cam.scrollY - (speed * delta) / 1000);
   }
 
-  // Spieler im sichtbaren Ausschnitt halten. NACHSCHLAG2.1: oben UND unten
-  // geclampt (spielbar ohne Tod). Der untere Clamp wird in NACHSCHLAG2.3 durch
-  // das „Rausdrücken kostet ein Leben" ersetzt.
-  clampPlayerToView() {
+  // Oben am Ausschnitt clampen, damit der Spieler nicht über den sichtbaren
+  // Bereich hinaus nach oben verschwindet. Unten gibt es KEINEN Clamp — dort
+  // droht das Rausdrücken (checkPushOut).
+  clampPlayerTop() {
     const cam = this.cameras.main;
     const top = cam.scrollY + 18;
-    const bottom = cam.scrollY + GAME.height - 18;
     if (this.player.y < top) {
       this.player.y = top;
       if (this.player.body.velocity.y < 0) this.player.body.velocity.y = 0;
-    } else if (this.player.y > bottom) {
-      this.player.y = bottom;
-      if (this.player.body.velocity.y > 0) this.player.body.velocity.y = 0;
     }
+  }
+
+  // Wird der Spieler von der hochscrollenden Kamera unten rausgeschoben:
+  // −1 Leben + Position-Reset in die Ausschnitt-Mitte (KEIN Höhen-Reset) + kurze
+  // Unverwundbarkeit. 0 Leben → GameOver.
+  checkPushOut() {
+    if (this.invulnerable) return;
+    const cam = this.cameras.main;
+    if (this.player.y <= cam.scrollY + GAME.height) return; // noch im Bild
+
+    this.lives -= 1;
+    if (this.lives <= 0) {
+      this.gameOver('lives');
+      return;
+    }
+    this.player.setPosition(GAME.width / 2, cam.scrollY + GAME.height / 2);
+    this.player.setVelocity(0, 0);
+    this.invulnerable = true;
+    this.player.setAlpha(0.4);
+    this.popup(this.player.x, this.player.y - 26, '−1 ♥ rausgedrückt', CSS.rescue);
+    this.time.delayedCall(HIT.stunMs, () => {
+      this.invulnerable = false;
+      this.player.setAlpha(1);
+    });
   }
 
   update(time, delta) {
@@ -307,7 +327,8 @@ export class Level1Scene extends Phaser.Scene {
 
     this.scrollCamera(delta);
     this.player.update();
-    this.clampPlayerToView();
+    this.clampPlayerTop();
+    this.checkPushOut();
     this.updateBrocken(delta);
 
     const heightM = this.currentHeightM();
