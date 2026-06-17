@@ -10,8 +10,9 @@ import {
   CLIMB,
   BROCKEN,
 } from '../constants.js';
-import { WALL, OVERHANGS, wallSegments, isInGap } from '../levels/level1.js';
+import { WALL, OVERHANGS, COLLECTIBLES, wallSegments, isInGap } from '../levels/level1.js';
 import { Player } from '../sprites/Player.js';
+import { Collectible } from '../sprites/Collectible.js';
 import { Hud } from '../utils/hud.js';
 import { TouchControls } from '../utils/mobile.js';
 
@@ -43,6 +44,7 @@ export class Level1Scene extends Phaser.Scene {
     this.spawnPlayer();
     this.buildGoal();
     this.buildBrocken();
+    this.buildCollectibles();
 
     this.touch = new TouchControls(this);
     this.hud = new Hud(this, { onMenu: () => this.scene.start(SCENES.menu) });
@@ -124,6 +126,19 @@ export class Level1Scene extends Phaser.Scene {
         a.destroy();
         b.destroy();
       },
+    });
+  }
+
+  buildCollectibles() {
+    this.collectibles = this.add.group();
+    for (const c of COLLECTIBLES) {
+      this.collectibles.add(new Collectible(this, c.x, c.y, c.type));
+    }
+    this.physics.add.overlap(this.player, this.collectibles, (_player, item) => {
+      this.score += item.value;
+      this.collectiblesFound += 1;
+      this.popup(item.x, item.y, `+${item.value}`, CSS.amberGlow);
+      item.destroy();
     });
   }
 

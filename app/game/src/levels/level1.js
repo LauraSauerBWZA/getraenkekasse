@@ -52,3 +52,30 @@ export function wallSegments() {
 export function isInGap(y) {
   return GAPS.some((g) => y >= g.yTop && y <= g.yBottom);
 }
+
+// Sammelbares entlang der Kletterroute (Spec §4.2). Karabiner häufig (Zickzack),
+// Seile seltener, Getränke knapp oberhalb einer Lücke (Belohnung fürs
+// Überspringen = riskante Stelle). Positionen in Lücken werden ausgelassen.
+export function buildCollectibles() {
+  const items = [];
+
+  let toggle = 0;
+  for (let y = WALL.startY - 500; y > WALL.goalY + 200; y -= 700) {
+    if (isInGap(y)) continue;
+    items.push({ x: toggle % 2 === 0 ? 150 : 330, y, type: 'carabiner' });
+    toggle += 1;
+  }
+
+  for (let y = WALL.startY - 1200; y > WALL.goalY + 400; y -= 2400) {
+    if (isInGap(y)) continue;
+    items.push({ x: 240, y, type: 'rope' });
+  }
+
+  // Getränke an jeder zweiten Lücke (≈3 Stück, riskante Stellen).
+  GAPS.forEach((g, i) => {
+    if (i % 2 === 0) items.push({ x: 240, y: g.yTop - 60, type: 'drink' });
+  });
+
+  return items;
+}
+export const COLLECTIBLES = buildCollectibles();
