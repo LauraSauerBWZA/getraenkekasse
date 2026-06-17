@@ -72,4 +72,5 @@ export const SCENES = {
   level1: 'level1',
   win: 'win',
   gameover: 'gameover',
+  highscore: 'highscore',
 };

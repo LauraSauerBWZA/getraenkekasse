@@ -291,12 +291,22 @@ export class Level1Scene extends Phaser.Scene {
       this.invulnerable = false;
       this.player.setAlpha(1);
     });
-    if (this.lives <= 0) this.gameOver();
+    if (this.lives <= 0) this.gameOver('lives');
   }
 
-  gameOver() {
-    // B_GAME.10 ersetzt das durch die GameOverScene. Bis dahin: Level neu starten.
-    this.scene.restart();
+  gameOver(reason) {
+    if (this.finished) return;
+    this.finished = true;
+    this.stoneTimer.remove();
+    this.physics.pause();
+    this.scene.start(SCENES.gameover, {
+      reason,
+      score: this.score + this.maxHeightM,
+      heightM: this.maxHeightM,
+      timeMs: this.time.now - this.startedAt,
+      collectiblesFound: this.collectiblesFound,
+      enemiesDefeated: this.enemiesDefeated,
+    });
   }
 
   // Gekletterte Höhe in Metern (>= 0), relativ zur Start-Position.
@@ -325,6 +335,6 @@ export class Level1Scene extends Phaser.Scene {
     this.hud.update({ lives: this.lives, score: this.score, heightM, timeMs });
 
     // Timeout (Spec §7): nach 5 Minuten Game Over.
-    if (timeMs >= TIMEOUT_MS) this.gameOver();
+    if (timeMs >= TIMEOUT_MS) this.gameOver('timeout');
   }
 }
