@@ -1,9 +1,11 @@
 import Phaser from 'phaser';
 import { CSS, COLORS, SCENES } from '../constants.js';
+import { makeButton } from '../utils/ui.js';
+import { fetchLeaderboard } from '../utils/api.js';
 
-// B_GAME.1: Menü-Stub. Titel, Emblem, Kurz-Erklärung, Start-Button.
-// Der Start-Button wird in B_GAME.2 die Level1Scene starten; das Leaderboard
-// und der humorvolle Text folgen in B_GAME.8/B_GAME.10.
+// Startmenü: Titel, Emblem, Kurz-Erklärung, Wochen-Bestenlisten-Preview und
+// Start-Button. Der humorvolle Text + die vollständige Highscore-Ansicht +
+// GameOverScene-Verzahnung folgen in B_GAME.10.
 export class MenuScene extends Phaser.Scene {
   constructor() {
     super(SCENES.menu);
@@ -13,17 +15,17 @@ export class MenuScene extends Phaser.Scene {
     const { width, height } = this.scale;
     this.cameras.main.setBackgroundColor(COLORS.bg);
 
-    this.add.image(width / 2, height * 0.24, 'emblem');
+    this.add.image(width / 2, height * 0.16, 'emblem');
 
     this.add
-      .text(width / 2, height * 0.4, 'BERGWACHT', {
+      .text(width / 2, height * 0.3, 'BERGWACHT', {
         fontFamily: CSS.fontDisplay,
         fontSize: '34px',
         color: CSS.amberGlow,
       })
       .setOrigin(0.5);
     this.add
-      .text(width / 2, height * 0.4 + 38, 'ALPINIST', {
+      .text(width / 2, height * 0.3 + 36, 'ALPINIST', {
         fontFamily: CSS.fontDisplay,
         fontSize: '34px',
         color: CSS.ink,
@@ -33,39 +35,84 @@ export class MenuScene extends Phaser.Scene {
     this.add
       .text(
         width / 2,
-        height * 0.58,
+        height * 0.44,
         'Erklimme den Windenhaken des Hubschraubers.\nKarabiner sammeln, Steinen ausweichen.',
         {
           fontFamily: CSS.fontUi,
-          fontSize: '14px',
+          fontSize: '13px',
           color: CSS.inkDim,
           align: 'center',
-          lineSpacing: 6,
+          lineSpacing: 5,
         },
       )
       .setOrigin(0.5);
 
-    const start = this.add
-      .text(width / 2, height * 0.76, '▶  Level 1 spielen', {
-        fontFamily: CSS.fontUi,
-        fontSize: '18px',
-        color: CSS.ink,
-        backgroundColor: CSS.amberDeep,
-        padding: { x: 22, y: 12 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
+    this.renderLeaderboardPreview(height * 0.54);
 
-    start.on('pointerover', () => start.setColor(CSS.amberGlow));
-    start.on('pointerout', () => start.setColor(CSS.ink));
-    start.on('pointerup', () => this.scene.start(SCENES.level1));
+    makeButton(this, width / 2, height * 0.86, '▶  Level 1 spielen', () =>
+      this.scene.start(SCENES.level1),
+    );
 
     this.add
-      .text(width / 2, height - 26, 'Phase B_GAME_ALPINIST · Platzhalter-Grafik', {
+      .text(width / 2, height - 22, 'Phase B_GAME_ALPINIST · Platzhalter-Grafik', {
         fontFamily: CSS.fontUi,
         fontSize: '11px',
         color: CSS.inkMute,
       })
       .setOrigin(0.5);
+  }
+
+  // Top der Woche (max 5). Lädt asynchron; bis dahin steht „lade …".
+  renderLeaderboardPreview(yTop) {
+    const { width } = this.scale;
+    const cx = width / 2;
+
+    this.add
+      .text(cx, yTop, '🏆  BESTENLISTE · DIESE WOCHE', {
+        fontFamily: CSS.fontUi,
+        fontSize: '12px',
+        color: CSS.amber,
+      })
+      .setOrigin(0.5);
+
+    const status = this.add
+      .text(cx, yTop + 28, 'lade …', { fontFamily: CSS.fontUi, fontSize: '12px', color: CSS.inkMute })
+      .setOrigin(0.5);
+
+    fetchLeaderboard('week')
+      .then((board) => {
+        status.destroy();
+        if (!board.length) {
+          this.add
+            .text(cx, yTop + 28, 'Noch keine Läufe — sei die/der Erste! 🧗', {
+              fontFamily: CSS.fontUi,
+              fontSize: '12px',
+              color: CSS.inkMute,
+            })
+            .setOrigin(0.5);
+          return;
+        }
+        board.slice(0, 5).forEach((e, i) => {
+          const rowY = yTop + 26 + i * 22;
+          const color = e.rank === 1 ? CSS.amberGlow : CSS.ink;
+          this.add
+            .text(cx - 130, rowY, `${e.rank}. ${e.userName}`, {
+              fontFamily: CSS.fontUi,
+              fontSize: '13px',
+              color,
+            })
+            .setOrigin(0, 0.5);
+          this.add
+            .text(cx + 130, rowY, `${e.score}`, {
+              fontFamily: CSS.fontUi,
+              fontSize: '13px',
+              color,
+            })
+            .setOrigin(1, 0.5);
+        });
+      })
+      .catch(() => {
+        status.setText('Bestenliste offline.').setColor(CSS.inkMute);
+      });
   }
 }

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, CSS, SCENES } from '../constants.js';
 import { formatTime } from '../utils/hud.js';
 import { makeButton } from '../utils/ui.js';
+import { postScore, fetchLeaderboard } from '../utils/api.js';
 
 // Level geschafft (Spec §7): Abflug-Animation (Haken + Alpinist werden zur
 // Kabine gezogen, Hubschrauber fliegt weg), danach Score-Summary + Buttons.
@@ -108,10 +109,41 @@ export class WinScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    y += 84;
+    // Status der Score-Speicherung + Bestenlisten-Platzierung (B_GAME.8).
+    y += 58;
+    this.statusText = this.add
+      .text(cx, y, 'Speichere Score …', {
+        fontFamily: CSS.fontUi,
+        fontSize: '13px',
+        color: CSS.inkDim,
+      })
+      .setOrigin(0.5);
+
+    y += 36;
     makeButton(this, cx, y, '▶  Nochmal', () => this.scene.start(SCENES.level1));
     makeButton(this, cx, y + 54, 'Zurück zum Menü', () => this.scene.start(SCENES.menu), {
       bg: '#241a12',
     });
+
+    this.saveAndRank();
+  }
+
+  // Score speichern und die Wochen-Platzierung anzeigen (Spec §7). Fehler (z.B.
+  // Backend offline) sind nicht spielkritisch — dann nur ein dezenter Hinweis.
+  async saveAndRank() {
+    try {
+      const saved = await postScore(this.stats);
+      const board = await fetchLeaderboard('week');
+      const mine = board.find((e) => e.userId === saved.userId);
+      if (mine && mine.rank === 1) {
+        this.statusText.setText('🥇 Neuer Spitzenreiter dieser Woche!').setColor(CSS.amberGlow);
+      } else if (mine) {
+        this.statusText.setText(`🏆 Du bist jetzt Platz ${mine.rank} diese Woche!`).setColor(CSS.amberGlow);
+      } else {
+        this.statusText.setText('Score gespeichert.').setColor(CSS.success);
+      }
+    } catch {
+      this.statusText.setText('Score nicht gespeichert (Backend offline?).').setColor(CSS.rescue);
+    }
   }
 }

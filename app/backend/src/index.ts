@@ -15,6 +15,7 @@ import { kasseRouter } from './routes/kasse.js';
 import { statistikRouter } from './routes/statistik.js';
 import { journalRouter } from './routes/journal.js';
 import { accountRouter } from './routes/account.js';
+import { gameRouter } from './routes/game.js';
 
 const isProd = env.NODE_ENV === 'production';
 
@@ -67,6 +68,9 @@ export function buildApp() {
   apiRouter.use(aufladungRouter);
   apiRouter.use(kasseRouter);
   apiRouter.use(statistikRouter);
+  // gameRouter VOR adminRouter: dessen globales requireAdmin würde sonst die
+  // /game/*-Endpoints (eigene Auth pro Route) mit 403 abfangen.
+  apiRouter.use(gameRouter);
   apiRouter.use(adminRouter);
   apiRouter.use(drinksRouter);
 

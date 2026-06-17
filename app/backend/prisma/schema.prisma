@@ -37,6 +37,7 @@ model User {
   aufladungsAnfragen                 AufladungsAnfrage[] @relation("UserAufladungsAnfragen")
   zugewieseneAufladungsAnfragen      AufladungsAnfrage[] @relation("ZugewieseneAufladungsAnfragen")
   entschiedeneAufladungsAnfragen     AufladungsAnfrage[] @relation("EntschiedeneAufladungsAnfragen")
+  gameScores                         GameScore[]
 }
 
 model Invite {
@@ -179,4 +180,24 @@ model AufladungsAnfrage {
   @@index([zugewiesenerVerwalterId])
   @@index([decidedById])
   @@index([status])
+}
+
+// GameScore — Bestenliste fürs Bergwacht-Alpinist-Spiel (Phase B_GAME_ALPINIST).
+// Additive Tabelle, kein Bezug zur Geschäftslogik. Ein Eintrag pro abgeschlossenem
+// Lauf (Sieg). score = Basis (Collectibles + besiegte Gegner) + Höhenbonus.
+model GameScore {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level             Int      @default(1)
+  score             Int
+  timeMs            Int
+  collectiblesFound Int      @default(0)
+  enemiesDefeated   Int      @default(0)
+  livesLost         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId])
+  @@index([createdAt])
 }
