@@ -11,7 +11,6 @@ export function ProfileDrawer({ onClose }: { onClose: () => void }) {
   const { user, logout, setUser } = useAuth();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   if (!user) return null;
@@ -19,28 +18,6 @@ export function ProfileDrawer({ onClose }: { onClose: () => void }) {
   const go = (to: string) => {
     onClose();
     navigate(to);
-  };
-
-  // Eigene Daten als JSON herunterladen (Account-A §3.4, §9). Nur eigene Daten.
-  const exportieren = async () => {
-    setErr(null);
-    setExporting(true);
-    try {
-      const data = await api.meExport();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'getraenkekasse-export.json';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Export fehlgeschlagen.');
-    } finally {
-      setExporting(false);
-    }
   };
 
   // Eigenes Konto löschen (Account-A §3.3): Soft-Delete + sofort ausgeloggt.
@@ -150,12 +127,9 @@ export function ProfileDrawer({ onClose }: { onClose: () => void }) {
             </Glass>
           ))}
 
-          {/* Meine Daten (Account-A): Export + Konto-Löschung */}
+          {/* Mein Konto (Account-A): Konto-Löschung. Datenexport ist seit
+              „Export admin-exklusiv" keine Mitglieder-Funktion mehr (nur Admin). */}
           <div style={{ height: 1, background: 'var(--bwza-glass-line)', margin: '2px 0' }} />
-
-          <GlassButton variant="ghost" full size="md" disabled={exporting} onClick={() => void exportieren()}>
-            {exporting ? 'Exportiere …' : 'Meine Daten exportieren'}
-          </GlassButton>
 
           {!confirmDelete ? (
             <GlassButton

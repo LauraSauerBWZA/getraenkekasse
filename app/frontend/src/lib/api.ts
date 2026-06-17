@@ -255,36 +255,6 @@ export interface MeineHistorie {
   dabeiSeitTage: number;
 }
 
-// Datenexport (Account-A, §9) — nur eigene Daten.
-export interface MeinDatenExport {
-  exportiertAm: string;
-  hinweis: string;
-  profil: {
-    vorname: string;
-    nachname: string;
-    email: string;
-    rollen: { admin: boolean; leitung: boolean };
-    mitgliedSeit: string;
-    guthabenCent: number;
-  };
-  transaktionen: Array<{
-    id: string;
-    typ: TransaktionTyp;
-    betragCent: number;
-    drinkName: string | null;
-    notiz: string | null;
-    createdAt: string;
-  }>;
-  aufladungsAnfragen: Array<{
-    id: string;
-    betragCent: number;
-    status: AufladungsStatus;
-    requestedAt: string;
-    decidedAt: string | null;
-    adminNotiz: string | null;
-  }>;
-}
-
 export class ApiError extends Error {
   constructor(public status: number, message: string, public details?: unknown) {
     super(message);
@@ -402,8 +372,10 @@ export const api = {
     request<{ ok: true; warnung: string | null }>(`/admin/users/${id}`, { method: 'DELETE' }),
   // Member: eigenes Konto löschen (Soft-Delete) → danach ausgeloggt
   deleteMe: () => request<{ ok: true }>('/me', { method: 'DELETE' }),
-  // Member: eigene Daten als JSON exportieren (nur eigene Daten, §9)
-  meExport: () => request<MeinDatenExport>('/me/export'),
+  // Admin-exklusiver Datenexport (§9). Mitglieder exportieren nicht mehr selbst.
+  // Einzeln: Daten EINES Mitglieds; Gesamt: alle aktiven User + Kasse + Drinks.
+  adminUserExport: (id: string) => request<unknown>(`/admin/users/${id}/export`),
+  adminGesamtExport: () => request<unknown>('/admin/export'),
   // Admin: Leitung-Recht vergeben/entziehen (nur isLeitung, nicht isAdmin)
   adminSetLeitung: (id: string, isLeitung: boolean) =>
     request<{ user: { id: string; firstName: string; lastName: string; isAdmin: boolean; isLeitung: boolean } }>(
@@ -490,6 +462,20 @@ export const api = {
       body: JSON.stringify(adminNotiz ? { adminNotiz } : {}),
     }),
 };
+
+// Löst einen Browser-Download einer JSON-Datei aus (Blob-Muster aus Account-A).
+// Gemeinsam genutzt von den Admin-Exporten (Einzel-Mitglied + Gesamt).
+export function downloadJson(filename: string, data: unknown): void {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 // paypal.me-Deep-Link: https://paypal.me/{link}/{betrag} (KONFIGURATION §6.5).
 // Betrag mit Punkt-Dezimaltrenner (paypal.me-Format), ganze Beträge ohne

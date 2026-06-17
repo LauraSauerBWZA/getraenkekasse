@@ -6,6 +6,7 @@ import { ScrollList } from '../components/ScrollList';
 import {
   api,
   ApiError,
+  downloadJson,
   formatGuthaben,
   type AdminUserDetail,
   type DetailTransaktion,
@@ -144,6 +145,13 @@ export default function AdminMitgliedDetail() {
       )}
 
       {detail && detail.isActive && <PasswortResetCard userId={detail.id} />}
+
+      {detail && (
+        <MitgliedExportCard
+          userId={detail.id}
+          name={`${detail.firstName} ${detail.lastName}`}
+        />
+      )}
 
       <Historie txs={txs} onChanged={() => void load()} />
 
@@ -514,6 +522,45 @@ function PasswortResetCard({ userId }: { userId: string }) {
           </div>
         </>
       )}
+    </Glass>
+  );
+}
+
+// Einzel-Export eines Mitglieds (Admin-exklusiv, §9): lädt /admin/users/:id/export
+// als JSON herunter (gleiches Blob-Muster wie der Gesamt-Export). Die frühere
+// Mitglieder-Selbstausgabe ist entfernt — exportieren darf nur der Admin.
+function MitgliedExportCard({ userId, name }: { userId: string; name: string }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const exportieren = async () => {
+    setErr(null);
+    setBusy(true);
+    try {
+      const data = await api.adminUserExport(userId);
+      downloadJson(`getraenkekasse-mitglied-${userId}.json`, data);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Export fehlgeschlagen.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px', marginTop: 14 }}>
+      <div style={{ minWidth: 0 }}>
+        <div className="bwza-eyebrow">Daten exportieren</div>
+        <div style={{ marginTop: 3, fontSize: 12, color: 'var(--bwza-ink-dim)', lineHeight: 1.45 }}>
+          Lädt alle Daten von <strong>{name}</strong> als JSON-Datei herunter (Profil,
+          Transaktionen, Aufladungs-Anfragen) — für DSGVO-Auskunft.
+        </div>
+        {err && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--bwza-rescue-soft)' }}>{err}</div>}
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <GlassButton variant="ghost" full size="sm" disabled={busy} onClick={() => void exportieren()}>
+          {busy ? 'Exportiere …' : 'Daten dieses Mitglieds exportieren'}
+        </GlassButton>
+      </div>
     </Glass>
   );
 }

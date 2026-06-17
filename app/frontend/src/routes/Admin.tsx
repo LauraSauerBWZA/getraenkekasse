@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, Banknote, Beer, Inbox, Landmark, User, UserPlus, Users, type LucideIcon } from 'lucide-react';
-import { Eyebrow, Glass } from '../components/primitives';
+import { BarChart3, Banknote, Beer, Download, Inbox, Landmark, User, UserPlus, Users, type LucideIcon } from 'lucide-react';
+import { Eyebrow, Glass, GlassButton } from '../components/primitives';
 import { BackBar } from '../components/BackBar';
+import { api, ApiError, downloadJson } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 // Admin-Hub (UI-Fix 3): reine Button-Übersicht. „Mitglied einladen" ist jetzt eine
@@ -92,7 +94,46 @@ export default function Admin() {
         sub="paypal.me-Link für zugewiesene Aufladungen pflegen"
         onClick={() => navigate('/admin/profil')}
       />
+
+      <GesamtExportCard />
     </div>
+  );
+}
+
+// Gesamt-Export (Admin-exklusiv, §9): lädt /admin/export als JSON herunter —
+// alle aktiven Mitglieder mit Transaktionen + Kassen-Transaktionen + Drink-
+// Katalog. Eigene Stelle unter den Hub-Buttons (Verwaltung-Hub).
+function GesamtExportCard() {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const exportieren = async () => {
+    setErr(null);
+    setBusy(true);
+    try {
+      const data = await api.adminGesamtExport();
+      downloadJson('getraenkekasse-gesamt-export.json', data);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Export fehlgeschlagen.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px', marginTop: 18 }}>
+      <Eyebrow icon={Download}>Daten</Eyebrow>
+      <div style={{ marginTop: 3, fontSize: 12, color: 'var(--bwza-ink-dim)', lineHeight: 1.45 }}>
+        Gesamt-Export als JSON: alle aktiven Mitglieder mit Transaktionen, Kassen-Transaktionen
+        und der Drink-Katalog.
+      </div>
+      {err && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--bwza-rescue-soft)' }}>{err}</div>}
+      <div style={{ marginTop: 12 }}>
+        <GlassButton variant="ghost" full size="sm" disabled={busy} onClick={() => void exportieren()}>
+          {busy ? 'Exportiere …' : 'Alle Daten exportieren'}
+        </GlassButton>
+      </div>
+    </Glass>
   );
 }
 
