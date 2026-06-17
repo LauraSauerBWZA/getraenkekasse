@@ -20,19 +20,6 @@ function rectTexture(scene, key, w, h, fill, opts = {}) {
   g.destroy();
 }
 
-// 16x16-Plattform-Kachel mit hellerer Oberkante (Pixel-Anmutung).
-function tileTexture(scene, key, base, top) {
-  const g = scene.make.graphics({ x: 0, y: 0, add: false });
-  g.fillStyle(base, 1);
-  g.fillRect(0, 0, 16, 16);
-  g.fillStyle(top, 1);
-  g.fillRect(0, 0, 16, 3);
-  g.lineStyle(1, 0x000000, 0.25);
-  g.strokeRect(0, 0, 16, 16);
-  g.generateTexture(key, 16, 16);
-  g.destroy();
-}
-
 // Alpinist-Platzhalter (22x30) in mehreren Posen für die Animationen
 // (idle/run_a/run_b/jump/fall). Beine, Arme und Helmstellung variieren je Pose;
 // Körper/Gurt bleiben gleich. Alle Koordinaten ≥ 0 (generateTexture beschneidet
@@ -263,11 +250,6 @@ export function buildTextures(scene) {
     stroke: COLORS.amberGlow,
     strokeWidth: 3,
   });
-
-  // Plattform-Kacheln nach Material (Spec §8): Fels, Eis, Holz.
-  tileTexture(scene, 'tile_rock', COLORS.rock, 0x6a5d4d);
-  tileTexture(scene, 'tile_ice', COLORS.ice, 0xc8e4f2);
-  tileTexture(scene, 'tile_wood', COLORS.wood, 0xb07a4e);
 
   // Alpinist-Posen für die Animationen (B_GAME.3).
   playerTexture(scene, 'player_idle', 'idle');

@@ -80,7 +80,6 @@ export class WinScene extends Phaser.Scene {
       ['Gesammelt', `${s.collectiblesFound}`],
       ['Höhe', `${s.heightM} m`],
       ['Zeit', formatTime(s.timeMs)],
-      ['Gegner besiegt', `${s.enemiesDefeated}`],
       ['Leben verloren', `${s.livesLost}`],
     ];
     for (const [k, v] of rows) {

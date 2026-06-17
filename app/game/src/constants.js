@@ -44,39 +44,36 @@ export const GAME = {
   worldHeight: 11000,
 };
 
-// Arcade-Physik (Spec §6). Mario-artig: kein Reibungs-Slide, responsive.
-// (Aus B_GAME_ALPINIST; ab B_GAME2 trägt CLIMB die Bewegungswerte.)
+// Welt-Schwerkraft (config.js). Nur während des Sprung-Bogens + für fallende
+// Brocken relevant; beim Klettern ist die Schwerkraft am Player aus.
 export const PHYS = {
   gravity: 600,
-  jump: -430,
-  maxFall: 460,
-  speed: 170,
 };
 
-// Auto-Climb-Mechanik (Phase B_GAME2_KLETTERN). Werte sind Startwerte zum Tunen
-// (Balancing-Pass B_GAME2.6, finale Werte dort dokumentiert).
+// Auto-Climb-Mechanik (Phase B_GAME2_KLETTERN). Finale Balancing-Werte aus dem
+// Pass B_GAME2.6 (im Bündel-Bericht dokumentiert) — Laura kann beim Playtest
+// nachjustieren.
 export const CLIMB = {
-  speed: 70, // px/s stetiger Aufstieg an der Wand
+  speed: 70, // px/s stetiger Aufstieg an der Wand (~2,5 Min bis oben)
   steerSpeed: 185, // px/s horizontale Lenkung
-  jumpVy: -430, // Sprung-Impuls; Bogen-Spitze ~150px bei Welt-Gravity 600
+  jumpVy: -450, // Sprung-Impuls; Bogen-Spitze ~170px bei Welt-Gravity 600
   smallKnockback: 100, // Rückwurf-Distanz kleiner Stein (px Höhenverlust)
-  stunMs: 1200, // Unverwundbarkeit/Blink nach Treffer
+  stunMs: 1200, // Unverwundbarkeit/Blink nach Treffer (ms)
 };
 
-// Herabfallende Felsbrocken (Spec §3). Startwerte zum Tunen (B_GAME2.6).
+// Herabfallende Felsbrocken (Spec §3). Finale Balancing-Werte (B_GAME2.6).
 export const BROCKEN = {
-  fallSpeed: 190, // px/s Fallgeschwindigkeit (schneller als Climb → ausweichbar)
-  rateStartMs: 2500, // Spawn-Intervall unten
-  rateMinMs: 1200, // Spawn-Intervall ganz oben (schwerer)
+  fallSpeed: 175, // px/s Fallgeschwindigkeit (schneller als Climb → ausweichbar)
+  rateStartMs: 2600, // Spawn-Intervall unten
+  rateMinMs: 1300, // Spawn-Intervall ganz oben (schwerer)
   bigChance: 0.3, // 30% große Brocken (−1 Leben), 70% kleine (Rückwurf)
 };
 
-// Punkte pro Aktion (Spec §5/§6).
+// Punkte pro Collectible (Spec §4.2).
 export const SCORE = {
   karabiner: 50,
   seil: 30,
   getraenk: 100,
-  enemy: 100,
 };
 
 export const START_LIVES = 3;
