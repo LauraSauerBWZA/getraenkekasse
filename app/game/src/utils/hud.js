@@ -12,9 +12,26 @@ export function formatTime(ms) {
 // Alle Elemente mit scrollFactor 0 (folgen der Kamera nicht) und hoher Depth,
 // damit sie über der Spielwelt liegen.
 export class Hud {
-  constructor(scene) {
+  constructor(scene, { onMenu } = {}) {
     this.scene = scene;
     const pad = 12;
+
+    // Menü-Button (ESC-Ersatz für Mobile, B_GAME.9) oben rechts.
+    if (onMenu) {
+      this.menuBtn = scene.add
+        .text(GAME.width - pad, pad, '≡ Menü', {
+          fontFamily: CSS.fontUi,
+          fontSize: '13px',
+          color: CSS.inkDim,
+          backgroundColor: '#241a12',
+          padding: { x: 8, y: 4 },
+        })
+        .setOrigin(1, 0)
+        .setScrollFactor(0)
+        .setDepth(101)
+        .setInteractive({ useHandCursor: true });
+      this.menuBtn.on('pointerup', onMenu);
+    }
 
     this.hearts = [];
     for (let i = 0; i < START_LIVES; i++) {
@@ -35,7 +52,7 @@ export class Hud {
       .setDepth(100);
 
     this.heightText = scene.add
-      .text(GAME.width - pad, pad, '▲ 0 m', {
+      .text(GAME.width - pad, pad + 30, '▲ 0 m', {
         fontFamily: CSS.fontUi,
         fontSize: '15px',
         color: CSS.ink,
@@ -45,7 +62,7 @@ export class Hud {
       .setDepth(100);
 
     this.timeText = scene.add
-      .text(GAME.width - pad, pad + 22, '00:00', {
+      .text(GAME.width - pad, pad + 52, '00:00', {
         fontFamily: CSS.fontUi,
         fontSize: '13px',
         color: CSS.inkDim,

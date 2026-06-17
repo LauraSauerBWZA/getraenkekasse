@@ -38,11 +38,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   update() {
     const onGround = this.body.blocked.down || this.body.touching.down;
-    const left = this.cursors.left.isDown;
-    const right = this.cursors.right.isDown;
+    // Tastatur (Desktop) ODER Touch-Steuerung (Mobile, B_GAME.9) zusammenführen.
+    const touch = this.scene.touch;
+    const left = this.cursors.left.isDown || (touch && touch.left);
+    const right = this.cursors.right.isDown || (touch && touch.right);
     const jumpPressed =
       Phaser.Input.Keyboard.JustDown(this.cursors.space) ||
-      Phaser.Input.Keyboard.JustDown(this.cursors.up);
+      Phaser.Input.Keyboard.JustDown(this.cursors.up) ||
+      (touch && touch.consumeJump());
 
     if (left && !right) {
       this.setVelocityX(-PHYS.speed);

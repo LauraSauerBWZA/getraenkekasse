@@ -15,6 +15,7 @@ import { Player } from '../sprites/Player.js';
 import { Enemy } from '../sprites/Enemy.js';
 import { Collectible } from '../sprites/Collectible.js';
 import { Hud } from '../utils/hud.js';
+import { TouchControls } from '../utils/mobile.js';
 
 // Plattform-Layout Level 1 (Spec §5). x = Mitte, y = Mitte, w = Breite, t = Typ.
 // Von unten (Start) nach oben (Windenhaken) im Zickzack — wechselnde Seiten
@@ -96,10 +97,41 @@ export class Level1Scene extends Phaser.Scene {
     this.buildCollectibles();
     this.buildGoal();
     this.setupCombat();
-    this.hud = new Hud(this);
 
-    // ESC → zurück ins Menü (Dev-Komfort; Pause/echtes Menü später).
+    // Touch-Steuerung (Mobile) — Player.update liest this.touch mit.
+    this.touch = new TouchControls(this);
+    this.hud = new Hud(this, { onMenu: () => this.scene.start(SCENES.menu) });
+    this.showTouchHint();
+
+    // ESC → zurück ins Menü (Desktop).
     this.input.keyboard.on('keydown-ESC', () => this.scene.start(SCENES.menu));
+  }
+
+  // Kurzer Steuer-Hinweis nur auf Touch-Geräten, blendet nach ~4s aus.
+  showTouchHint() {
+    if (!this.touch.active) return;
+    const { width, height } = this.scale;
+    const style = { fontFamily: CSS.fontUi, fontSize: '13px', color: CSS.inkMute };
+    const a = this.add
+      .text(width / 2, height * 0.4, '↤  halten zum Laufen  ↦', style)
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(99);
+    const b = this.add
+      .text(width / 2, height * 0.82, 'unten tippen = springen', style)
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(99);
+    this.tweens.add({
+      targets: [a, b],
+      alpha: 0,
+      delay: 3000,
+      duration: 1000,
+      onComplete: () => {
+        a.destroy();
+        b.destroy();
+      },
+    });
   }
 
   // Dezenter Höhen-Verlauf + Höhenmarken, damit Scrollen sichtbar ist.
