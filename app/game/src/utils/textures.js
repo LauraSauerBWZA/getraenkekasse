@@ -150,30 +150,36 @@ function drinkTexture(scene) {
   g.destroy();
 }
 
-// Durchgehende Felswand-Kachel (64x64, B_GAME2): Fels mit Greif-Optik —
-// vertikales Seil + horizontales Felsband (Leiste) eingebacken, damit die
-// gekachelte Wand „kletterbar" wirkt.
+// Durchgehende Felswand-Kachel (256x256, NACHSCHLAG.2): grobe, natürliche
+// Felsstruktur ohne Gitter/Rahmen, ohne Seil/Griffzonen — die ganze Wandbreite
+// ist frei befahrbar. Große Kachel + unregelmäßige Sprenkel/Risse lassen die
+// Wiederholung beim Kacheln kaum auffallen (Platzhalter; echte Pixel-Art folgt).
 function wallTexture(scene) {
-  const s = 64;
+  const s = 256;
   const g = scene.make.graphics({ x: 0, y: 0, add: false });
   g.fillStyle(COLORS.rock, 1);
   g.fillRect(0, 0, s, s);
-  // dunkle Sprenkel
+
+  // dunklere Felsflecken (verschiedene Größen)
   g.fillStyle(0x3a322a, 1);
-  g.fillRect(40, 10, 6, 6);
-  g.fillRect(8, 34, 5, 5);
-  g.fillRect(50, 48, 6, 5);
-  // Felsband / Leiste (Greifkante)
-  g.fillStyle(0x6a5d4d, 1);
-  g.fillRect(0, 46, s, 5);
-  // hängendes Seil
-  g.fillStyle(COLORS.inkDim, 1);
-  g.fillRect(18, 0, 3, s);
-  g.fillStyle(COLORS.amberDeep, 1);
-  g.fillRect(17, 28, 5, 4); // Knoten
-  // Kachelrahmen (dezent)
-  g.lineStyle(1, 0x000000, 0.18);
-  g.strokeRect(0, 0, s, s);
+  for (let i = 0; i < 90; i++) {
+    const w = 6 + Math.random() * 22;
+    const h = 6 + Math.random() * 22;
+    g.fillRect(Math.random() * s, Math.random() * s, w, h);
+  }
+  // hellere Aufhellungen
+  g.fillStyle(0x554a3d, 1);
+  for (let i = 0; i < 55; i++) {
+    const w = 4 + Math.random() * 16;
+    const h = 4 + Math.random() * 16;
+    g.fillRect(Math.random() * s, Math.random() * s, w, h);
+  }
+  // feine Risse
+  g.fillStyle(0x241f19, 1);
+  for (let i = 0; i < 14; i++) {
+    g.fillRect(Math.random() * s, Math.random() * s, 2, 18 + Math.random() * 40);
+  }
+
   g.generateTexture('wall', s, s);
   g.destroy();
 }
