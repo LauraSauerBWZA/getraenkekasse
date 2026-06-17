@@ -54,7 +54,9 @@ export const PHYS = {
 // Pass B_GAME2.6 (im Bündel-Bericht dokumentiert) — Laura kann beim Playtest
 // nachjustieren.
 export const CLIMB = {
-  speed: 70, // px/s stetiger Aufstieg an der Wand (~2,5 Min bis oben)
+  speed: 70, // px/s Grund-Tempo (Vorwärtsdrang, wenn keine Taste)
+  fastSpeed: 155, // px/s mit ↑ (schneller hoch)
+  downSpeed: 115, // px/s mit ↓ (kontrolliert runter)
   steerSpeed: 185, // px/s horizontale Lenkung
   jumpVy: -450, // Sprung-Impuls; Bogen-Spitze ~170px bei Welt-Gravity 600
   smallKnockback: 100, // Rückwurf-Distanz kleiner Stein (px Höhenverlust)

@@ -286,7 +286,10 @@ export class Level1Scene extends Phaser.Scene {
     if (heightM > this.maxHeightM) this.maxHeightM = heightM;
 
     const timeMs = this.time.now - this.startedAt;
-    this.hud.update({ lives: this.lives, score: this.score, heightM, timeMs });
+    // Anzeige + Score basieren auf der MAX erreichten Höhe (NACHSCHLAG.1):
+    // beim Runter-/wieder-Hochfahren springt die Höhe nicht zurück, kein
+    // Doppelzählen.
+    this.hud.update({ lives: this.lives, score: this.score, heightM: this.maxHeightM, timeMs });
 
     if (timeMs >= TIMEOUT_MS) this.gameOver('timeout');
   }

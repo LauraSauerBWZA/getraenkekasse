@@ -61,14 +61,22 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  // Sprung-Intent aus Tastatur ODER Touch.
+  // Sprung-Intent: SPACE (Desktop) oder Tap (Touch). ↑ ist seit NACHSCHLAG.1
+  // NICHT mehr Sprung, sondern Tempo (siehe applyVerticalTempo).
   jumpInput() {
     const touch = this.scene.touch;
-    return (
-      Phaser.Input.Keyboard.JustDown(this.cursors.space) ||
-      Phaser.Input.Keyboard.JustDown(this.cursors.up) ||
-      (touch && touch.consumeJump())
-    );
+    return Phaser.Input.Keyboard.JustDown(this.cursors.space) || (touch && touch.consumeJump());
+  }
+
+  // Vertikales Tempo (NACHSCHLAG.1): ↑ schneller hoch, ↓ langsamer/runter,
+  // sonst Grund-Tempo. Moduliert den Auto-Climb, ersetzt ihn nicht.
+  applyVerticalTempo() {
+    this.body.setAllowGravity(false);
+    const up = this.cursors.up.isDown;
+    const down = this.cursors.down.isDown;
+    if (up && !down) this.setVelocityY(-CLIMB.fastSpeed);
+    else if (down && !up) this.setVelocityY(CLIMB.downSpeed);
+    else this.setVelocityY(-CLIMB.speed);
   }
 
   startJump() {
@@ -99,9 +107,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.body.setAllowGravity(true);
       if (this.body.velocity.y < 0) this.setVelocityY(0);
     } else {
-      // Auto-Climb.
-      this.body.setAllowGravity(false);
-      this.setVelocityY(-CLIMB.speed);
+      // Auto-Climb mit ↑/↓-Tempo-Modulation.
+      this.applyVerticalTempo();
     }
 
     this.updateAnim(inGap);
@@ -113,7 +120,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     } else if (inGap) {
       this.play('fall', true);
     } else {
-      this.play('climb', true);
+      const descending = this.cursors.down.isDown && !this.cursors.up.isDown;
+      this.play(descending ? 'fall' : 'climb', true);
     }
   }
 }
