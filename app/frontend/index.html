@@ -3,7 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- Kein User-Zoom (iOS-Standalone-PWA): maximum-scale=1 + user-scalable=no
+         verhindern Pinch-Zoom und gezoomten Start — Hauptursache des wahrgenommenen
+         Seitwärts-Wischens + scheinbar nicht-fixer BackBar. viewport-fit=cover MUSS
+         bleiben (Safe-Area-Insets, env(safe-area-inset-*)). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <!-- PWA (B6): kühler Charcoal (#0D1116 = --bwza-bg) für Browser-/Status-Leiste -->
     <meta name="theme-color" content="#0D1116" />
     <!-- iOS „Zum Home-Bildschirm" (nutzt Manifest + apple-touch-icon, ohne SW) -->

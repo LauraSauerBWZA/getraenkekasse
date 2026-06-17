@@ -21,6 +21,10 @@ html, body, #root {
      Gummiband/Pan NICHT — `overscroll-behavior-x: none` sperrt die X-Achse hart
      (kein Wischen/Verschieben nach links/rechts mehr). Y-Scroll bleibt normal. */
   overscroll-behavior-x: none;
+  /* Verstärkung zum viewport-Meta (user-scalable=no): `pan-y` unterbindet die
+     Pinch-Zoom- UND horizontale Pan-Geste schon auf Touch-Ebene; vertikales
+     Scrollen bleibt erhalten. Die App hat keine horizontal scrollbaren Elemente. */
+  touch-action: pan-y;
 }
 
 body {
