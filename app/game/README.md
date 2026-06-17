@@ -38,9 +38,10 @@ src/
 public/assets/      sprites/ + sounds/ (später echte Assets)
 ```
 
-## Steuerung (Auto-Climb, ab B_GAME2_KLETTERN)
+## Steuerung (Forced-Scroll, ab B_GAME2_KLETTERN/NACHSCHLAG2)
 
-Der Alpinist klettert automatisch hoch; gesteuert wird Tempo + Seite + Sprung.
+Die Kamera scrollt eigenständig hoch — der Spieler muss mithalten. Der Alpinist
+bewegt sich frei im Ausschnitt; wird er unten rausgedrückt, kostet das ein Leben.
 
-- **Desktop:** ← → lenken · ↑ schneller hoch / ↓ langsamer–stopp–runter · **Leertaste** springen (Brocken ausweichen) · ESC Menü
-- **Mobile:** Bildschirmhälfte halten = lenken · kurzer Tap = springen (Tempo ist auf Mobile das Grund-Tempo)
+- **Desktop:** ← → ↑ ↓ frei bewegen · **Leertaste** springen (schnelles Ausweichen) · ESC Menü
+- **Mobile:** Finger halten = bewegen (Richtung zur Bildmitte, 2D) · kurzer Tap = springen
