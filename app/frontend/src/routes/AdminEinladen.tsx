@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Trash2 } from 'lucide-react';
 import { EmptyState, Glass, GlassButton, GlassInput, Loading, StatusChip } from '../components/primitives';
 import { BackBar } from '../components/BackBar';
 import { ScrollList } from '../components/ScrollList';
@@ -293,7 +293,7 @@ export default function AdminEinladen() {
         </Glass>
       )}
 
-      <InviteList invites={invites} error={invitesError} />
+      <InviteList invites={invites} error={invitesError} onDeleted={loadInvites} />
     </div>
   );
 }
@@ -351,9 +351,11 @@ function CheckRow({
 function InviteList({
   invites,
   error,
+  onDeleted,
 }: {
   invites: AdminInvite[] | null;
   error: string | null;
+  onDeleted: () => void;
 }) {
   return (
     <div style={{ marginTop: 28 }}>
@@ -394,7 +396,7 @@ function InviteList({
       ) : (
         <ScrollList>
           {invites.map((inv) => (
-            <InviteRow key={inv.id} invite={inv} />
+            <InviteRow key={inv.id} invite={inv} onDeleted={onDeleted} />
           ))}
         </ScrollList>
       )}
@@ -402,13 +404,29 @@ function InviteList({
   );
 }
 
-function InviteRow({ invite }: { invite: AdminInvite }) {
+function InviteRow({ invite, onDeleted }: { invite: AdminInvite; onDeleted: () => void }) {
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
   const dateLine =
     invite.status === 'eingeloest' && invite.redeemedAt
       ? `Eingelöst am ${formatDate(invite.redeemedAt)}`
       : invite.status === 'abgelaufen'
         ? `Abgelaufen am ${formatDate(invite.expiresAt)}`
         : `Läuft ab am ${formatDate(invite.expiresAt)}`;
+
+  const loeschen = async () => {
+    setErr(null);
+    setBusy(true);
+    try {
+      await api.adminDeleteInvite(invite.id);
+      onDeleted();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Invite konnte nicht gelöscht werden.');
+      setBusy(false);
+    }
+  };
 
   return (
     <Glass
@@ -417,42 +435,96 @@ function InviteRow({ invite }: { invite: AdminInvite }) {
         borderRadius: 16,
         padding: '12px 14px',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        flexDirection: 'column',
         gap: 10,
       }}
     >
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div
-          style={{
-            fontFamily: 'var(--bwza-font-display)',
-            fontSize: 15,
-            fontWeight: 600,
-            color: 'var(--bwza-ink)',
-            letterSpacing: -0.1,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {invite.firstName} {invite.lastName}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div
+            style={{
+              fontFamily: 'var(--bwza-font-display)',
+              fontSize: 15,
+              fontWeight: 600,
+              color: 'var(--bwza-ink)',
+              letterSpacing: -0.1,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {invite.firstName} {invite.lastName}
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: 'var(--bwza-ink-mute)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {invite.email}
+          </div>
+          <div style={{ marginTop: 2, fontSize: 10.5, color: 'var(--bwza-ink-mute)' }}>
+            {dateLine}
+          </div>
         </div>
-        <div
-          style={{
-            fontSize: 11,
-            color: 'var(--bwza-ink-mute)',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {invite.email}
-        </div>
-        <div style={{ marginTop: 2, fontSize: 10.5, color: 'var(--bwza-ink-mute)' }}>
-          {dateLine}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <StatusChip label={STATUS_LABEL[invite.status]} tone={STATUS_TONE[invite.status]} />
+          {!confirm && (
+            <button
+              type="button"
+              onClick={() => { setConfirm(true); setErr(null); }}
+              aria-label={`Invite für ${invite.firstName} ${invite.lastName} löschen`}
+              style={{
+                all: 'unset',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                color: 'var(--bwza-ink-mute)',
+              }}
+            >
+              <Trash2 size={16} strokeWidth={2} aria-hidden />
+            </button>
+          )}
         </div>
       </div>
-      <StatusChip label={STATUS_LABEL[invite.status]} tone={STATUS_TONE[invite.status]} />
+
+      {confirm && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 12, color: 'var(--bwza-ink-dim)' }}>
+            Invite für <strong>{invite.firstName} {invite.lastName}</strong> löschen?
+          </div>
+          {err && <div style={{ fontSize: 11, color: 'var(--bwza-rescue-soft)' }}>{err}</div>}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <GlassButton
+              variant="ghost"
+              full
+              size="sm"
+              type="button"
+              disabled={busy}
+              onClick={() => { setConfirm(false); setErr(null); }}
+            >
+              Abbrechen
+            </GlassButton>
+            <GlassButton
+              variant="danger"
+              full
+              size="sm"
+              type="button"
+              disabled={busy}
+              onClick={() => void loeschen()}
+            >
+              {busy ? 'Lösche …' : 'Löschen'}
+            </GlassButton>
+          </div>
+        </div>
+      )}
     </Glass>
   );
 }

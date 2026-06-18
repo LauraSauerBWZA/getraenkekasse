@@ -317,6 +317,10 @@ export const api = {
       devToken?: string;
     }>(`/admin/users/${id}/reset-password`, { method: 'POST' }),
   adminInvites: () => request<{ invites: AdminInvite[] }>('/admin/invites'),
+  // Admin: einen ausgestellten Invite löschen. Verwaister Platzhalter-User wird
+  // mitentfernt (userGeloescht=true); aktivierte/transaktions-behaftete bleiben.
+  adminDeleteInvite: (id: string) =>
+    request<{ ok: true; userGeloescht: boolean }>(`/admin/invites/${id}`, { method: 'DELETE' }),
   adminDrinks: () => request<{ drinks: Drink[] }>('/admin/drinks'),
   adminDrinkCreate: (input: DrinkInput) =>
     request<{ drink: Drink }>('/admin/drinks', {

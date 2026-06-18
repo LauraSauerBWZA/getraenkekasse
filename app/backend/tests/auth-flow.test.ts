@@ -2878,6 +2878,176 @@ describe('Cleanup — Storno-DB-Guard + Anfragen-Reassign', () => {
   });
 });
 
+// Bündel 1 — Invite löschen mit Platzhalter-Guard. Deckt die harte Sicherheits-
+// Regel ab: nur verwaiste Platzhalter (nie eingelöst, kein Passwort, keine
+// Aktivität) werden mitgelöscht; eingelöste/aktivierte/transaktions-behaftete
+// User bleiben unangetastet, nur der Invite-Datensatz geht.
+describe('Invite löschen (Bündel 1)', () => {
+  it('lehnt Löschen ohne Login ab', async () => {
+    const u = await prisma.user.create({
+      data: { email: 'inv-del-anon@example.com', firstName: 'Anon', lastName: 'D' },
+    });
+    const inv = generateInviteToken();
+    const i = await prisma.invite.create({
+      data: { tokenHash: inv.hash, userId: u.id, expiresAt: inviteExpiry() },
+    });
+    const anon = supertest.agent(app);
+    const r = await anon.delete(`/admin/invites/${i.id}`);
+    expect(r.status).toBe(401);
+  });
+
+  it('lehnt Löschen ohne Admin-Recht ab', async () => {
+    const u = await prisma.user.create({
+      data: { email: 'inv-del-403@example.com', firstName: 'Forbidden', lastName: 'D' },
+    });
+    const inv = generateInviteToken();
+    const i = await prisma.invite.create({
+      data: { tokenHash: inv.hash, userId: u.id, expiresAt: inviteExpiry() },
+    });
+    const r = await memberAgent.delete(`/admin/invites/${i.id}`);
+    expect(r.status).toBe(403);
+  });
+
+  it('antwortet 404 bei unbekannter Invite-ID', async () => {
+    const r = await agent.delete('/admin/invites/gibts-nicht');
+    expect(r.status).toBe(404);
+  });
+
+  it('löscht verwaisten Platzhalter (nie eingelöst, kein Passwort, keine Aktivität) mit', async () => {
+    const u = await prisma.user.create({
+      data: { email: 'inv-del-platzhalter@example.com', firstName: 'Geist', lastName: 'D' },
+    });
+    const inv = generateInviteToken();
+    const i = await prisma.invite.create({
+      data: { tokenHash: inv.hash, userId: u.id, expiresAt: inviteExpiry() },
+    });
+
+    const r = await agent.delete(`/admin/invites/${i.id}`);
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ ok: true, userGeloescht: true });
+
+    expect(await prisma.invite.findUnique({ where: { id: i.id } })).toBeNull();
+    expect(await prisma.user.findUnique({ where: { id: u.id } })).toBeNull();
+  });
+
+  it('löscht auch einen ABGELAUFENEN, nie eingelösten Platzhalter mit', async () => {
+    const u = await prisma.user.create({
+      data: { email: 'inv-del-expired@example.com', firstName: 'Abgelaufen', lastName: 'D' },
+    });
+    const inv = generateInviteToken();
+    const i = await prisma.invite.create({
+      data: { tokenHash: inv.hash, userId: u.id, expiresAt: new Date(Date.now() - 10_000) },
+    });
+
+    const r = await agent.delete(`/admin/invites/${i.id}`);
+    expect(r.status).toBe(200);
+    expect(r.body.userGeloescht).toBe(true);
+    expect(await prisma.user.findUnique({ where: { id: u.id } })).toBeNull();
+  });
+
+  it('löscht NUR den Invite, wenn er bereits eingelöst wurde — User bleibt', async () => {
+    const u = await prisma.user.create({
+      data: { email: 'inv-del-redeemed@example.com', firstName: 'Aktiv', lastName: 'D' },
+    });
+    const inv = generateInviteToken();
+    const i = await prisma.invite.create({
+      data: {
+        tokenHash: inv.hash,
+        userId: u.id,
+        expiresAt: inviteExpiry(),
+        redeemedAt: new Date(),
+      },
+    });
+    // simulierter aktivierter User (Passwort gesetzt)
+    await prisma.user.update({ where: { id: u.id }, data: { passwordHash: 'argon2-hash' } });
+
+    const r = await agent.delete(`/admin/invites/${i.id}`);
+    expect(r.status).toBe(200);
+    expect(r.body.userGeloescht).toBe(false);
+
+    expect(await prisma.invite.findUnique({ where: { id: i.id } })).toBeNull();
+    expect(await prisma.user.findUnique({ where: { id: u.id } })).not.toBeNull();
+  });
+
+  it('rührt einen User mit Passwort NIE an (auch wenn Invite nie eingelöst)', async () => {
+    const u = await prisma.user.create({
+      data: {
+        email: 'inv-del-haspw@example.com',
+        firstName: 'HatPasswort',
+        lastName: 'D',
+        passwordHash: 'argon2-hash',
+      },
+    });
+    const inv = generateInviteToken();
+    // z.B. ein Passwort-Reset-Invite: redeemedAt=null, aber User hat schon ein Passwort.
+    const i = await prisma.invite.create({
+      data: { tokenHash: inv.hash, userId: u.id, expiresAt: inviteExpiry() },
+    });
+
+    const r = await agent.delete(`/admin/invites/${i.id}`);
+    expect(r.status).toBe(200);
+    expect(r.body.userGeloescht).toBe(false);
+    expect(await prisma.user.findUnique({ where: { id: u.id } })).not.toBeNull();
+  });
+
+  it('rührt einen User mit Transaktionen NIE an (passwordHash=null, aber Bargeld gebucht)', async () => {
+    const adminId = (await agent.get('/auth/me')).body.user.id;
+    const u = await prisma.user.create({
+      data: { email: 'inv-del-hastx@example.com', firstName: 'HatBuchung', lastName: 'D' },
+    });
+    const inv = generateInviteToken();
+    const i = await prisma.invite.create({
+      data: { tokenHash: inv.hash, userId: u.id, expiresAt: inviteExpiry() },
+    });
+    // Admin bucht dem noch nicht eingelösten User eine Bargeld-Aufladung.
+    await prisma.transaktion.create({
+      data: {
+        typ: 'AUFLADUNG_BARGELD',
+        userId: u.id,
+        erstelltVonId: adminId,
+        betragCent: 500,
+        notiz: 'Vorab bar gegeben',
+      },
+    });
+
+    const r = await agent.delete(`/admin/invites/${i.id}`);
+    expect(r.status).toBe(200);
+    expect(r.body.userGeloescht).toBe(false);
+
+    // Invite weg, User + seine Transaktion bleiben unberührt.
+    expect(await prisma.invite.findUnique({ where: { id: i.id } })).toBeNull();
+    expect(await prisma.user.findUnique({ where: { id: u.id } })).not.toBeNull();
+    expect(await prisma.transaktion.count({ where: { userId: u.id } })).toBe(1);
+  });
+
+  it('löscht nur den adressierten Invite — weitere Invites bleiben am aktivierten User', async () => {
+    const u = await prisma.user.create({
+      data: {
+        email: 'inv-del-multi@example.com',
+        firstName: 'Mehrfach',
+        lastName: 'D',
+        passwordHash: 'argon2-hash',
+      },
+    });
+    const a = generateInviteToken();
+    const b = generateInviteToken();
+    const i1 = await prisma.invite.create({
+      data: { tokenHash: a.hash, userId: u.id, expiresAt: inviteExpiry(), redeemedAt: new Date() },
+    });
+    const i2 = await prisma.invite.create({
+      data: { tokenHash: b.hash, userId: u.id, expiresAt: inviteExpiry() },
+    });
+
+    const r = await agent.delete(`/admin/invites/${i1.id}`);
+    expect(r.status).toBe(200);
+    expect(r.body.userGeloescht).toBe(false);
+
+    expect(await prisma.invite.findUnique({ where: { id: i1.id } })).toBeNull();
+    expect(await prisma.invite.findUnique({ where: { id: i2.id } })).not.toBeNull();
+    expect(await prisma.user.findUnique({ where: { id: u.id } })).not.toBeNull();
+  });
+});
+
 describe('formatVolumen', () => {
   it('formatiert ml deutsch als Liter', () => {
     expect(formatVolumen(500)).toBe('0,5 l');

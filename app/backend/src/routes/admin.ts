@@ -119,6 +119,74 @@ adminRouter.get('/admin/invites', async (_req, res) => {
   return res.json({ invites });
 });
 
+// DELETE /admin/invites/:id — einen ausgestellten Invite entfernen (Bündel 1).
+// Sicherheits-Regel (HART): Der Invite-Datensatz geht IMMER weg. Den gekoppelten
+// User nur dann mit, wenn er ein **verwaister Platzhalter** ist:
+//   - der Invite wurde NIE eingelöst (redeemedAt = null) UND
+//   - der User hat kein Passwort gesetzt (passwordHash = null) UND
+//   - es existiert KEINERLEI Aktivität an ihm: weder eigene noch erstellte
+//     Transaktionen, keine Kassen-Buchungen (als Verwalter/Ersteller), keine
+//     zugewiesenen/entschiedenen/eigenen PayPal-Anfragen, keine GameScores.
+// Sobald irgendetwas davon zutrifft (eingelöst, Passwort gesetzt, ODER schon eine
+// Admin-Bargeld-Aufladung gebucht), bleibt der User unangetastet — passwordHash=null
+// allein reicht NICHT, weil ein Admin einem noch nicht eingelösten User bereits
+// Transaktionen anlegen kann. Alles in EINER DB-Transaktion.
+adminRouter.delete('/admin/invites/:id', async (req, res) => {
+  const invite = await prisma.invite.findUnique({
+    where: { id: req.params.id },
+    include: {
+      user: {
+        select: {
+          id: true,
+          passwordHash: true,
+          _count: {
+            select: {
+              transaktionen: true,
+              erstellteTransaktionen: true,
+              kassenTransaktionenAlsVerwalter: true,
+              erstellteKassenTransaktionen: true,
+              aufladungsAnfragen: true,
+              zugewieseneAufladungsAnfragen: true,
+              entschiedeneAufladungsAnfragen: true,
+              gameScores: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!invite) return res.status(404).json({ error: 'Invite nicht gefunden.' });
+
+  const u = invite.user;
+  const c = u._count;
+  const keineAktivitaet =
+    c.transaktionen === 0 &&
+    c.erstellteTransaktionen === 0 &&
+    c.kassenTransaktionenAlsVerwalter === 0 &&
+    c.erstellteKassenTransaktionen === 0 &&
+    c.aufladungsAnfragen === 0 &&
+    c.zugewieseneAufladungsAnfragen === 0 &&
+    c.entschiedeneAufladungsAnfragen === 0 &&
+    c.gameScores === 0;
+  const istPlatzhalter =
+    invite.redeemedAt === null && u.passwordHash === null && keineAktivitaet;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.invite.delete({ where: { id: invite.id } });
+    // Nur den verwaisten Platzhalter mitlöschen. Etwaige weitere (ebenfalls nie
+    // genutzte) Invites/Sessions des Platzhalters hängen via onDelete:Cascade dran.
+    if (istPlatzhalter) {
+      await tx.user.delete({ where: { id: u.id } });
+    }
+  });
+
+  logger.info(
+    { inviteId: invite.id, userId: u.id, platzhalterGeloescht: istPlatzhalter, adminId: req.auth!.sub },
+    'Invite gelöscht.',
+  );
+  return res.json({ ok: true, userGeloescht: istPlatzhalter });
+});
+
 // GET /admin/users/:id — Mitglied-Detail (B2g): Stammdaten + Live-guthabenCent
 // + Transaktionshistorie (jüngste zuerst). Pro Transaktion zusätzlich:
 //   - drinkName: Name des gebuchten Drinks (nur bei KAUF, sonst null)
