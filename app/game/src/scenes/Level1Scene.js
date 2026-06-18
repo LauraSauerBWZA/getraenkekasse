@@ -14,6 +14,7 @@ import {
   WALL_METERS,
   EXE,
   BONUS,
+  START_GRACE_MS,
 } from '../constants.js';
 import { WALL, OVERHANGS, COLLECTIBLES, EXES, BONUS_SPOTS } from '../levels/level1.js';
 import { Player } from '../sprites/Player.js';
@@ -309,12 +310,13 @@ export class Level1Scene extends Phaser.Scene {
   }
 
   spawnBrocken() {
+    // Schon-Frist beim Start (B_GAME4B.3): keine großen Brocken, nur harmlose
+    // kleine Steine — kein unfairer Sofort-Tod vor der ersten Exe.
+    const inGrace = this.time.now < this.startedAt + START_GRACE_MS;
     // Anteil großer (gefährlicher) Brocken wächst mit der Höhe.
-    const bigChance = Phaser.Math.Linear(
-      BROCKEN.bigChanceLow,
-      BROCKEN.bigChanceHigh,
-      this.progressFrac(),
-    );
+    const bigChance = inGrace
+      ? 0
+      : Phaser.Math.Linear(BROCKEN.bigChanceLow, BROCKEN.bigChanceHigh, this.progressFrac());
     const big = Math.random() < bigChance;
     const camTop = this.cameras.main.scrollY;
     const x = Phaser.Math.Between(24, GAME.width - 24);
@@ -445,6 +447,8 @@ export class Level1Scene extends Phaser.Scene {
     const bottomLimit = cam.scrollY + GAME.height - 40;
     this.player.setPosition(anchor.x, Math.min(anchor.y, bottomLimit));
     this.player.setVelocity(0, 0);
+    // Sichtbares Sturz-Feedback: kurzes rotes Aufblitzen der Kamera.
+    cam.flash(160, 150, 30, 20);
     // Kurze Unverwundbarkeit nach dem Sturz.
     this.invulnerable = true;
     this.player.setAlpha(0.4);

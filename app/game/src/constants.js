@@ -151,6 +151,11 @@ export const EXE = {
   clipScore: 40, // Punkte fürs erfolgreiche Einklippen (B_GAME4B.4 → 50)
 };
 
+// Faire Eröffnung (B_GAME4B.3): kurze Schon-Frist beim Start, in der KEINE
+// gefährlichen (großen) Brocken spawnen — verhindert unfairen Sofort-Tod vor der
+// ersten erreichbaren Exe. Eiszapfen sind ohnehin erst ab ICICLE.introHeightM da.
+export const START_GRACE_MS = 1500;
+
 // Emblem-Bonus-Item (B_GAME4.5): selten, beweglich (pendelt), riskant platziert.
 export const BONUS = {
   score: 250, // deutlich wertvoller als normale Collectibles

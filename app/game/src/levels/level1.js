@@ -29,8 +29,11 @@ export const OVERHANGS = buildOverhangs();
 // Sichern, aber nicht trivial. Versetzt zu den Überhängen (eigenes Raster).
 export function buildExes() {
   const list = [];
+  // Faire Eröffnung (B_GAME4B.3): erste Exe früh, zentral und in Reichweite des
+  // Spieler-Starts (Mitte), damit man sich sofort sichern kann.
+  list.push({ x: GAME.width / 2 - 20, y: WALL.startY - 370, side: 'left' });
   let i = 0;
-  for (let y = WALL.startY - 350; y > WALL.goalY + 300; y -= EXE.spacingPx) {
+  for (let y = WALL.startY - 600; y > WALL.goalY + 300; y -= EXE.spacingPx) {
     const side = i % 2 === 0 ? 'left' : 'right';
     list.push({ x: side === 'left' ? EXE.inset : GAME.width - EXE.inset, y, side });
     i += 1;
