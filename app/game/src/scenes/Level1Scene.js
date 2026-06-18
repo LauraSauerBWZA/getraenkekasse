@@ -62,6 +62,9 @@ export class Level1Scene extends Phaser.Scene {
     this.showTouchHint();
 
     this.input.keyboard.on('keydown-ESC', () => this.scene.start(SCENES.menu));
+    // Einklippen-Taste (B_GAME4.2): E — linke Hand frei (Bewegung = Pfeile rechts,
+    // Sprung = Space), kollidiert nicht mit der Steuerung.
+    this.clipKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
   }
 
   buildBackground() {
@@ -153,14 +156,47 @@ export class Level1Scene extends Phaser.Scene {
   }
 
   // Exen an der Wand (B_GAME4.1): sichtbare Quickdraws, scrollen im Welt-Raster
-  // mit (scrollFactor 1). Klipp-Logik folgt in B_GAME4.2.
+  // mit (scrollFactor 1).
   buildExes() {
     this.exes = [];
+    this.lastClippedExe = null;
     for (const e of EXES) {
       const sprite = this.add.image(e.x, e.y, 'exe');
       sprite.setData('clipped', false);
       this.exes.push(sprite);
     }
+  }
+
+  // Klipp-Intent aus Taste E (Desktop) ODER Mobile-Button.
+  handleClipInput() {
+    const intent =
+      Phaser.Input.Keyboard.JustDown(this.clipKey) || (this.touch && this.touch.consumeClip());
+    if (intent) this.attemptClip();
+  }
+
+  // Einklippen (B_GAME4.2): nächste noch nicht geklippte Exe in Reichweite suchen.
+  // Erfolg → Punkte + geklippt-Markierung (kein erneutes Klippen). Schutzfenster
+  // folgt in B_GAME4.3.
+  attemptClip() {
+    let nearest = null;
+    let best = EXE.reachRadius;
+    for (const exe of this.exes) {
+      if (exe.getData('clipped')) continue;
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, exe.x, exe.y);
+      if (d <= best) {
+        best = d;
+        nearest = exe;
+      }
+    }
+    if (!nearest) {
+      this.popup(this.player.x, this.player.y - 30, 'keine Exe', CSS.inkMute); // dezentes Fehl-Feedback
+      return;
+    }
+    nearest.setData('clipped', true);
+    nearest.setTint(0x88e0a0); // geklippt-Indikator (grünlich)
+    this.score += EXE.clipScore;
+    this.lastClippedExe = nearest;
+    this.popup(nearest.x, nearest.y - 20, `+${EXE.clipScore} klick`, CSS.success);
   }
 
   buildCollectibles() {
@@ -438,6 +474,7 @@ export class Level1Scene extends Phaser.Scene {
 
     this.scrollCamera(delta);
     this.player.update();
+    this.handleClipInput();
     this.clampPlayerTop();
     this.checkPushOut();
     this.updateBrocken(delta);

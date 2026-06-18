@@ -17,6 +17,8 @@ export class TouchControls {
     this.moveX = 0;
     this.moveY = 0;
     this.jumpQueued = false;
+    this.clipQueued = false; // B_GAME4.2: Einklippen-Button gedrückt
+    this.clipBounds = null;
     this.held = new Map(); // pointerId → { t, x, y, moved }
     this.activeId = null; // der Pointer, der gerade bewegt
 
@@ -24,6 +26,7 @@ export class TouchControls {
     if (!this.active) return;
 
     scene.input.addPointer(2);
+    this.createClipButton();
 
     this.onDown = this.onDown.bind(this);
     this.onMove = this.onMove.bind(this);
@@ -35,6 +38,45 @@ export class TouchControls {
     scene.events.once('destroy', () => this.destroy());
   }
 
+  // Eigener Einklippen-Button unten links (B_GAME4.2). Bewusst KEIN Doppeltipp —
+  // der würde mit dem Sprung-Tap kollidieren. Pointer, die hier starten, lösen
+  // weder Bewegung noch Sprung aus (Sonderfall in onDown).
+  createClipButton() {
+    const w = 92;
+    const h = 56;
+    const x = 14;
+    const y = this.scene.scale.height - h - 20;
+    this.clipBounds = { x, y, w, h };
+    const bg = this.scene.add
+      .rectangle(x + w / 2, y + h / 2, w, h, 0x241a12, 0.82)
+      .setStrokeStyle(2, 0xe3a857, 0.9)
+      .setScrollFactor(0)
+      .setDepth(102);
+    const label = this.scene.add
+      .text(x + w / 2, y + h / 2, 'Klippen', {
+        fontFamily: "'Inter', system-ui, sans-serif",
+        fontSize: '15px',
+        color: '#f2cb82',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(103);
+    this.clipBtnObjs = [bg, label];
+  }
+
+  inClipBtn(pointer) {
+    const b = this.clipBounds;
+    return (
+      b && pointer.x >= b.x && pointer.x <= b.x + b.w && pointer.y >= b.y && pointer.y <= b.y + b.h
+    );
+  }
+
+  consumeClip() {
+    const c = this.clipQueued;
+    this.clipQueued = false;
+    return c;
+  }
+
   computeMove(pointer) {
     if (pointer.id !== this.activeId) return;
     const dx = pointer.x - this.scene.scale.width / 2;
@@ -44,6 +86,11 @@ export class TouchControls {
   }
 
   onDown(pointer) {
+    // Auf dem Klipp-Button: nur Einklippen, NICHT als Bewegung/Sprung werten.
+    if (this.inClipBtn(pointer)) {
+      this.clipQueued = true;
+      return;
+    }
     this.held.set(pointer.id, { t: this.scene.time.now, x: pointer.x, y: pointer.y, moved: false });
     if (this.activeId === null) this.activeId = pointer.id;
     this.computeMove(pointer);
