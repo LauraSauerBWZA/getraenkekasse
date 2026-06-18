@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type PropsWithChildren,
+} from 'react';
 import { api, ApiError, type ApiUser } from './api';
 
 interface AuthState {
@@ -15,7 +22,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<ApiUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refresh = async () => {
+  // Stabil memoisiert (useCallback), damit Verbraucher `refresh` als Effekt-
+  // Dependency nutzen können (frisches Guthaben beim Betreten/Fokussieren einer
+  // Seite), ohne eine Re-Subscribe-/Render-Schleife auszulösen.
+  const refresh = useCallback(async () => {
     try {
       const r = await api.me();
       setUser(r.user);
@@ -29,19 +39,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await api.logout();
     } finally {
       setUser(null);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    refresh();
-  }, []);
+    void refresh();
+  }, [refresh]);
 
   return (
     <AuthCtx.Provider value={{ user, loading, setUser, refresh, logout }}>{children}</AuthCtx.Provider>

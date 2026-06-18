@@ -13,6 +13,7 @@ import {
   type VerlaufTag,
 } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useRefreshOnFocus } from '../lib/useRefreshOnFocus';
 
 const TYP_LABEL: Record<TransaktionTyp, string> = {
   KAUF: 'Buchung',
@@ -40,7 +41,7 @@ function formatZeit(iso: string): string {
 }
 
 export default function Verlauf() {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const [journal, setJournal] = useState<Journal | null>(null);
   const [historie, setHistorie] = useState<MeineHistorie | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -59,6 +60,13 @@ export default function Verlauf() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Beim Zurückkehren in die laufende App Journal/Historie + Guthaben frisch holen
+  // (z.B. nach einer zwischenzeitlichen Admin-Aufladung) — kein harter Reload nötig.
+  useRefreshOnFocus(() => {
+    void load();
+    void refresh();
+  });
 
   if (!user) return null;
 

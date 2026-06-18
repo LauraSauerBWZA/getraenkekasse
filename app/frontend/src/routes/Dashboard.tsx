@@ -1,15 +1,28 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Beer } from 'lucide-react';
 import { Glass, GlassButton } from '../components/primitives';
 import { useAuth } from '../lib/auth';
+import { useRefreshOnFocus } from '../lib/useRefreshOnFocus';
 import { formatGuthaben } from '../lib/api';
 
 // „Theke" (B5a): Guthaben groß + Quick-Buchung-CTA. Kein Navigations-Hub mehr —
 // die Wege zu Buchen/Aufladen/Verlauf laufen über die Bottom-Nav, Admin/Leitung/
 // Logout über den Profil-Drawer (beide im MemberLayout).
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const navigate = useNavigate();
+
+  // Guthaben beim Betreten der Theke frisch holen (nicht nur beim ersten App-
+  // Mount) — z.B. wenn ein Admin zwischenzeitlich Bargeld/PayPal aufgeladen hat.
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+  // …und beim Zurückkehren in die laufende App (PWA/Tab wieder im Vordergrund).
+  useRefreshOnFocus(() => {
+    void refresh();
+  });
+
   if (!user) return null;
 
   const negative = user.guthabenCent < 0;
