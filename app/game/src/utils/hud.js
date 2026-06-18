@@ -70,14 +70,44 @@ export class Hud {
       .setOrigin(1, 0)
       .setScrollFactor(0)
       .setDepth(100);
+
+    // Schutzfenster-Anzeige (B_GAME4.4): „Gesichert"-Label + Restzeit-Balken,
+    // nur sichtbar solange das Fenster läuft.
+    this.securedW = 96;
+    this.securedLabel = scene.add
+      .text(pad, pad + 50, 'Gesichert', {
+        fontFamily: CSS.fontUi,
+        fontSize: '12px',
+        color: CSS.success,
+      })
+      .setScrollFactor(0)
+      .setDepth(100)
+      .setVisible(false);
+    this.securedBarBg = scene.add
+      .rectangle(pad, pad + 68, this.securedW, 6, 0x241a12, 0.85)
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(100)
+      .setVisible(false);
+    this.securedBar = scene.add
+      .rectangle(pad, pad + 68, this.securedW, 6, 0x57b877, 1)
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(101)
+      .setVisible(false);
   }
 
-  update({ lives, score, heightM, timeMs }) {
+  update({ lives, score, heightM, timeMs, securedFrac = 0 }) {
     for (let i = 0; i < this.hearts.length; i++) {
       this.hearts[i].setAlpha(i < lives ? 1 : 0.2);
     }
     this.scoreText.setText(`Score ${score}`);
     this.heightText.setText(`▲ ${heightM} m`);
     this.timeText.setText(formatTime(timeMs));
+
+    const on = securedFrac > 0;
+    this.securedLabel.setVisible(on);
+    this.securedBarBg.setVisible(on);
+    this.securedBar.setVisible(on).setScale(securedFrac, 1);
   }
 }

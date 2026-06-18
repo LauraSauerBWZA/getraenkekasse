@@ -56,6 +56,7 @@ export class Level1Scene extends Phaser.Scene {
     this.buildBrocken();
     this.buildIcicles();
     this.buildExes();
+    this.buildSecuredVisuals();
     this.buildCollectibles();
 
     this.touch = new TouchControls(this);
@@ -205,6 +206,41 @@ export class Level1Scene extends Phaser.Scene {
   // Gesichert = kurzes Schutzfenster nach dem Klippen aktiv (B_GAME4.3).
   isSecured() {
     return this.time.now < this.securedUntil;
+  }
+
+  securedFrac() {
+    return Phaser.Math.Clamp((this.securedUntil - this.time.now) / EXE.securedMs, 0, 1);
+  }
+
+  // Sicht-Feedback für „gesichert" (B_GAME4.4): Aura am Kletterer (ADD-Glow) +
+  // Seil-Linie zur zuletzt geklippten Exe. Beide nur sichtbar im Schutzfenster.
+  buildSecuredVisuals() {
+    this.aura = this.add
+      .image(this.player.x, this.player.y, 'aura')
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(49)
+      .setVisible(false);
+    this.ropeGfx = this.add.graphics().setDepth(48);
+  }
+
+  updateSecuredVisuals() {
+    const secured = this.isSecured();
+    this.aura.setVisible(secured);
+    this.ropeGfx.clear();
+    if (!secured) return;
+    // Aura pulsiert leicht und folgt dem Kletterer.
+    const pulse = 1 + 0.12 * Math.sin(this.time.now / 110);
+    this.aura.setPosition(this.player.x, this.player.y).setScale(pulse).setAlpha(0.85);
+    // Seil-Linie vom Kletterer zur zuletzt geklippten Exe (Welt-Koordinaten).
+    if (this.lastClippedExe) {
+      this.ropeGfx.lineStyle(2, 0x88e0a0, 0.85);
+      this.ropeGfx.lineBetween(
+        this.player.x,
+        this.player.y,
+        this.lastClippedExe.x,
+        this.lastClippedExe.y,
+      );
+    }
   }
 
   buildCollectibles() {
@@ -500,11 +536,19 @@ export class Level1Scene extends Phaser.Scene {
     this.updateBrocken(delta);
     this.updateIcicles(delta);
 
+    this.updateSecuredVisuals();
+
     const heightM = this.currentHeightM();
     if (heightM > this.maxHeightM) this.maxHeightM = heightM;
 
     const timeMs = this.time.now - this.startedAt;
-    this.hud.update({ lives: this.lives, score: this.score, heightM: this.maxHeightM, timeMs });
+    this.hud.update({
+      lives: this.lives,
+      score: this.score,
+      heightM: this.maxHeightM,
+      timeMs,
+      securedFrac: this.securedFrac(),
+    });
 
     // Kamera am Wand-Ende: stoppt (clampt bei 0). Jetzt muss der Haken gezielt
     // getroffen werden — Brocken/Eiszapfen fallen weiter (Show-down). Der Sieg

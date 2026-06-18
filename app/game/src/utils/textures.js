@@ -480,6 +480,21 @@ function menuEmblemTexture(scene) {
   g.destroy();
 }
 
+// Sicherungs-Aura (72x72, B_GAME4.4): weicher amberfarbener Glow-Disc aus
+// überlagerten halbtransparenten Ringen. Per ADD-Blend am gesicherten Kletterer
+// → warmes Leuchten, das den Schutzfenster-Zustand klar signalisiert.
+function auraTexture(scene) {
+  const s = 72;
+  const r = 36;
+  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  for (let i = 6; i >= 1; i--) {
+    g.fillStyle(0xf2cb82, 0.05); // amberGlow, weich gestapelt
+    g.fillCircle(r, r, (r * i) / 6);
+  }
+  g.generateTexture('aura', s, s);
+  g.destroy();
+}
+
 // HUD-Herz (16x16) — GBC-Pixel-Art (8x8-Grid ×2). Proof für den drawPixels-Helper.
 const HEART_GRID = [
   '.oo..oo.',
@@ -526,6 +541,9 @@ export function buildTextures(scene) {
 
   // HUD (B_GAME.6).
   heartTexture(scene);
+
+  // Sicherungs-Aura (B_GAME4.4): Glow am gesicherten Kletterer.
+  auraTexture(scene);
 
   // Ziel (B_GAME.7): Hubschrauber (2 Rotor-Frames) + Windenhaken.
   helicopterTexture(scene, 'helicopter', '..pppppppppp....'); // Rotor lang
