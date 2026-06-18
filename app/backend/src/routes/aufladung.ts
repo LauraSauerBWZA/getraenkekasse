@@ -20,13 +20,15 @@ aufladungRouter.use(requireAuth);
 // Neuzuweisung beim Verwalter-Wegfall (Demote/Remove) genutzt.
 
 // Verwalter-Sicht fürs Frontend — nur was zum Anzeigen/Verlinken nötig ist,
-// kein passwordHash o.ä.
+// kein passwordHash o.ä. whatsappNummer kommt mit, damit das Mitglied den
+// zuständigen Verwalter nach der Überweisung per wa.me benachrichtigen kann.
 function verwalterPublic(v: User) {
   return {
     id: v.id,
     firstName: v.firstName,
     lastName: v.lastName,
     paypalMeLink: v.paypalMeLink,
+    whatsappNummer: v.whatsappNummer,
   };
 }
 
@@ -39,23 +41,15 @@ aufladungRouter.get('/aufladung/zustaendiger-verwalter', async (_req, res) => {
   return res.json({ verwalter: verwalter ? verwalterPublic(verwalter) : null });
 });
 
-// POST /aufladung/paypal — Mitglied stellt eine PayPal-Aufladungs-Anfrage.
-// Legt eine AufladungsAnfrage mit status=OFFEN an und weist sie dem aktuell
-// zuständigen Verwalter zu (§6.5 Schritt 4). KEINE Buchung — die entsteht erst
-// bei der Admin-Bestätigung (B2f.3). Gibt den Verwalter mit zurück, damit das
-// Frontend den paypal.me-Link öffnen kann.
-const paypalAnfrageSchema = z.object({
-  betragCent: z.number().int().positive(),
-});
-
+// POST /aufladung/paypal — Mitglied stellt eine BETRAGLOSE PayPal-Aufladungs-
+// Anfrage (PayPal-Umbau). Das Mitglied überweist selbst einen frei gewählten
+// Betrag an den paypal.me-Link des zuständigen Verwalters; die echte Summe gibt
+// der Verwalter erst beim Bestätigen ein. Legt eine AufladungsAnfrage mit
+// status=OFFEN und betragCent=null an, zugewiesen an den aktuell zuständigen
+// Verwalter (§6.5/§6.9). KEINE Buchung. Gibt den Verwalter zurück, damit das
+// Frontend paypal.me öffnen + die WhatsApp-Benachrichtigung bauen kann.
+// Kein Request-Body nötig (betraglos).
 aufladungRouter.post('/aufladung/paypal', async (req, res) => {
-  const parsed = paypalAnfrageSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res
-      .status(400)
-      .json({ error: 'Ungültige Eingaben.', details: parsed.error.flatten() });
-  }
-
   const verwalter = await ermittleZustaendigenVerwalter();
   if (!verwalter) {
     return res.status(400).json({
@@ -64,20 +58,19 @@ aufladungRouter.post('/aufladung/paypal', async (req, res) => {
   }
 
   const userId = req.auth!.sub;
-  const betragCent = parsed.data.betragCent;
 
   const anfrage = await prisma.aufladungsAnfrage.create({
     data: {
       userId,
-      betragCent,
+      betragCent: null,
       status: 'OFFEN',
       zugewiesenerVerwalterId: verwalter.id,
     },
   });
 
   logger.info(
-    { userId, anfrageId: anfrage.id, betragCent, zugewiesenerVerwalterId: verwalter.id },
-    'PayPal-Aufladungs-Anfrage gestellt.',
+    { userId, anfrageId: anfrage.id, zugewiesenerVerwalterId: verwalter.id },
+    'Betraglose PayPal-Aufladungs-Anfrage gestellt.',
   );
 
   return res.status(201).json({ anfrage, verwalter: verwalterPublic(verwalter) });
@@ -201,18 +194,21 @@ aufladungRouter.get('/admin/aufladung/anfragen', requireAdmin, async (req, res) 
 });
 
 // POST /admin/aufladung/anfragen/:id/bestaetigen — Verwalter bestätigt eine
-// PayPal-Anfrage. Erzeugt — exakt wie die Bargeld-Aufladung (§6.4/§6.5) — zwei
-// wechselseitig verknüpfte Buchungen atomar, nur mit typ=AUFLADUNG_PAYPAL:
+// PayPal-Anfrage und gibt dabei die TATSÄCHLICH überwiesene Summe ein
+// (betragCent, Int > 0 — PayPal-Umbau, §6.5). Die Anfrage selbst ist betraglos;
+// gebucht wird genau dieser eingegebene Betrag. Erzeugt — exakt wie die Bargeld-
+// Aufladung (§6.4) — zwei wechselseitig verknüpfte Buchungen atomar, mit
+// typ=AUFLADUNG_PAYPAL:
 //   - Mitglieder-Transaktion: AUFLADUNG_PAYPAL, +X
 //   - Kassen-Buchung:         EINZAHLUNG, konto=VERWALTER,
 //                             verwalterId=zugewiesener Verwalter, +X
-// und setzt die Anfrage auf BESTAETIGT (decidedAt/decidedById/transaktionId).
-// verwalterId ist der ZUGEWIESENE Verwalter (an dessen paypal.me das Mitglied
-// gezahlt hat), nicht zwingend der bestätigende — in B2f identisch (ein Admin).
-// Das Beschränken aufs „nur der Zugewiesene darf bestätigen" ist B2k.
+// und setzt die Anfrage auf BESTAETIGT (decidedAt/decidedById/transaktionId,
+// betragCent=X zur Doku). verwalterId ist der ZUGEWIESENE Verwalter (an dessen
+// paypal.me das Mitglied gezahlt hat) — und nur er selbst darf bestätigen (Guard).
 // notiz ist auf der Kassen-Zeile Pflicht (§6.8) → Auto-Vermerk; eine optionale
 // adminNotiz wird zusätzlich an der Anfrage gespeichert.
 const bestaetigenSchema = z.object({
+  betragCent: z.number().int().positive(),
   adminNotiz: z.string().optional(),
 });
 
@@ -224,7 +220,7 @@ aufladungRouter.post(
     if (!parsed.success) {
       return res
         .status(400)
-        .json({ error: 'Ungültige Eingaben.', details: parsed.error.flatten() });
+        .json({ error: 'Bitte die tatsächlich überwiesene Summe angeben (Betrag > 0).', details: parsed.error.flatten() });
     }
     const adminNotiz = parsed.data.adminNotiz?.trim() || null;
 
@@ -233,7 +229,7 @@ aufladungRouter.post(
     if (anfrage.status !== 'OFFEN') {
       return res.status(400).json({ error: 'Diese Anfrage wurde bereits entschieden.' });
     }
-    // Nur der zugewiesene Verwalter darf bestätigen (§6.5/§6.9, B2k).
+    // Nur der zugewiesene Verwalter darf bestätigen (§6.5/§6.9).
     if (anfrage.zugewiesenerVerwalterId !== req.auth!.sub) {
       return res
         .status(403)
@@ -246,7 +242,7 @@ aufladungRouter.post(
     }
 
     const adminId = req.auth!.sub;
-    const betragCent = anfrage.betragCent;
+    const betragCent = parsed.data.betragCent;
     const verwalterId = anfrage.zugewiesenerVerwalterId;
     const vermerk = adminNotiz
       ? `PayPal-Aufladung bestätigt — ${adminNotiz}`
@@ -281,6 +277,7 @@ aufladungRouter.post(
         where: { id: anfrage.id },
         data: {
           status: 'BESTAETIGT',
+          betragCent, // tatsächlich überwiesene Summe zur Doku festhalten
           decidedAt: new Date(),
           decidedById: adminId,
           adminNotiz,
