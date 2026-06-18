@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './lib/auth';
 import { MemberLayout } from './components/MemberLayout';
@@ -18,6 +19,11 @@ import Sortenstatistik from './routes/Sortenstatistik';
 import Buchen from './routes/Buchen';
 import Aufladen from './routes/Aufladen';
 import Verlauf from './routes/Verlauf';
+
+// Spiel-Route lazy/code-gesplittet (B_GAME_INTEGRATION §2.4): lädt erst beim
+// Öffnen — Nicht-Spieler tragen den Aufwand nicht (das Phaser-Bundle steckt zudem
+// im iframe-Build /game/, nie im Haupt-App-Bundle).
+const Spiel = lazy(() => import('./routes/Spiel'));
 
 function Protected({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -210,6 +216,27 @@ export default function App() {
           <PublicOnly>
             <Login />
           </PublicOnly>
+        }
+      />
+      <Route
+        path="/spiel"
+        element={
+          <Protected>
+            <AdminOnly>
+              <Suspense
+                fallback={
+                  <div
+                    className="bwza-stage"
+                    style={{ padding: '60px var(--bwza-page-x)', color: 'var(--bwza-ink-mute)' }}
+                  >
+                    Spiel lädt …
+                  </div>
+                }
+              >
+                <Spiel />
+              </Suspense>
+            </AdminOnly>
+          </Protected>
         }
       />
       <Route path="/set-password" element={<SetPassword />} />
