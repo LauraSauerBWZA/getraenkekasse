@@ -480,9 +480,11 @@ export class Level1Scene extends Phaser.Scene {
       cam.scrollY,
       this.startScrollY,
     );
-    // Spieler auf Anker-Höhe, aber innerhalb des Bildes (unten begrenzt).
+    // Spieler knapp ÜBER den Anker setzen (−6 px), damit die Anker-Exe als
+    // „passiert" zählt → direkt nach dem Sturz wieder gesichert (kein Fehl-Warn).
+    // Innerhalb des Bildes halten (unten begrenzt, Edge-Case).
     const bottomLimit = cam.scrollY + GAME.height - 40;
-    this.player.setPosition(anchor.x, Math.min(anchor.y, bottomLimit));
+    this.player.setPosition(anchor.x, Math.min(anchor.y - 6, bottomLimit));
     this.player.setVelocity(0, 0);
     // Sichtbares Sturz-Feedback: kurzes rotes Aufblitzen der Kamera.
     cam.flash(160, 150, 30, 20);
