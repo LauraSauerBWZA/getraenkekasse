@@ -526,7 +526,11 @@ function AktionSheet({
             label="Vermerk (Pflicht)"
             value={vermerk}
             onChange={(e) => setVermerk(e.target.value)}
-            placeholder="z.B. Getränkemarkt 14.06."
+            placeholder={
+              aktion.modus === 'einlage'
+                ? 'Von Admin-Konto in Box gelegt'
+                : 'z.B. Getränkemarkt 14.06.'
+            }
             error={err}
           />
 
