@@ -5,37 +5,47 @@ import { logger } from '../logger.js';
 // Lastverteilung „geringste Schuld zuerst" (KONFIGURATION §6.9), live berechnet,
 // kein gespeicherter Cursor. Aus routes/aufladung.ts extrahiert (Cleanup), damit
 // die Neuzuweisung beim Verwalter-Wegfall (Demote/Remove) dieselbe Logik nutzt.
+//
+// PayPal-Umbau: Anfragen sind jetzt BETRAGLOS — der frühere „Summe offener
+// Anfragen"-Term entfällt. Zuständigkeit rein über den aktuellen Verwalter-Topf,
+// mit der ANZAHL offener zugewiesener Anfragen als Tie-Break (statt Beträge).
 
-// Effektive gehaltene Summe eines Verwalters: Verwalter-Topf
-// (SUM kassenTransaktion WHERE konto=VERWALTER) PLUS Summe seiner noch OFFENEN
-// Anfragen. Das Mitzählen offener Anfragen verhindert Klumpung.
-export async function effektiveLastCent(verwalterId: string): Promise<number> {
-  const [topf, offen] = await Promise.all([
-    prisma.kassenTransaktion.aggregate({
-      _sum: { betragCent: true },
-      where: { konto: 'VERWALTER', verwalterId },
-    }),
-    prisma.aufladungsAnfrage.aggregate({
-      _sum: { betragCent: true },
-      where: { zugewiesenerVerwalterId: verwalterId, status: 'OFFEN' },
-    }),
-  ]);
-  return (topf._sum.betragCent ?? 0) + (offen._sum.betragCent ?? 0);
+// Verwalter-Topf-Saldo: SUM(KassenTransaktion.betragCent) WHERE konto=VERWALTER.
+async function topfCent(verwalterId: string): Promise<number> {
+  const topf = await prisma.kassenTransaktion.aggregate({
+    _sum: { betragCent: true },
+    where: { konto: 'VERWALTER', verwalterId },
+  });
+  return topf._sum.betragCent ?? 0;
 }
 
-// Der am wenigsten haltende Kandidat (Liste bereits für den Tie-Break sortiert —
-// strikter Min-Scan behält bei Gleichstand den ersten). Leere Liste → null.
+// Anzahl noch OFFENER, diesem Verwalter zugewiesener Anfragen (Tie-Break gegen
+// Klumpung: bei gleichem Topf bekommt der mit weniger schon offenen die nächste).
+async function offeneAnfragenCount(verwalterId: string): Promise<number> {
+  return prisma.aufladungsAnfrage.count({
+    where: { zugewiesenerVerwalterId: verwalterId, status: 'OFFEN' },
+  });
+}
+
+// Der am wenigsten haltende Kandidat. Regel (§6.9): niedrigster Topf →
+// Tie-Break wenigste offene zugewiesene Anfragen → Tie-Break alphabetisch
+// (Vorname). Die Liste kommt bereits firstName-aufsteigend sortiert; der stabile
+// Sort behält bei vollem Gleichstand diese alphabetische Reihenfolge. Leere Liste
+// → null, ein Kandidat → dieser.
 export async function leastLoaded(candidates: User[]): Promise<User | null> {
   if (candidates.length === 0) return null;
   if (candidates.length === 1) return candidates[0];
-  const mitSumme = await Promise.all(
-    candidates.map(async (v) => ({ v, effektiv: await effektiveLastCent(v.id) })),
+  const bewertet = await Promise.all(
+    candidates.map(async (v) => ({
+      v,
+      topf: await topfCent(v.id),
+      offen: await offeneAnfragenCount(v.id),
+    })),
   );
-  let best = mitSumme[0];
-  for (const e of mitSumme.slice(1)) {
-    if (e.effektiv < best.effektiv) best = e;
-  }
-  return best.v;
+  // Stabiler Sort (ES2019+) → alphabetische Eingangsreihenfolge bleibt der letzte
+  // Tie-Break, ohne ihn explizit vergleichen zu müssen.
+  bewertet.sort((a, b) => a.topf - b.topf || a.offen - b.offen);
+  return bewertet[0].v;
 }
 
 // Member-facing: zuständiger Verwalter für eine NEUE PayPal-Anfrage — nur aktive
