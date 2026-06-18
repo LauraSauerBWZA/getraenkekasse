@@ -38,7 +38,6 @@ export class Level1Scene extends Phaser.Scene {
     this.invulnerable = false;
     this.finished = false;
     this.reachedTop = false;
-    this.securedUntil = 0; // B_GAME4.3: Ende des Schutzfensters (this.time.now-Basis)
     this.maxHeightM = 0;
     this.startedAt = this.time.now;
 
@@ -58,7 +57,7 @@ export class Level1Scene extends Phaser.Scene {
     this.buildBrocken();
     this.buildIcicles();
     this.buildExes();
-    this.buildSecuredVisuals();
+    this.buildAnchorVisuals();
     this.buildCollectibles();
     this.buildBonus();
 
@@ -207,24 +206,21 @@ export class Level1Scene extends Phaser.Scene {
     nearest.setData('clipped', true);
     nearest.setTint(0x88e0a0); // geklippt-Indikator (grünlich)
     this.score += EXE.clipScore;
+    // B_GAME4B.1: zuletzt geclippte Exe = aktueller Fangpunkt (Anker).
     this.lastClippedExe = nearest;
-    // B_GAME4.3: Schutzfenster öffnen/auffrischen.
-    this.securedUntil = this.time.now + EXE.securedMs;
-    this.popup(nearest.x, nearest.y - 20, `+${EXE.clipScore} gesichert`, CSS.success);
+    this.popup(nearest.x, nearest.y - 20, `+${EXE.clipScore} eingeklippt`, CSS.success);
   }
 
-  // Gesichert = kurzes Schutzfenster nach dem Klippen aktiv (B_GAME4.3).
-  isSecured() {
-    return this.time.now < this.securedUntil;
+  // B_GAME4B.1: „Anker vorhanden" = mindestens eine Exe geclippt. Ersetzt das
+  // zeitbasierte Schutzfenster aus B_GAME4 — der Anker bleibt dauerhaft bestehen.
+  hasAnchor() {
+    return this.lastClippedExe !== null;
   }
 
-  securedFrac() {
-    return Phaser.Math.Clamp((this.securedUntil - this.time.now) / EXE.securedMs, 0, 1);
-  }
-
-  // Sicht-Feedback für „gesichert" (B_GAME4.4): Aura am Kletterer (ADD-Glow) +
-  // Seil-Linie zur zuletzt geklippten Exe. Beide nur sichtbar im Schutzfenster.
-  buildSecuredVisuals() {
+  // Sicht-Feedback für den Anker (B_GAME4B.1): ruhige Dauer-Aura am Kletterer
+  // (ADD-Glow, nicht auspulsend) + permanente Seil-Linie zum Fangpunkt. Beides
+  // sichtbar, solange ein Anker existiert (Doppel-Codierung Seil + Glow).
+  buildAnchorVisuals() {
     this.aura = this.add
       .image(this.player.x, this.player.y, 'aura')
       .setBlendMode(Phaser.BlendModes.ADD)
@@ -233,24 +229,21 @@ export class Level1Scene extends Phaser.Scene {
     this.ropeGfx = this.add.graphics().setDepth(48);
   }
 
-  updateSecuredVisuals() {
-    const secured = this.isSecured();
-    this.aura.setVisible(secured);
+  updateAnchorVisuals() {
+    const anchored = this.hasAnchor();
+    this.aura.setVisible(anchored);
     this.ropeGfx.clear();
-    if (!secured) return;
-    // Aura pulsiert leicht und folgt dem Kletterer.
-    const pulse = 1 + 0.12 * Math.sin(this.time.now / 110);
-    this.aura.setPosition(this.player.x, this.player.y).setScale(pulse).setAlpha(0.85);
-    // Seil-Linie vom Kletterer zur zuletzt geklippten Exe (Welt-Koordinaten).
-    if (this.lastClippedExe) {
-      this.ropeGfx.lineStyle(2, 0x88e0a0, 0.85);
-      this.ropeGfx.lineBetween(
-        this.player.x,
-        this.player.y,
-        this.lastClippedExe.x,
-        this.lastClippedExe.y,
-      );
-    }
+    if (!anchored) return;
+    // Ruhige Dauer-Aura (kein Puls) — signalisiert „du hast einen Fangpunkt".
+    this.aura.setPosition(this.player.x, this.player.y).setScale(1).setAlpha(0.5);
+    // Permanente Seil-Linie zum Anker (Welt-Koordinaten).
+    this.ropeGfx.lineStyle(2, 0x88e0a0, 0.8);
+    this.ropeGfx.lineBetween(
+      this.player.x,
+      this.player.y,
+      this.lastClippedExe.x,
+      this.lastClippedExe.y,
+    );
   }
 
   // Emblem-Bonus-Item (B_GAME4.5): seltenes, pendelndes, riskant platziertes
@@ -356,9 +349,9 @@ export class Level1Scene extends Phaser.Scene {
     if (this.invulnerable) return;
     const big = b.getData('big');
     b.destroy();
-    // Gesichert (B_GAME4.3): großer Brocken abgemildert zu Rückwurf (kein Leben),
-    // kleiner Stein wirkungslos (Seil fängt). Ungesichert = unveränderte Werte.
-    if (this.isSecured()) {
+    // Platzhalter-Semantik (B_GAME4B.1) — das echte Sturz-/Game-Over-Rework folgt
+    // in B_GAME4B.2. Vorerst: mit Anker großer Brocken abgemildert, ohne Anker −1.
+    if (this.hasAnchor()) {
       if (big) this.hitPlayerSmall();
       return;
     }
@@ -420,9 +413,8 @@ export class Level1Scene extends Phaser.Scene {
   handleIcicleHit(ic) {
     if (this.invulnerable) return;
     ic.destroy();
-    // Gesichert mildert Eisschlag analog zum großen Brocken ab (Q2: Steinschlag =
-    // Eisschlag) → nur Rückwurf statt −1 Leben.
-    if (this.isSecured()) {
+    // Platzhalter-Semantik (B_GAME4B.1) — echtes Rework in B_GAME4B.2.
+    if (this.hasAnchor()) {
       this.hitPlayerSmall();
       return;
     }
@@ -581,7 +573,7 @@ export class Level1Scene extends Phaser.Scene {
     this.updateBrocken(delta);
     this.updateIcicles(delta);
 
-    this.updateSecuredVisuals();
+    this.updateAnchorVisuals();
 
     const heightM = this.currentHeightM();
     if (heightM > this.maxHeightM) this.maxHeightM = heightM;
@@ -592,7 +584,7 @@ export class Level1Scene extends Phaser.Scene {
       score: this.score,
       heightM: this.maxHeightM,
       timeMs,
-      securedFrac: this.securedFrac(),
+      secured: this.hasAnchor(),
     });
 
     // Kamera am Wand-Ende: stoppt (clampt bei 0). Jetzt muss der Haken gezielt
