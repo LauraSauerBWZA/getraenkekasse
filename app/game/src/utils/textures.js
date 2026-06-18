@@ -1,5 +1,3 @@
-import { COLORS } from '../constants.js';
-
 // Prozedurale Pixel-Art im Game-Boy-Color-Stil (Phase B_GAME3_PIXELART).
 // Alles in Code gezeichnet (kein PNG). Sprites werden in niedriger Auflösung als
 // Zeichen-Grid „gedacht" und über `drawPixels` mit einer zentralen Palette zu
@@ -350,6 +348,36 @@ function windenhakenTexture(scene) {
   drawPixels(scene, 'windenhaken', WINDENHAKEN_GRID, 2);
 }
 
+// Menü-Titel-Emblem (96x96, B_GAME3.7): stilisiertes Bergwacht-Emblem —
+// goldenes Medaillon, weißes Feld, rotes Kreuz, blauer Berg mit Schneekappe.
+// Anlehnung, kein 1:1-Logo. Harte Kanten (GBC-Look).
+function menuEmblemTexture(scene) {
+  const s = 96;
+  const g = scene.make.graphics({ x: 0, y: 0, add: false });
+  // Goldenes Medaillon + Glanz.
+  g.fillStyle(PALETTE.a, 1);
+  g.fillRoundedRect(4, 4, s - 8, s - 8, 20);
+  g.fillStyle(PALETTE.q, 1);
+  g.fillRoundedRect(10, 10, s - 20, 9, 6);
+  // Weißes Feld.
+  g.fillStyle(PALETTE.w, 1);
+  g.fillRoundedRect(16, 16, s - 32, s - 32, 14);
+  // Blauer Berg + Schneekappe (untere Hälfte).
+  g.fillStyle(0x3f74e0, 1);
+  g.fillTriangle(20, 78, 48, 40, 76, 78);
+  g.fillStyle(PALETTE.w, 1);
+  g.fillTriangle(40, 52, 48, 40, 56, 52);
+  // Rotes Kreuz (obere Hälfte).
+  g.fillStyle(0xe2403a, 1);
+  g.fillRect(44, 22, 8, 24);
+  g.fillRect(36, 30, 24, 8);
+  // Outline.
+  g.lineStyle(3, PALETTE.o, 1);
+  g.strokeRoundedRect(4, 4, s - 8, s - 8, 20);
+  g.generateTexture('emblem', s, s);
+  g.destroy();
+}
+
 // HUD-Herz (16x16) — GBC-Pixel-Art (8x8-Grid ×2). Proof für den drawPixels-Helper.
 const HEART_GRID = [
   '.oo..oo.',
@@ -370,12 +398,8 @@ export function buildTextures(scene) {
   // 1x1-Pixel — universell für Balken, Partikel, HUD-Flächen, Tinten.
   rectTexture(scene, 'px', 1, 1, 0xffffff);
 
-  // Titel-Emblem (Menü-Platzhalter): amber-Kachel mit Glow-Rahmen.
-  rectTexture(scene, 'emblem', 96, 96, COLORS.amberDeep, {
-    radius: 22,
-    stroke: COLORS.amberGlow,
-    strokeWidth: 3,
-  });
+  // Stilisiertes Menü-Titel-Emblem (B_GAME3.7).
+  menuEmblemTexture(scene);
 
   // Alpinist-Posen für die Animationen (B_GAME.3).
   playerTexture(scene, 'player_idle', 'idle');
