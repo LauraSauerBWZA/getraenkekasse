@@ -188,45 +188,72 @@ function boulderTexture(scene) {
   drawPixels(scene, 'boulder', BOULDER_GRID, 2);
 }
 
-// Collectibles (Spec §5/§8): Karabiner (gold), Seil (orange), Getränk (grün).
+// Karabiner (16x16 = 8x8 ×2): silberner Ring mit Loch, Glanz oben-links,
+// goldenes Gate rechts — metallisch + wertvoll.
+const CARABINER_GRID = [
+  '..ssss..',
+  '.sf..Ss.',
+  'ss....ss',
+  's......s',
+  'ss....sa',
+  '.s....Sa',
+  '.sS..Ss.',
+  '..ssss..',
+];
 function carabinerTexture(scene) {
-  const s = 16;
-  const g = scene.make.graphics({ x: 0, y: 0, add: false });
-  g.lineStyle(3, COLORS.amberGlow, 1);
-  g.strokeRoundedRect(3, 1, 8, 14, 4); // längliche Öse
-  g.lineStyle(2, COLORS.amber, 1);
-  g.beginPath();
-  g.moveTo(11, 4);
-  g.lineTo(14, 7); // Schnapper
-  g.strokePath();
-  g.generateTexture('carabiner', s, s);
-  g.destroy();
+  drawPixels(scene, 'carabiner', CARABINER_GRID, 2);
 }
 
+// Seil (12x16 = 6x8 ×2): aufgerollte orange Lagen.
+const ROPE_GRID = [
+  '.nnnn.',
+  'nNnnNn',
+  'nnffnn',
+  'nNnnNn',
+  'nnnnnn',
+  'nNnnNn',
+  'nnnnnn',
+  '.nNNn.',
+];
 function ropeTexture(scene) {
-  const w = 12;
-  const h = 16;
-  const g = scene.make.graphics({ x: 0, y: 0, add: false });
-  g.fillStyle(0xd98a4a, 1); // orange
-  for (let y = 0; y < h; y += 4) {
-    g.fillRect(1, y, w - 2, 2); // gewickelte Lagen
-  }
-  g.lineStyle(1, 0x8a5a2a, 0.7);
-  g.strokeRect(1, 0, w - 2, h);
-  g.generateTexture('rope', w, h);
-  g.destroy();
+  drawPixels(scene, 'rope', ROPE_GRID, 2);
 }
 
+// Getränk (20x20 = 10x10 ×2): Maß-Krug mit Schaumkrone + Henkel + Glanz —
+// einladend, der wertvolle Pickup.
+const DRINK_GRID = [
+  '.ffffff...',
+  'ffffffff..',
+  'oooooooo..',
+  'onnnnno.oo',
+  'onfnnno..o',
+  'onfnnno.oo',
+  'onnnnno...',
+  'onnnnno...',
+  'oooooooo..',
+  '.oooooo...',
+];
 function drinkTexture(scene) {
-  const s = 20;
-  const g = scene.make.graphics({ x: 0, y: 0, add: false });
-  g.fillStyle(COLORS.success, 1);
-  g.fillRoundedRect(5, 4, 10, 14, 3); // Flaschen-/Becher-Körper
-  g.fillRect(8, 0, 4, 5); // Hals
-  g.fillStyle(0xffffff, 0.35);
-  g.fillRect(7, 7, 2, 7); // Glanz
-  g.generateTexture('drink', s, s);
-  g.destroy();
+  drawPixels(scene, 'drink', DRINK_GRID, 2);
+}
+
+// Stilisiertes Emblem-Item (20x20 = 10x10 ×2): goldenes Medaillon, weißes Feld,
+// rotes Kreuz, Funkeln — das seltene, besonders begehrenswerte Extra-Item
+// (Mechanik erst in B_GAME4; hier nur das Sprite).
+const EMBLEM_ITEM_GRID = [
+  '...aqa....',
+  '..aaaaaa..',
+  '.awwwwwwa.',
+  '.awwxxwwa.',
+  '.awxxxxwa.',
+  '.awxxxxwa.',
+  '.awwxxwwa.',
+  '.awwwwwwa.',
+  '..aaaaaa..',
+  '...aaaa..q',
+];
+function emblemItemTexture(scene) {
+  drawPixels(scene, 'emblem_item', EMBLEM_ITEM_GRID, 2);
 }
 
 // Durchgehende Felswand-Kachel (256x256, NACHSCHLAG.2): grobe, natürliche
@@ -350,10 +377,11 @@ export function buildTextures(scene) {
   rockTexture(scene);
   boulderTexture(scene);
 
-  // Collectibles (B_GAME.5).
+  // Collectibles (B_GAME.5) + Emblem-Item (B_GAME3.4, Mechanik in B_GAME4).
   carabinerTexture(scene);
   ropeTexture(scene);
   drinkTexture(scene);
+  emblemItemTexture(scene);
 
   // HUD (B_GAME.6).
   heartTexture(scene);
