@@ -349,14 +349,16 @@ export class Level1Scene extends Phaser.Scene {
     if (this.invulnerable) return;
     const big = b.getData('big');
     b.destroy();
-    // Platzhalter-Semantik (B_GAME4B.1) — das echte Sturz-/Game-Over-Rework folgt
-    // in B_GAME4B.2. Vorerst: mit Anker großer Brocken abgemildert, ohne Anker −1.
-    if (this.hasAnchor()) {
-      if (big) this.hitPlayerSmall();
+    // Kleiner Stein bleibt harmloser Rückwurf ohne Leben-Verlust (Q1) — auch ohne
+    // Anker, als „Stolper"-Hindernis.
+    if (!big) {
+      this.hitPlayerSmall();
       return;
     }
-    if (big) this.hitPlayer(); // großer Brocken: −1 Leben
-    else this.hitPlayerSmall(); // kleiner Stein: Rückwurf
+    // Großer Brocken (B_GAME4B.2): mit Anker → −1 Leben + Sturz bis zur letzten Exe;
+    // ohne Anker → Totalabsturz (sofort Game Over).
+    if (this.hasAnchor()) this.fallToAnchor();
+    else this.gameOver('absturz');
   }
 
   // Eiszapfen (B_GAME5.4): zweiter Hindernis-Typ mit eigenem Spawn-Akkumulator.
@@ -413,12 +415,44 @@ export class Level1Scene extends Phaser.Scene {
   handleIcicleHit(ic) {
     if (this.invulnerable) return;
     ic.destroy();
-    // Platzhalter-Semantik (B_GAME4B.1) — echtes Rework in B_GAME4B.2.
-    if (this.hasAnchor()) {
-      this.hitPlayerSmall();
+    // Eiszapfen verhält sich wie der große Brocken (B_GAME4B.2): mit Anker →
+    // −1 Leben + Sturz, ohne Anker → Totalabsturz.
+    if (this.hasAnchor()) this.fallToAnchor();
+    else this.gameOver('absturz');
+  }
+
+  // Gesicherter Treffer (B_GAME4B.2): −1 Leben UND Sturz bis zur Höhe der letzten
+  // geclippten Exe — Spieler + Kamera/Scroll springen sichtbar runter, dann läuft
+  // der Forced-Scroll von dort weiter (kostet Leben UND Fortschritt). 0 Leben →
+  // Game Over. Edge-Case (Anker weit unten/aus Sicht): Sturz wird am unteren
+  // Bildrand begrenzt (Q3), Leben-Verlust gilt trotzdem.
+  fallToAnchor() {
+    this.lives -= 1;
+    if (this.lives <= 0) {
+      this.gameOver('lives');
       return;
     }
-    this.hitPlayer(); // Eiszapfen ist scharf → −1 Leben
+    const anchor = this.lastClippedExe;
+    const cam = this.cameras.main;
+    // Scroll springt runter auf Anker-Höhe — nie nach oben (Clamp-Minimum =
+    // aktueller scrollY), am Welt-Anfang geclampt (Clamp-Maximum = startScrollY).
+    cam.scrollY = Phaser.Math.Clamp(
+      anchor.y - GAME.height * 0.55,
+      cam.scrollY,
+      this.startScrollY,
+    );
+    // Spieler auf Anker-Höhe, aber innerhalb des Bildes (unten begrenzt).
+    const bottomLimit = cam.scrollY + GAME.height - 40;
+    this.player.setPosition(anchor.x, Math.min(anchor.y, bottomLimit));
+    this.player.setVelocity(0, 0);
+    // Kurze Unverwundbarkeit nach dem Sturz.
+    this.invulnerable = true;
+    this.player.setAlpha(0.4);
+    this.popup(this.player.x, this.player.y - 26, '−1 ♥ Sturz', CSS.rescue);
+    this.time.delayedCall(HIT.stunMs, () => {
+      this.invulnerable = false;
+      this.player.setAlpha(1);
+    });
   }
 
   // Kleiner Stein: Schub nach unten (Richtung Gefahr) + kurze Unverwundbarkeit,

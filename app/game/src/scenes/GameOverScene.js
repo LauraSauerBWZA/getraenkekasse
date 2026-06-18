@@ -36,10 +36,12 @@ export class GameOverScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    const reasonByKey = {
+      timeout: 'Die Zeit ist um — der Hubschrauber musste abdrehen.',
+      absturz: 'Ungesichert gestürzt — ohne Zwischensicherung war es der Totalabsturz.',
+    };
     const reasonText =
-      this.stats.reason === 'timeout'
-        ? 'Die Zeit ist um — der Hubschrauber musste abdrehen.'
-        : 'Keine Leben mehr — der Aufstieg endet hier.';
+      reasonByKey[this.stats.reason] ?? 'Keine Leben mehr — der Aufstieg endet hier.';
     this.add
       .text(cx, height * 0.32, reasonText, {
         fontFamily: CSS.fontUi,

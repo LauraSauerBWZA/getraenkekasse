@@ -148,8 +148,7 @@ export const EXE = {
   spacingPx: 320, // Abstand entlang der Wand (Richtwert 250–400)
   inset: 52, // x-Abstand von der Wand-Seite (noch erreichbar)
   reachRadius: 82, // px: so nah muss der Kletterer zum Einklippen ran
-  clipScore: 40, // Punkte fürs erfolgreiche Einklippen
-  securedMs: 1800, // Dauer des Schutzfensters nach dem Klippen
+  clipScore: 40, // Punkte fürs erfolgreiche Einklippen (B_GAME4B.4 → 50)
 };
 
 // Emblem-Bonus-Item (B_GAME4.5): selten, beweglich (pendelt), riskant platziert.
