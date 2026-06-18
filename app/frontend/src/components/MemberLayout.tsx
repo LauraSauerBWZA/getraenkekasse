@@ -1,6 +1,6 @@
 import { useState, type PropsWithChildren } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ChevronLeft, History, Home, Wallet } from 'lucide-react';
+import { ChevronLeft, Gamepad2, History, Home, Wallet } from 'lucide-react';
 import { Avatar, BergMark } from './primitives';
 import { ProfileDrawer } from './ProfileDrawer';
 import { useAuth } from '../lib/auth';
@@ -14,6 +14,11 @@ const TABS = [
   { to: '/verlauf', label: 'Verlauf', icon: History },
 ];
 
+// 🎮-Spiel-Tab (B_GAME_INTEGRATION) — nur für Admins. Wird unten an die Tab-Liste
+// gehängt, wenn isAdmin. Die Route /spiel ist zusätzlich admin-gegateet (App.tsx),
+// d.h. auch per Direktlink für Nicht-Admins gesperrt.
+const SPIEL_TAB = { to: '/spiel', label: 'Spiel', icon: Gamepad2 };
+
 // Persistente Shell für die Member-Screens: sticky Top-Header (Avatar→Drawer,
 // Back-Pfeil auf Nicht-Tab-Routen wie /buchen) + persistente Bottom-Nav (3 Tabs).
 export function MemberLayout({ children }: PropsWithChildren) {
@@ -22,7 +27,9 @@ export function MemberLayout({ children }: PropsWithChildren) {
   const location = useLocation();
   const [drawer, setDrawer] = useState(false);
 
-  const istTab = TABS.some((t) => t.to === location.pathname);
+  // Admins sehen einen zusätzlichen 🎮-Tab; Mitglieder die unveränderten 3 Tabs.
+  const tabs = user?.isAdmin ? [...TABS, SPIEL_TAB] : TABS;
+  const istTab = tabs.some((t) => t.to === location.pathname);
 
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
@@ -120,7 +127,7 @@ export function MemberLayout({ children }: PropsWithChildren) {
           paddingRight: 'env(safe-area-inset-right, 0px)',
         }}
       >
-        {TABS.map((t) => {
+        {tabs.map((t) => {
           const aktiv = t.to === '/' ? location.pathname === '/' : location.pathname.startsWith(t.to);
           const Icon = t.icon;
           return (
