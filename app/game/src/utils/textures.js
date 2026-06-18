@@ -20,6 +20,7 @@ const PALETTE = {
   Y: 0xd29a26, // Helm gelb dunkel
   p: 0x6b7280, // Rucksack grau
   P: 0x444a59, // Rucksack dunkel
+  t: 0x5a4a2e, // Klettergurt (Gurtband, braun-oliv — B_GAME5.2)
   w: 0xf4f0e9, // weiß
   // Brocken
   l: 0xc2bbae, // heller Stein
@@ -78,11 +79,15 @@ function rectTexture(scene, key, w, h, fill, opts = {}) {
   g.destroy();
 }
 
-// Alpinist (22x30 = 11x15-Grid ×2): freundlicher Bergwacht-Kletterer, gelber
-// Helm, rote Jacke, blaue Hose, weißes Brust-Emblem mit rotem Kreuz (stilisiert,
-// kein DRK-1:1). Posen idle/run_a/run_b (Boot-Wechsel = Kletter-Wiggle),
-// jump (Arme hoch, Beine zusammen), fall (Arme/Beine ausgebreitet).
-const ALPINIST_HEAD = [
+// Alpinist (22x32 = 11x16-Grid ×2, B_GAME5.2): freundlicher Bergwacht-Kletterer,
+// gelber Helm, rote Jacke, blaue Hose, weißes Brust-Emblem, Klettergurt (t) mit
+// kurzem Seil-Loop (n). Alle Posen gleich hoch (16 Reihen) → kein Origin-Bobbing
+// beim Frame-Wechsel. Kletter-Zyklus (climb_a/climb_b) bewegt Arme UND Beine
+// kontralateral (links-Arm-hoch ↔ rechts-Bein-hoch und gespiegelt) → lebendig,
+// aber lesbare Silhouette. Emblem-Zentrum 'x' = transparent (dunkles Kreuz).
+
+// Stand: Arme am Körper, Beine leicht gegrätscht.
+const ALPINIST_IDLE = [
   '...oooo....',
   '..oyyyyo...',
   '..oyYYyo...',
@@ -93,12 +98,56 @@ const ALPINIST_HEAD = [
   '.orwwwwro..',
   '.orwxxwro..',
   '.orwwwwro..',
-  '.orrrrrro..',
-  '..oRRRRo...',
+  '.ottattto..',
+  '..oRnnRo...',
   '..obbbbo...',
   '..obbbbo...',
+  '..oboobo...',
+  '..oo..oo...',
 ];
 
+// Kletter-Frame A: linker Arm greift hoch, rechte Hand tief; rechtes Bein
+// angewinkelt hoch, linkes Bein gestreckt nach unten.
+const ALPINIST_CLIMB_A = [
+  '...oooo....',
+  '..oyyyyo...',
+  '..oyYYyo...',
+  '..oooooo...',
+  '...okko....',
+  '.k.orrrro..',
+  '.rorrrrro..',
+  '.orwwwwro..',
+  '.orwxxwroR.',
+  '.orwwwwroR.',
+  '.ottattoRk.',
+  '..oRnnRo...',
+  '..obbbbo...',
+  '..obbbo....',
+  '.oboo.bo...',
+  'oo....bo...',
+];
+
+// Kletter-Frame B = A horizontal gespiegelt (rechter Arm hoch, linkes Bein hoch).
+const ALPINIST_CLIMB_B = [
+  '...oooo....',
+  '..oyyyyo...',
+  '..oyYYyo...',
+  '..oooooo...',
+  '...okko....',
+  '..orrrro.k.',
+  '..orrrrror.',
+  '.orwwwwro..',
+  '.Rorwxxwro.',
+  '.Rorwwwwro.',
+  '.kRottatto.',
+  '...oRnnRo..',
+  '...obbbbo..',
+  '....obbbo..',
+  '...ob.oobo.',
+  '...ob....oo',
+];
+
+// Sprung: beide Arme hoch (Greifen nach oben), Beine zusammen.
 const ALPINIST_JUMP = [
   '.k.oooo.k..',
   '.royyyyor..',
@@ -110,13 +159,15 @@ const ALPINIST_JUMP = [
   '.orwwwwro..',
   '.orwxxwro..',
   '.orwwwwro..',
-  '.orrrrrro..',
-  '..oRRRRo...',
+  '.ottattto..',
+  '..oRnnRo...',
+  '..obbbbo...',
   '..obbbbo...',
   '..obbbbo...',
   '..oooooo...',
 ];
 
+// Fall: Arme + Beine ausgebreitet (Stabilisieren).
 const ALPINIST_FALL = [
   '...oooo....',
   '..oyyyyo...',
@@ -128,20 +179,20 @@ const ALPINIST_FALL = [
   '.orwwwwro..',
   '.orwxxwro..',
   '.orwwwwro..',
-  '.orrrrrro..',
-  '..oRRRRo...',
-  '..obbbbo...',
+  '.ottattto..',
+  '..oRnnRo...',
   '.obb..bbo..',
+  '.obo..obo..',
   '.oo....oo..',
+  '.o......o..',
 ];
 
 function alpinistGrid(pose) {
   if (pose === 'jump') return ALPINIST_JUMP;
   if (pose === 'fall') return ALPINIST_FALL;
-  let boots = '..oo..oo...'; // idle
-  if (pose === 'run_a') boots = '.ooo..o....';
-  else if (pose === 'run_b') boots = '....o..ooo.';
-  return [...ALPINIST_HEAD, boots];
+  if (pose === 'run_a') return ALPINIST_CLIMB_A;
+  if (pose === 'run_b') return ALPINIST_CLIMB_B;
+  return ALPINIST_IDLE;
 }
 
 function playerTexture(scene, key, pose) {
