@@ -1,6 +1,6 @@
 # Konfiguration — Bergwacht Getränkekasse
 
-**Stand:** 16.06.2026 (Update 16: Drink-Erweiterung — optionale Felder `marke`/`volumenMl`, Subzeile-Anzeige, deutsche Sortierung)
+**Stand:** 18.06.2026 (Update 17: PayPal-Umbau — betraglose Anfrage, Verwalter bucht echte Summe, nur Zuständiger bestätigt, WhatsApp-Benachrichtigung; Lastverteilung ohne Betrag)
 **Status:** 🟢 Phase B1 abgeschlossen + verifiziert, Phase B2 vorbereitet
 
 ---
@@ -112,6 +112,7 @@ Zwei Buchungs-Ebenen:
 | `isAdmin` | Boolean, default false | Verwalter-Flag (volle Schreibrechte) |
 | `isLeitung` | Boolean, default false | Leitung-Flag (reine Kassen-Einsicht) |
 | `paypalMeLink` | String, nullable | paypal.me-Link des Verwalters (nur bei Admins relevant) — NEU Update 8 |
+| `whatsappNummer` | String, nullable | WhatsApp-Nummer des Verwalters, nur Ziffern (internationales Format ohne `+`/Leerzeichen, z.B. `491701234567`) für die `wa.me`-Benachrichtigung; nur bei Admins relevant — NEU Update 17 |
 | `isActive` | Boolean, default true | Soft-Delete-/Aktiv-Marker (`false` = entfernt/deaktiviert; kein Login, raus aus Aggregaten) — Doku-Fix Update 13 |
 | `createdAt` / `updatedAt` | DateTime | Standard-Audit |
 
@@ -183,7 +184,7 @@ PayPal-Aufladungs-Anfrage mit State-Machine und Verwalter-Zuweisung.
 |---|---|---|
 | `id` | String (cuid) | |
 | `userId` | String, FK → User | Wer hat gestellt |
-| `betragCent` | Int | Gewünschter Betrag |
+| `betragCent` | Int, **nullable** | **NULL bei der betraglosen Anfrage** (Mitglied überweist selbst frei gewählt). Beim Bestätigen setzt der zuständige Verwalter die tatsächlich überwiesene Summe (Int > 0) — die wird gebucht und hier zur Doku gehalten. — geändert Update 17 |
 | `status` | String (validiert), default `OFFEN` | `OFFEN`, `BESTAETIGT`, `ABGELEHNT` |
 | `zugewiesenerVerwalterId` | String, FK → User (required) | zuständiger Verwalter (per Lastverteilung); bei Wegfall (Demote/Remove) auf den least-loaded aktiven Verwalter umgehängt (Cleanup) — NEU Update 8 |
 | `requestedAt` | DateTime | |
@@ -262,19 +263,22 @@ Guthaben = `SUM(transaktionen.betragCent) WHERE userId = X`. Live, kein Feld, �
    - Kassen-`KassenTransaktion`: `EINZAHLUNG`, `konto=VERWALTER`, `verwalterId=` der eintragende Verwalter, `+X`
 3. Der Topf des eintragenden Verwalters steigt.
 
-### 6.5 Aufladung — PayPal (mit Lastverteilung)
+### 6.5 Aufladung — PayPal (betraglos, Verwalter bucht echte Summe) — überarbeitet Update 17
 
-1. Mitglied öffnet Aufladen-Tab → sieht **nur den paypal.me-Link des aktuell zuständigen Verwalters**
-2. **Zuständig = Verwalter mit der geringsten gehaltenen Summe.** Berechnung siehe 6.9.
-3. Mitglied wählt Betrag, schickt Anfrage ab
-4. **Beim Abschicken:** `AufladungsAnfrage` mit `status=OFFEN` und `zugewiesenerVerwalterId=` dem aktuell zuständigen Verwalter. (Die nächste Aufladung wird neu berechnet — der Topf dieses Verwalters zählt die offene Anfrage bereits mit, siehe 6.9.)
-5. App öffnet `https://paypal.me/{link-des-zugewiesenen-verwalters}/{betrag}`
-6. Mitglied überweist; der **zugewiesene Verwalter** sieht die Anfrage in seiner Liste
-7. **Bestätigen (nur der Zugewiesene):** zwei gekoppelte Buchungen:
+**Warum:** Der frühere Flow ließ das Mitglied einen Betrag vorwählen, der gutgeschrieben wurde — unabhängig vom real Überwiesenen (Vorauswahl 20 €, überwiesen 10 € → 20 € gutgeschrieben). Jetzt zählt nur die echte Summe, eingegeben vom Verwalter, der den Geldeingang auf *seinem* PayPal sieht.
+
+1. Mitglied öffnet Aufladen-Tab → sieht **nur den paypal.me-Link des aktuell zuständigen Verwalters** (kein Betrag vorwählen)
+2. **Zuständig = Verwalter mit dem niedrigsten Topf** (mit paypal.me-Link). Berechnung siehe 6.9.
+3. Mitglied **überweist selbst einen frei gewählten Betrag** an `https://paypal.me/{link-des-zuständigen-verwalters}` (ohne Betrag im Link — gibt ihn in PayPal ein)
+4. Mitglied tippt **„Überweisung erledigt — Verwalter benachrichtigen"**:
+   - **Beim Abschicken:** **betraglose** `AufladungsAnfrage` (`betragCent=null`) mit `status=OFFEN` und `zugewiesenerVerwalterId=` dem aktuell zuständigen Verwalter.
+   - **WhatsApp:** App öffnet `https://wa.me/{whatsappNummer}?text=...` mit vorgefertigtem Text („Hallo [Verwalter], ich habe per PayPal für die Getränkekasse überwiesen, bitte freischalten. Grüße [Mitglied]"). Hat der Verwalter **keine** `whatsappNummer` → kein WhatsApp-Button, nur ein Hinweis, ihm Bescheid zu geben.
+5. Der **zugewiesene Verwalter** sieht die Anfrage in seiner Liste (nur seine eigenen, §7.2)
+6. **Bestätigen (nur der Zugewiesene — harter Backend-Guard, sonst 403):** Verwalter gibt die **tatsächlich überwiesene Summe** ein (`betragCent`, Int > 0, Pflicht). Daraus zwei gekoppelte Buchungen:
    - Mitglieder-`Transaktion`: `AUFLADUNG_PAYPAL`, `+X`
    - Kassen-`KassenTransaktion`: `EINZAHLUNG`, `konto=VERWALTER`, `verwalterId=` zugewiesener Verwalter, `+X`
-   - `status=BESTAETIGT`
-8. **Ablehnen:** `status=ABGELEHNT`, optional Notiz. Keine Buchung.
+   - `status=BESTAETIGT`, `betragCent=X` (zur Doku), `transaktionId` verknüpft
+7. **Ablehnen (nur der Zugewiesene, sonst 403):** `status=ABGELEHNT`, optional Notiz. Keine Buchung.
 
 ### 6.6 Negatives Guthaben
 
@@ -316,18 +320,19 @@ Soft-Delete über `isActive=false` (Doku-Fix Update 13 — es gibt **kein** `del
 
 **Ziel:** Das gehaltene Vereinsgeld gleichmäßig auf alle Verwalter verteilen. Wer viel einkauft (niedriger/negativer Topf), bekommt automatisch die nächsten Einzahlungen.
 
-**Zuständiger Verwalter für die nächste PayPal-Aufladung:**
-- Berechne für jeden aktiven Verwalter seine **effektive gehaltene Summe** = aktueller Verwalter-Topf **plus** Summe seiner bereits offenen (`OFFEN`) AufladungsAnfragen.
-- Der Verwalter mit dem **niedrigsten** Wert ist zuständig.
-- **Tie-Breaker bei Gleichstand:** alphabetisch nach Vorname.
+**Zuständiger Verwalter für die nächste PayPal-Aufladung (überarbeitet Update 17 — Anfragen sind betraglos):**
+- Kandidaten = aktive Verwalter **mit nicht-leerem paypal.me-Link** (ohne Link gibt es nichts zum Überweisen).
+- **Primär:** der mit dem **niedrigsten Verwalter-Topf** (`SUM KassenTransaktion betragCent WHERE konto=VERWALTER AND verwalterId=V`). Wer viel einkauft (niedriger/negativer Topf) bekommt die nächsten Einzahlungen.
+- **Tie-Break 1 (gleicher Topf):** die **wenigsten offenen (`OFFEN`) zugewiesenen Anfragen** — gegen Klumpung, wenn mehrere Mitglieder kurz hintereinander aufladen (der frühere „Summe offener Anfragen"-Term entfällt, weil Anfragen keinen Betrag mehr tragen; gezählt wird die **Anzahl**).
+- **Tie-Break 2 (auch gleiche Anzahl):** alphabetisch nach Vorname.
 
-**Warum offene Anfragen mitzählen:** Verhindert Klumpung — wenn mehrere Mitglieder kurz hintereinander aufladen, würden sie sonst alle an denselben (gerade niedrigsten) Verwalter geleitet, bevor dessen erste Zahlung bestätigt ist. Durch Mitzählen der offenen Anfragen „füllt sich" sein effektiver Stand sofort.
-
-**Zeitpunkt der Zuteilung:** beim **Abschicken** der Anfrage (nicht beim Öffnen des Tabs oder Button-Klick) — so verbraucht ein bloßes Anschauen keine Zuteilung.
+**Zeitpunkt der Zuteilung:** beim **Abschicken** der Anfrage (nicht beim Öffnen des Tabs) — bloßes Anschauen verbraucht keine Zuteilung.
 
 **Berechnung ist live, kein gespeicherter Cursor** — der zuständige Verwalter ergibt sich immer aus dem aktuellen Stand. „Cannot be wrong by design."
 
 **Sonderfall ein Verwalter:** Gibt es nur einen Admin mit paypal.me-Link, ist immer dieser zuständig — die Logik degeneriert sauber zum Einzel-Verwalter-Fall.
+
+**Wegfall eines Verwalters (Demote/Remove):** seine offenen Anfragen werden dem nach gleicher Regel least-loaded verbliebenen aktiven Verwalter neu zugewiesen (bleiben `OFFEN`/bestätigbar).
 
 ---
 
@@ -340,7 +345,7 @@ Icons sind **lucide-react Line-Icons** (Update 12), aktiver Tab in **Teal**, ina
 | Tab | Icon (lucide) | Inhalt |
 |---|---|---|
 | Theke | `Home` | Guthaben groß, Quick-Buchung-CTA |
-| Aufladen | `Wallet` | PayPal-Beträge + **Link des zuständigen Verwalters**, Bargeld-Hinweis |
+| Aufladen | `Wallet` | **PayPal-Link des zuständigen Verwalters** öffnen (kein Betrag vorwählen), „Überweisung erledigt — Verwalter per WhatsApp benachrichtigen", Bargeld-Hinweis — überarbeitet Update 17 |
 | Verlauf | `History` | Historie + Trinkjournal + Achievements |
 
 **Buchen** ist **kein** Bottom-Nav-Tab mehr, sondern ein **Unter-Screen** (aktive Getränke nach Kategorie, Confirm-Sheet), erreichbar über den **Theke-CTA „Getränk buchen"** (Route `/buchen` bleibt, Bottom-Nav bleibt sichtbar, sticky Zurück oben). Admin-/Leitung-Bereiche via Profil-Drawer, je nach Rolle. Unter-Screens (Buchen, Admin, Kasse, Leitung, Statistik, Profil …) haben einen **sticky Zurück-Header** (Zurück-Pfeil = `ChevronLeft`).
@@ -352,11 +357,11 @@ Card-Labels mit **lucide-Line-Icons** (Update 12, Teal-Akzent) statt Emoji:
 - `Users` — Mitglieder (Salden, Detail, Korrektur, Recht vergeben)
 - `UserPlus`/`Mail` — Mitglied einladen / Verwalter ernennen
 - `Beer` — Drink-Katalog
-- `Inbox` — Aufladungs-Anfragen — **gefiltert auf die eigenen zugewiesenen** (plus optional „alle" zur Übersicht, aber bestätigen nur die eigenen)
+- `Inbox` — Aufladungs-Anfragen — **gefiltert auf die eigenen zugewiesenen** (betraglos; Bestätigen verlangt die Eingabe der **tatsächlich überwiesenen Summe**, nur der Zugewiesene darf — Update 17)
 - `Banknote` — Bargeld-Aufladung
 - `Landmark` — Kasse: Gesamtbestand, Töpfe je Verwalter, Box, Deckung, Aktionen (Einkauf, Entnahme, Einlage, Spende, Korrektur), Kassen-Historie
 - `BarChart3` — Sortenstatistik
-- `User` — eigenes Profil: paypal.me-Link pflegen
+- `User` — eigenes Verwalter-Profil: paypal.me-Link **und WhatsApp-Nummer** pflegen (Update 17)
 
 ### 7.3 Leitung-Bereich (read-only)
 
@@ -473,6 +478,24 @@ Außerdem: Form-Field-IDs auf Login fehlen → B5 Politur.
 ---
 
 ## 13. Änderungshistorie (kompakt)
+
+**Update 17 (18.06.2026):** PayPal-Umbau — betraglose Anfrage, echte Summe vom Verwalter, WhatsApp (additive Schema-Änderung)
+- **Schema (additiv/nicht-destruktiv):** `User.whatsappNummer String?` (neu) + `AufladungsAnfrage.betragCent`
+  `Int` → `Int?` (required→nullable, bestehende Werte bleiben). **Prod braucht ein additives
+  `prisma db push` (Backup zuerst).**
+- **Member-Flow (§6.5):** keine Betrags-Vorauswahl mehr. Mitglied überweist frei gewählt an den
+  paypal.me-Link des Zuständigen, stellt eine **betraglose** `OFFEN`-Anfrage und benachrichtigt
+  den Verwalter per **`wa.me`** (vorgefertigter Text). Fallbacks: keine WhatsApp-Nummer → nur
+  Hinweis; kein Verwalter mit Link → klarer Hinweis, kein Crash.
+- **Admin-Bestätigung (§6.5/§7.2):** **harter Backend-Guard** — nur der Admin mit
+  `id===zugewiesenerVerwalterId` darf bestätigen/ablehnen (sonst 403). Bestätigen verlangt die
+  **tatsächlich überwiesene Summe** (`betragCent` > 0) → bucht `AUFLADUNG_PAYPAL` + Kassen-
+  `EINZAHLUNG` auf den Topf des Zuständigen, setzt `status=BESTAETIGT` + `betragCent` + `transaktionId`.
+- **Lastverteilung (§6.9):** ohne Betrag — niedrigster Topf → Tie-Break **Anzahl** offener
+  zugewiesener Anfragen → alphabetisch (Vorname).
+- **Admin-Profil (§7.2):** WhatsApp-Nummer-Feld (optional, internationales Format, nur Ziffern)
+  neben dem paypal.me-Link; gemeinsamer Endpoint `PATCH /admin/me/paypal` (nur mitgeschickte
+  Felder ändern). Keine PayPal-API, keine neue Dependency. Bargeld-Aufladung unverändert.
 
 **Update 16 (16.06.2026):** Drink-Erweiterung (additiv, kein Breaking Change)
 - **Zwei optionale Felder am Drink:** `marke String?` (Marke/Brauerei) und `volumenMl Int?`
