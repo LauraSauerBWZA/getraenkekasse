@@ -831,6 +831,78 @@ describe('Bargeld-Aufladung', () => {
     expect(await prisma.kassenTransaktion.count()).toBe(kasseVor);
     expect(await prisma.transaktion.count()).toBe(txVor);
   });
+
+  // Bündel 2, Einheit 2 — Konto-Wahl: Topf (Default) oder Box. Eigenes,
+  // isoliertes Mitglied, damit Max' fortlaufender Saldo (Folge-Tests) unberührt
+  // bleibt.
+  async function boxSumme(): Promise<number> {
+    const agg = await prisma.kassenTransaktion.aggregate({
+      _sum: { betragCent: true },
+      where: { konto: 'BOX' },
+    });
+    return agg._sum.betragCent ?? 0;
+  }
+  async function topfSumme(verwalterId: string): Promise<number> {
+    const agg = await prisma.kassenTransaktion.aggregate({
+      _sum: { betragCent: true },
+      where: { konto: 'VERWALTER', verwalterId },
+    });
+    return agg._sum.betragCent ?? 0;
+  }
+
+  it('Default (kein konto) bucht die Kassen-Zeile auf den Verwalter-Topf', async () => {
+    const m = await prisma.user.create({
+      data: { email: 'konto-topf@example.com', firstName: 'Konto', lastName: 'Topf' },
+    });
+    const topfVor = await topfSumme(lauraId);
+    const r = await agent
+      .post('/admin/aufladung/bargeld')
+      .send({ userId: m.id, betragCent: 300, vermerk: 'Default-Topf' });
+    expect(r.status).toBe(201);
+    expect(r.body.kassenTransaktion).toMatchObject({
+      typ: 'EINZAHLUNG',
+      konto: 'VERWALTER',
+      verwalterId: lauraId,
+      betragCent: 300,
+    });
+    // Mitglieder-Transaktion unverändert (AUFLADUNG_BARGELD, +Betrag, gekoppelt).
+    expect(r.body.transaktion).toMatchObject({ typ: 'AUFLADUNG_BARGELD', betragCent: 300 });
+    expect(await topfSumme(lauraId)).toBe(topfVor + 300);
+  });
+
+  it('konto=BOX bucht die Kassen-Zeile auf die Box (verwalterId=null), Topf unberührt', async () => {
+    const m = await prisma.user.create({
+      data: { email: 'konto-box@example.com', firstName: 'Konto', lastName: 'Box' },
+    });
+    const boxVor = await boxSumme();
+    const topfVor = await topfSumme(lauraId);
+
+    const r = await agent
+      .post('/admin/aufladung/bargeld')
+      .send({ userId: m.id, betragCent: 700, vermerk: 'In die Box', konto: 'BOX' });
+    expect(r.status).toBe(201);
+    expect(r.body.kassenTransaktion).toMatchObject({
+      typ: 'EINZAHLUNG',
+      konto: 'BOX',
+      verwalterId: null,
+      betragCent: 700,
+    });
+    // Mitglieder-Transaktion identisch wie beim Topf-Pfad, weiter gekoppelt.
+    expect(r.body.transaktion).toMatchObject({ typ: 'AUFLADUNG_BARGELD', betragCent: 700 });
+    expect(r.body.transaktion.kassenTransaktionId).toBe(r.body.kassenTransaktion.id);
+
+    // Box +700, Verwalter-Topf unberührt, Mitglied-Guthaben +700.
+    expect(await boxSumme()).toBe(boxVor + 700);
+    expect(await topfSumme(lauraId)).toBe(topfVor);
+    expect(r.body.guthabenCent).toBe(700);
+  });
+
+  it('lehnt ungültiges konto ab (nur VERWALTER|BOX)', async () => {
+    const r = await agent
+      .post('/admin/aufladung/bargeld')
+      .send({ userId: maxId, betragCent: 100, vermerk: 'Test', konto: 'TRESOR' });
+    expect(r.status).toBe(400);
+  });
 });
 
 // B2e.4 — Aufladungs-Storno mit Kassen-Rückbuchung (§6.3). Stand nach B2e.3:
@@ -2144,6 +2216,8 @@ describe('Sortenstatistik (B3)', () => {
     });
     // alter Kauf 40 Tage zurück (im Quartal, nicht im Monat)
     await kauf(new Date(Date.now() - 40 * 24 * 60 * 60 * 1000));
+    // sehr alter Kauf 200 Tage zurück (im Jahr, nicht im Quartal)
+    await kauf(new Date(Date.now() - 200 * 24 * 60 * 60 * 1000));
 
     leitungAgent = supertest.agent(app);
     const r = await leitungAgent
@@ -2156,6 +2230,10 @@ describe('Sortenstatistik (B3)', () => {
     const anon = supertest.agent(app);
     expect((await anon.get('/statistik/sorten')).status).toBe(401);
     expect((await memberAgent.get('/statistik/sorten')).status).toBe(403);
+  });
+
+  it('Woche ist kein gültiger Zeitraum mehr → fällt auf Default monat', async () => {
+    expect((await agent.get('/statistik/sorten?zeitraum=woche')).body.zeitraum).toBe('monat');
   });
 
   it('Admin UND Leitung dürfen lesen (200)', async () => {
@@ -2174,13 +2252,13 @@ describe('Sortenstatistik (B3)', () => {
     });
   });
 
-  it('Zeitfilter: quartal enthält den alten Kauf, woche/monat nicht', async () => {
-    const woche = saftRow((await agent.get('/statistik/sorten?zeitraum=woche')).body);
+  it('Zeitfilter monat/quartal/jahr staffeln die Käufe (40-Tage im Quartal, 200-Tage erst im Jahr)', async () => {
     const monat = saftRow((await agent.get('/statistik/sorten?zeitraum=monat')).body);
     const quartal = saftRow((await agent.get('/statistik/sorten?zeitraum=quartal')).body);
-    expect(woche.anzahl).toBe(2);
-    expect(monat.anzahl).toBe(2);
-    expect(quartal.anzahl).toBe(3);
+    const jahr = saftRow((await agent.get('/statistik/sorten?zeitraum=jahr')).body);
+    expect(monat.anzahl).toBe(2); // nur die 2 frischen (1 storniert raus)
+    expect(quartal.anzahl).toBe(3); // + der 40-Tage-Kauf
+    expect(jahr.anzahl).toBe(4); // + der 200-Tage-Kauf
   });
 
   it('nutzt den eingefrorenen preisAtKaufCent, nicht den aktuellen Drink-Preis', async () => {
@@ -2617,6 +2695,71 @@ describe('Account-A — Löschen + Export', () => {
     expect(data).not.toHaveProperty('deckungCent');
     expect(data).not.toHaveProperty('vereinsvermoegenCent');
     expect(data).not.toHaveProperty('toepfe');
+  });
+});
+
+// Bündel 2, Einheit 3 — Reaktivierung + Sichtbarkeit deaktivierter Konten.
+describe('Konto-Reaktivierung (Bündel 2)', () => {
+  async function neuerMember(email: string, firstName: string) {
+    const u = await prisma.user.create({
+      data: { email, firstName, lastName: 'R', isAdmin: false },
+    });
+    const inv = generateInviteToken();
+    await prisma.invite.create({ data: { tokenHash: inv.hash, userId: u.id, expiresAt: inviteExpiry() } });
+    const ag = supertest.agent(app);
+    const r = await ag.post('/auth/invite-redeem').send({ token: inv.clear, password: 'Reaktiv-Pferd-9' });
+    expect(r.status).toBe(200);
+    return { id: u.id, ag, email };
+  }
+
+  it('GET /admin/users: Default ohne, includeInactive=true mit deaktivierten (inkl. isActive-Feld)', async () => {
+    const m = await neuerMember('reaktiv-list@example.com', 'Rita');
+    expect((await agent.delete(`/admin/users/${m.id}`)).status).toBe(200);
+
+    // Default: deaktivierte fehlen.
+    const ohne = (await agent.get('/admin/users')).body.users as Array<{ id: string; isActive: boolean }>;
+    expect(ohne.some((u) => u.id === m.id)).toBe(false);
+    // isActive ist jetzt Teil der Antwort (für die aktiven).
+    expect(ohne.every((u) => typeof u.isActive === 'boolean')).toBe(true);
+    expect(ohne.every((u) => u.isActive === true)).toBe(true);
+
+    // includeInactive=true: deaktivierter ist dabei, als isActive=false markiert.
+    const mit = (await agent.get('/admin/users?includeInactive=true')).body.users as Array<{ id: string; isActive: boolean }>;
+    const drin = mit.find((u) => u.id === m.id);
+    expect(drin).toBeDefined();
+    expect(drin!.isActive).toBe(false);
+  });
+
+  it('reaktiviert ein deaktiviertes Konto → wieder aktiv, voll nutzbar (Login geht wieder)', async () => {
+    const m = await neuerMember('reaktiv-go@example.com', 'Ralf');
+    expect((await agent.delete(`/admin/users/${m.id}`)).status).toBe(200);
+    // Login schlägt fehl, solange deaktiviert.
+    const loginVor = await supertest.agent(app).post('/auth/login').send({ email: m.email, password: 'Reaktiv-Pferd-9' });
+    expect(loginVor.status).toBe(403);
+
+    const r = await agent.patch(`/admin/users/${m.id}/reactivate`);
+    expect(r.status).toBe(200);
+    expect(r.body.ok).toBe(true);
+    expect(r.body.user).toMatchObject({ id: m.id, isActive: true });
+    expect((await prisma.user.findUnique({ where: { id: m.id } }))?.isActive).toBe(true);
+
+    // Wieder in der aktiven Liste + Login funktioniert erneut.
+    const aktive = (await agent.get('/admin/users')).body.users as Array<{ id: string }>;
+    expect(aktive.some((u) => u.id === m.id)).toBe(true);
+    const loginNach = await supertest.agent(app).post('/auth/login').send({ email: m.email, password: 'Reaktiv-Pferd-9' });
+    expect(loginNach.status).toBe(200);
+  });
+
+  it('Guards: Nicht-Admin → 403, unbekannte ID → 404, bereits aktiv → 400', async () => {
+    const m = await neuerMember('reaktiv-guard@example.com', 'Resi');
+    // Member darf nicht reaktivieren (kann sich auch nicht selbst — er kommt nicht rein).
+    expect((await memberAgent.patch(`/admin/users/${m.id}/reactivate`)).status).toBe(403);
+    // Unbekannte ID.
+    expect((await agent.patch('/admin/users/gibts-nicht/reactivate')).status).toBe(404);
+    // Aktives Konto reaktivieren → 400 (nichts zu tun).
+    const r = await agent.patch(`/admin/users/${m.id}/reactivate`);
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/bereits aktiv/i);
   });
 });
 

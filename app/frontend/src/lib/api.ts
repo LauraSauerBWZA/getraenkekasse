@@ -86,6 +86,9 @@ export interface AdminUser {
   lastName: string;
   isAdmin: boolean;
   guthabenCent: number;
+  // Bündel 2: kommt jetzt immer mit; bei includeInactive zeigt die Liste auch
+  // deaktivierte Mitglieder (isActive=false).
+  isActive: boolean;
 }
 
 export interface KassenTransaktion {
@@ -195,8 +198,9 @@ export interface KassenHistorieEintrag {
 export type KassenBuchungTyp = 'EINKAUF' | 'ENTNAHME' | 'SPENDE' | 'KORREKTUR';
 export type KassenKonto = 'VERWALTER' | 'BOX';
 
-// Sortenstatistik (B3) — app-weit anonym aggregiert.
-export type StatistikZeitraum = 'woche' | 'monat' | 'quartal';
+// Sortenstatistik (B3) — app-weit anonym aggregiert. Bündel 2: Woche raus, Jahr
+// rein (rollierende letzte 365 Tage = „letzte 12 Monate").
+export type StatistikZeitraum = 'monat' | 'quartal' | 'jahr';
 
 export interface SortenStat {
   drinkId: string;
@@ -363,8 +367,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(notiz ? { notiz } : {}),
     }),
-  // Admin: aktive Mitglieder für Auswahl (z.B. Bargeld-Aufladung)
-  adminUsers: () => request<{ users: AdminUser[] }>('/admin/users'),
+  // Admin: Mitglieder für Auswahl (z.B. Bargeld-Aufladung). Default nur aktive;
+  // includeInactive=true liefert auch deaktivierte (für Sichtbarkeit + Reaktivierung).
+  adminUsers: (includeInactive = false) =>
+    request<{ users: AdminUser[] }>(`/admin/users${includeInactive ? '?includeInactive=true' : ''}`),
+  // Admin: deaktiviertes Konto wieder aktivieren (Soft-Delete rückgängig)
+  adminReactivateUser: (id: string) =>
+    request<{ ok: true; user: { id: string; firstName: string; lastName: string; isAdmin: boolean; isLeitung: boolean; isActive: boolean } }>(
+      `/admin/users/${id}/reactivate`,
+      { method: 'PATCH' },
+    ),
   // Admin: Mitglied-Detail (Stammdaten + Live-Saldo + Transaktionshistorie)
   adminUserDetail: (id: string) =>
     request<{ user: AdminUserDetail; transaktionen: DetailTransaktion[] }>(`/admin/users/${id}`),
@@ -427,8 +439,10 @@ export const api = {
       '/admin/kasse/einlage',
       { method: 'POST', body: JSON.stringify(input) },
     ),
-  // Admin: Bargeld-Aufladung — erzeugt gekoppelte Mitglieder- und Kassen-Buchung
-  adminAufladungBargeld: (input: { userId: string; betragCent: number; vermerk: string }) =>
+  // Admin: Bargeld-Aufladung — erzeugt gekoppelte Mitglieder- und Kassen-Buchung.
+  // konto wählt das Kassen-Konto der gekoppelten EINZAHLUNG (Verwalter-Topf oder
+  // Bar-Vereinskasse/Box). Default VERWALTER, wenn weggelassen.
+  adminAufladungBargeld: (input: { userId: string; betragCent: number; vermerk: string; konto?: KassenKonto }) =>
     request<{
       transaktion: Transaktion;
       kassenTransaktion: KassenTransaktion;
