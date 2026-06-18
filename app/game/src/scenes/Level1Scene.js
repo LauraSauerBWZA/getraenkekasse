@@ -12,8 +12,10 @@ import {
   BROCKEN,
   ICICLE,
   WALL_METERS,
+  EXE,
+  BONUS,
 } from '../constants.js';
-import { WALL, OVERHANGS, COLLECTIBLES, EXES } from '../levels/level1.js';
+import { WALL, OVERHANGS, COLLECTIBLES, EXES, BONUS_SPOTS } from '../levels/level1.js';
 import { Player } from '../sprites/Player.js';
 import { Collectible } from '../sprites/Collectible.js';
 import { Hud } from '../utils/hud.js';
@@ -58,6 +60,7 @@ export class Level1Scene extends Phaser.Scene {
     this.buildExes();
     this.buildSecuredVisuals();
     this.buildCollectibles();
+    this.buildBonus();
 
     this.touch = new TouchControls(this);
     this.hud = new Hud(this, { onMenu: () => this.scene.start(SCENES.menu) });
@@ -241,6 +244,41 @@ export class Level1Scene extends Phaser.Scene {
         this.lastClippedExe.y,
       );
     }
+  }
+
+  // Emblem-Bonus-Item (B_GAME4.5): seltenes, pendelndes, riskant platziertes
+  // Extra-Item (+BONUS.score). Einsammeln per Berührung wie andere Collectibles.
+  buildBonus() {
+    this.bonus = this.physics.add.group();
+    for (const spot of BONUS_SPOTS) {
+      const item = this.bonus.create(spot.x - BONUS.pendulumPx / 2, spot.y, 'emblem_item');
+      item.body.setAllowGravity(false);
+      item.body.setImmovable(true);
+      // Horizontales Pendeln → beweglich + schwer mitzunehmen.
+      this.tweens.add({
+        targets: item,
+        x: spot.x + BONUS.pendulumPx / 2,
+        duration: BONUS.pendulumMs,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.inOut',
+      });
+      // Dezentes Pulsieren (auffällig, „begehrenswert").
+      this.tweens.add({
+        targets: item,
+        scale: 1.18,
+        duration: 600,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.inOut',
+      });
+    }
+    this.physics.add.overlap(this.player, this.bonus, (_p, item) => {
+      this.score += BONUS.score;
+      this.collectiblesFound += 1;
+      this.popup(item.x, item.y, `+${BONUS.score}!`, CSS.amberGlow);
+      item.destroy();
+    });
   }
 
   buildCollectibles() {

@@ -61,3 +61,10 @@ export function buildCollectibles() {
   return items;
 }
 export const COLLECTIBLES = buildCollectibles();
+
+// Emblem-Bonus-Item (B_GAME4.5): selten (2× pro Level), an unterschiedlichen
+// Höhen, mittig in der Brocken-Bahn = riskant. Pendelt horizontal (Scene).
+export const BONUS_SPOTS = [
+  { x: GAME.width / 2, y: WALL.startY - 2600 },
+  { x: GAME.width / 2, y: WALL.startY - 6800 },
+];
