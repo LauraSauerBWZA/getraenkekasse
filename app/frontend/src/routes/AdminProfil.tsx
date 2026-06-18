@@ -16,10 +16,16 @@ function toHandle(raw: string): string {
     .replace(/\/+$/, '');
 }
 
+// WhatsApp-Eingabe → nur Ziffern (Vorschau; das Backend normalisiert nochmal).
+function toZiffern(raw: string): string {
+  return raw.replace(/\D/g, '');
+}
+
 export default function AdminProfil() {
   const { user, refresh } = useAuth();
   const navigate = useNavigate();
   const [wert, setWert] = useState(user?.paypalMeLink ?? '');
+  const [whatsapp, setWhatsapp] = useState(user?.whatsappNummer ?? '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -27,6 +33,7 @@ export default function AdminProfil() {
   if (!user) return null;
 
   const handle = toHandle(wert);
+  const ziffern = toZiffern(whatsapp);
 
   const speichern = async (e: FormEvent) => {
     e.preventDefault();
@@ -34,10 +41,14 @@ export default function AdminProfil() {
     setOk(null);
     setBusy(true);
     try {
-      const r = await api.setMyPaypalLink(handle || null);
+      const r = await api.setMyProfil({
+        paypalMeLink: handle || null,
+        whatsappNummer: ziffern || null,
+      });
       await refresh();
       setWert(r.user.paypalMeLink ?? '');
-      setOk(r.user.paypalMeLink ? 'Link gespeichert.' : 'Link entfernt.');
+      setWhatsapp(r.user.whatsappNummer ?? '');
+      setOk('Profil gespeichert.');
     } catch (e2) {
       setErr(e2 instanceof ApiError ? e2.message : 'Speichern fehlgeschlagen.');
     } finally {
@@ -50,7 +61,8 @@ export default function AdminProfil() {
     setOk(null);
     setBusy(true);
     try {
-      await api.setMyPaypalLink(null);
+      // Nur den paypal.me-Link leeren; WhatsApp-Nummer unangetastet lassen.
+      await api.setMyProfil({ paypalMeLink: null });
       await refresh();
       setWert('');
       setOk('Link entfernt.');
@@ -76,10 +88,11 @@ export default function AdminProfil() {
             marginTop: 4,
           }}
         >
-          PayPal-Link
+          Verwalter-Profil
         </div>
         <div style={{ marginTop: 6, fontSize: 13, color: 'var(--bwza-ink-dim)' }}>
-          Mitglieder, die dir zugewiesen werden, zahlen über deinen paypal.me-Link.
+          Mitglieder, die dir zugewiesen werden, zahlen über deinen paypal.me-Link und
+          benachrichtigen dich per WhatsApp.
         </div>
       </div>
 
@@ -93,7 +106,6 @@ export default function AdminProfil() {
             value={wert}
             onChange={(e) => setWert(e.target.value)}
             placeholder="z.B. deinname oder paypal.me/deinname"
-            error={err}
             autoFocus
           />
           <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>
@@ -104,6 +116,25 @@ export default function AdminProfil() {
               </>
             ) : (
               'Noch kein Link hinterlegt — du bekommst keine PayPal-Anfragen zugewiesen.'
+            )}
+          </div>
+
+          <GlassInput
+            label="WhatsApp-Nummer (optional)"
+            value={whatsapp}
+            onChange={(e) => setWhatsapp(e.target.value)}
+            placeholder="z.B. 491701234567"
+            hint="Internationales Format ohne + oder Leerzeichen. Mitglieder benachrichtigen dich darüber."
+            error={err}
+          />
+          <div style={{ fontSize: 12, color: 'var(--bwza-ink-mute)' }}>
+            {ziffern ? (
+              <>
+                Vorschau:{' '}
+                <span style={{ color: 'var(--bwza-ink-dim)' }}>wa.me/{ziffern}</span>
+              </>
+            ) : (
+              'Keine Nummer hinterlegt — Mitglieder sehen dann nur einen Hinweis statt eines WhatsApp-Buttons.'
             )}
           </div>
           {ok && <div style={{ fontSize: 12, color: 'var(--bwza-ink-dim)' }}>{ok}</div>}
