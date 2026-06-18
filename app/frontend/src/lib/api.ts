@@ -14,6 +14,7 @@ export interface ApiUser {
   isAdmin: boolean;
   isLeitung: boolean;
   paypalMeLink: string | null;
+  whatsappNummer: string | null;
   isActive: boolean;
 }
 
@@ -109,12 +110,14 @@ export interface VerwalterPublic {
   firstName: string;
   lastName: string;
   paypalMeLink: string | null;
+  whatsappNummer: string | null;
 }
 
 export interface AufladungsAnfrage {
   id: string;
   userId: string;
-  betragCent: number;
+  // betraglos bei OFFEN (PayPal-Umbau); gesetzt beim Bestätigen (= überwiesene Summe).
+  betragCent: number | null;
   status: AufladungsStatus;
   zugewiesenerVerwalterId: string;
   requestedAt: string;
@@ -392,12 +395,13 @@ export const api = {
       `/admin/users/${id}/admin`,
       { method: 'PATCH', body: JSON.stringify({ isAdmin }) },
     ),
-  // Verwalter: eigenen paypal.me-Link setzen/leeren (null = leeren)
-  setMyPaypalLink: (paypalMeLink: string | null) =>
-    request<{ user: { id: string; paypalMeLink: string | null } }>('/admin/me/paypal', {
-      method: 'PATCH',
-      body: JSON.stringify({ paypalMeLink }),
-    }),
+  // Verwalter: eigenes Profil pflegen — paypal.me-Link und/oder WhatsApp-Nummer.
+  // Nur mitgeschickte Felder werden geändert (undefined = unangetastet, null = leeren).
+  setMyProfil: (input: { paypalMeLink?: string | null; whatsappNummer?: string | null }) =>
+    request<{ user: { id: string; paypalMeLink: string | null; whatsappNummer: string | null } }>(
+      '/admin/me/paypal',
+      { method: 'PATCH', body: JSON.stringify(input) },
+    ),
   // Admin ODER Leitung: Sortenstatistik (anonym aggregiert)
   sortenStatistik: (zeitraum: StatistikZeitraum) =>
     request<SortenStatistik>(`/statistik/sorten?zeitraum=${zeitraum}`),
@@ -437,19 +441,21 @@ export const api = {
   // Mitglied: zuständigen Verwalter (Name + paypal.me-Link) für den Aufladen-Tab
   aufladungZustaendigerVerwalter: () =>
     request<{ verwalter: VerwalterPublic | null }>('/aufladung/zustaendiger-verwalter'),
-  // Mitglied: PayPal-Aufladungs-Anfrage stellen → offene Anfrage + Verwalter
-  aufladungPaypal: (betragCent: number) =>
+  // Mitglied: BETRAGLOSE PayPal-Aufladungs-Anfrage stellen → offene Anfrage +
+  // zuständiger Verwalter (paypal.me + WhatsApp-Nummer für die Benachrichtigung)
+  aufladungPaypal: () =>
     request<{ anfrage: AufladungsAnfrage; verwalter: VerwalterPublic }>('/aufladung/paypal', {
       method: 'POST',
-      body: JSON.stringify({ betragCent }),
+      body: JSON.stringify({}),
     }),
   // Mitglied: eigene Anfragen (neueste zuerst) inkl. zugewiesenem Verwalter
   aufladungMeine: () => request<{ anfragen: MeineAnfrage[] }>('/aufladung/meine'),
   // Admin: offene PayPal-Anfragen
   adminAufladungAnfragen: () =>
     request<{ anfragen: AdminAnfrage[] }>('/admin/aufladung/anfragen'),
-  // Admin: Anfrage bestätigen → gekoppelte Buchung + neues Mitglied-Guthaben
-  adminAufladungBestaetigen: (id: string, adminNotiz?: string) =>
+  // Admin: Anfrage bestätigen mit der TATSÄCHLICH überwiesenen Summe (betragCent,
+  // Pflicht) → gekoppelte Buchung + neues Mitglied-Guthaben
+  adminAufladungBestaetigen: (id: string, betragCent: number, adminNotiz?: string) =>
     request<{
       anfrage: AufladungsAnfrage;
       transaktion: Transaktion;
@@ -457,7 +463,7 @@ export const api = {
       guthabenCent: number;
     }>(`/admin/aufladung/anfragen/${id}/bestaetigen`, {
       method: 'POST',
-      body: JSON.stringify(adminNotiz ? { adminNotiz } : {}),
+      body: JSON.stringify(adminNotiz ? { betragCent, adminNotiz } : { betragCent }),
     }),
   // Admin: Anfrage ablehnen (keine Buchung)
   adminAufladungAblehnen: (id: string, adminNotiz?: string) =>
@@ -481,13 +487,17 @@ export function downloadJson(filename: string, data: unknown): void {
   URL.revokeObjectURL(url);
 }
 
-// paypal.me-Deep-Link: https://paypal.me/{link}/{betrag} (KONFIGURATION §6.5).
-// Betrag mit Punkt-Dezimaltrenner (paypal.me-Format), ganze Beträge ohne
-// Nachkommastellen. Keine PayPal-API — nur der Link (§11).
-export function paypalMeUrl(link: string, cent: number): string {
-  const euro = cent / 100;
-  const betrag = Number.isInteger(euro) ? String(euro) : euro.toFixed(2);
-  return `https://paypal.me/${link}/${betrag}`;
+// paypal.me-Link OHNE Betrag (PayPal-Umbau): https://paypal.me/{link}. Das
+// Mitglied gibt den Betrag selbst in PayPal ein.
+export function paypalMeUrlOhneBetrag(link: string): string {
+  return `https://paypal.me/${link}`;
+}
+
+// wa.me-Deep-Link mit vorgefülltem Text: https://wa.me/{ziffern}?text=...
+// Nummer kommt bereits ziffern-normalisiert vom Backend; defensiv hier nochmal.
+export function waMeUrl(nummer: string, text: string): string {
+  const ziffern = nummer.replace(/\D/g, '');
+  return `https://wa.me/${ziffern}?text=${encodeURIComponent(text)}`;
 }
 
 export function formatGuthaben(cent: number): string {
