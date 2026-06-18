@@ -39,6 +39,7 @@ export class Level1Scene extends Phaser.Scene {
     this.invulnerable = false;
     this.finished = false;
     this.reachedTop = false;
+    this.wasSecured = false; // B_GAME4B.7: für Warnsignal beim Übergang gesichert→ungesichert
     this.maxHeightM = 0;
     this.startedAt = this.time.now;
 
@@ -171,7 +172,6 @@ export class Level1Scene extends Phaser.Scene {
   // mit (scrollFactor 1).
   buildExes() {
     this.exes = [];
-    this.lastClippedExe = null;
     this.clippedPath = []; // B_GAME4B.6: geclippte Exen in Clip-Reihenfolge (Boden→oben)
     for (const e of EXES) {
       const sprite = this.add.image(e.x, e.y, 'exe');
@@ -208,17 +208,27 @@ export class Level1Scene extends Phaser.Scene {
     nearest.setData('clipped', true);
     nearest.setTint(0x88e0a0); // geklippt-Indikator (grünlich)
     this.score += EXE.clipScore;
-    // B_GAME4B.1: zuletzt geclippte Exe = Fall-Anker (Sturzziel).
-    this.lastClippedExe = nearest;
     // B_GAME4B.6: Seil-Polyline VERLÄNGERN (neuer Stützpunkt, kein Reset).
     this.clippedPath.push(nearest);
     this.popup(nearest.x, nearest.y - 20, `+${EXE.clipScore} eingeklippt`, CSS.success);
   }
 
-  // B_GAME4B.1: „Anker vorhanden" = mindestens eine Exe geclippt. Ersetzt das
-  // zeitbasierte Schutzfenster aus B_GAME4 — der Anker bleibt dauerhaft bestehen.
-  hasAnchor() {
-    return this.lastClippedExe !== null;
+  // B_GAME4B.7: die zuletzt PASSIERTE Exe = die nächste Exe unterhalb des
+  // Kletterers (kleinstes y über player.y). Maßgeblich für den Sicherungs-Status.
+  lastPassedExe() {
+    let best = null;
+    for (const exe of this.exes) {
+      if (exe.y > this.player.y && (!best || exe.y < best.y)) best = exe;
+    }
+    return best;
+  }
+
+  // „Gesichert" = der Spieler ist in die zuletzt passierte Exe eingeclippt
+  // (B_GAME4B.7). Klettert er an einer Exe vorbei OHNE zu clippen, wird er
+  // ungesichert — auch wenn weiter unten schon Exen geclippt sind.
+  isSecured() {
+    const e = this.lastPassedExe();
+    return e !== null && e.getData('clipped');
   }
 
   // Sicht-Feedback für den Anker (B_GAME4B.1): ruhige Dauer-Aura am Kletterer
@@ -240,18 +250,36 @@ export class Level1Scene extends Phaser.Scene {
       this.aura.setVisible(false);
       return;
     }
-    // B_GAME4B.6: durchgehende, wachsende Polyline Boden → Exe1 → … → letzter Clip
-    // → Kletterer. Bleibt permanent gezeichnet (auch ungesichert).
+    const secured = this.isSecured();
+    // Permanente, wachsende Polyline: Boden → alle geclippten Exen (immer grün,
+    // auch ungesichert).
     const pts = [{ x: path[0].x, y: GAME.worldHeight }];
     for (const e of path) pts.push({ x: e.x, y: e.y });
-    pts.push({ x: this.player.x, y: this.player.y });
     this.ropeGfx.lineStyle(2, 0x88e0a0, 0.8);
     this.ropeGfx.beginPath();
     this.ropeGfx.moveTo(pts[0].x, pts[0].y);
     for (let i = 1; i < pts.length; i++) this.ropeGfx.lineTo(pts[i].x, pts[i].y);
     this.ropeGfx.strokePath();
-    // Aura vorläufig an „mind. ein Clip" gekoppelt; secured-Logik folgt B_GAME4B.7.
-    this.aura.setVisible(true).setPosition(this.player.x, this.player.y).setScale(1).setAlpha(0.5);
+    // Verbindung zum Kletterer: gespannt+grün (gesichert) ODER offenes, rot
+    // flatterndes Seil-Ende (ungesichert = „jetzt tödlich").
+    const last = path[path.length - 1];
+    if (secured) {
+      this.ropeGfx.lineStyle(2, 0x88e0a0, 0.85);
+      this.ropeGfx.lineBetween(last.x, last.y, this.player.x, this.player.y);
+      this.aura.setVisible(true).setPosition(this.player.x, this.player.y).setScale(1).setAlpha(0.5);
+    } else {
+      const wob = Math.sin(this.time.now / 70) * 7; // flatterndes offenes Ende
+      this.ropeGfx.lineStyle(2, 0xe2403a, 0.85);
+      this.ropeGfx.lineBetween(last.x, last.y, last.x + wob, last.y - 24);
+      this.aura.setVisible(false);
+    }
+  }
+
+  // Quittiert das Verpassen einer Exe (B_GAME4B.7): kurzes rotes Aufblinken +
+  // Hinweis, damit ein folgender Treffer-Tod fair nachvollziehbar ist.
+  warnUnsecured() {
+    this.cameras.main.flash(180, 150, 20, 20);
+    this.popup(this.player.x, this.player.y - 30, 'ungesichert!', CSS.rescue);
   }
 
   // Emblem-Bonus-Item (B_GAME4.5): seltenes, pendelndes, riskant platziertes
@@ -364,9 +392,9 @@ export class Level1Scene extends Phaser.Scene {
       this.hitPlayerSmall();
       return;
     }
-    // Großer Brocken (B_GAME4B.2): mit Anker → −1 Leben + Sturz bis zur letzten Exe;
-    // ohne Anker → Totalabsturz (sofort Game Over).
-    if (this.hasAnchor()) this.fallToAnchor();
+    // Großer Brocken: GESICHERT → −1 Leben + Sturz bis zur letzten Exe;
+    // UNGESICHERT (zuletzt passierte Exe nicht geclippt) → sofort Game Over.
+    if (this.isSecured()) this.fallToAnchor();
     else this.gameOver('absturz');
   }
 
@@ -424,9 +452,9 @@ export class Level1Scene extends Phaser.Scene {
   handleIcicleHit(ic) {
     if (this.invulnerable) return;
     ic.destroy();
-    // Eiszapfen verhält sich wie der große Brocken (B_GAME4B.2): mit Anker →
-    // −1 Leben + Sturz, ohne Anker → Totalabsturz.
-    if (this.hasAnchor()) this.fallToAnchor();
+    // Eiszapfen wie großer Brocken: gesichert → −1 Leben + Sturz, ungesichert →
+    // Totalabsturz.
+    if (this.isSecured()) this.fallToAnchor();
     else this.gameOver('absturz');
   }
 
@@ -441,7 +469,9 @@ export class Level1Scene extends Phaser.Scene {
       this.gameOver('lives');
       return;
     }
-    const anchor = this.lastClippedExe;
+    // Fang an der höchsten geclippten Exe UNTER dem Kletterer (= zuletzt passierte
+    // Exe, bei „gesichert" garantiert geclippt) — nie nach oben stürzen.
+    const anchor = this.lastPassedExe();
     const cam = this.cameras.main;
     // Scroll springt runter auf Anker-Höhe — nie nach oben (Clamp-Minimum =
     // aktueller scrollY), am Welt-Anfang geclampt (Clamp-Maximum = startScrollY).
@@ -618,6 +648,12 @@ export class Level1Scene extends Phaser.Scene {
     this.updateBrocken(delta);
     this.updateIcicles(delta);
 
+    // Sicherungs-Status + Warnsignal beim Übergang gesichert → ungesichert
+    // (z.B. an einer Exe ohne Clippen vorbeigeklettert).
+    const secured = this.isSecured();
+    if (this.wasSecured && !secured) this.warnUnsecured();
+    this.wasSecured = secured;
+
     this.updateAnchorVisuals();
 
     const heightM = this.currentHeightM();
@@ -629,7 +665,7 @@ export class Level1Scene extends Phaser.Scene {
       score: this.score,
       heightM: this.maxHeightM,
       timeMs,
-      secured: this.hasAnchor(),
+      secured,
     });
 
     // Kamera am Wand-Ende: stoppt (clampt bei 0). Jetzt muss der Haken gezielt

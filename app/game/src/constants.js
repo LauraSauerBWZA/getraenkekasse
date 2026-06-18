@@ -128,10 +128,11 @@ export const ICICLE = {
 };
 
 // ─── B_GAME4B Sturzhöhe-Balancing (finale Start-Werte, Playtest-tunbar) ──────
-// Mechanik:        Sturzhöhe statt Zeitfenster. Geclippte Exe = Anker (Fangpunkt).
-//                  Gefährlicher Treffer MIT Anker → −1 Leben + Sturz auf Anker-
-//                  Höhe (Spieler + Scroll springen runter), dann weiter. OHNE
-//                  Anker → Totalabsturz = sofort Game Over. 0 Leben → Game Over.
+// Mechanik:        Sturzhöhe statt Zeitfenster. „Gesichert" = in die ZULETZT
+//                  PASSIERTE Exe eingeclippt (B_GAME4B.7). An einer Exe ohne
+//                  Clippen vorbei → ungesichert (auch wenn weiter unten geclippt).
+//                  Gefährlicher Treffer GESICHERT → −1 Leben + Sturz auf letzte
+//                  geclippte Exe; UNGESICHERT → sofort Game Over. 0 Leben → GO.
 // Treffer-Typen:   kleiner Stein = immer harmloser Rückwurf (kein Leben, auch
 //                  ohne Anker, Q1); großer Brocken + Eiszapfen = Sturz/Game-Over.
 //                  Rausdrücken am unteren Rand bleibt unabhängig (wie gehabt).
@@ -144,8 +145,11 @@ export const ICICLE = {
 //                  pendelt ±47 px (Periode 1,7 s).
 // Eingabe:         Desktop = Taste E; Mobile = „Klippen"-Button unten links
 //                  (KEIN Doppeltipp → keine Kollision mit dem Sprung-Tap).
-// Status sichtbar: ruhige Dauer-Aura (ADD-Glow) + permanente Seil-Linie zum
-//                  Anker + HUD-Label „⚓ gesichert" (kein Timer-Balken mehr).
+// Seil:            durchgehende, wachsende Polyline Boden→alle Clips→Kletterer;
+//                  jeder neue Clip verlängert sie (kein Reset), bleibt permanent.
+// Status sichtbar: gesichert = ruhige Aura + grünes gespanntes Seil + HUD grün
+//                  „⚓ gesichert"; ungesichert = Aura aus + rotes flatterndes
+//                  Seil-Ende + HUD rot „⚠ ungesichert" + rotes Flash beim Verpassen.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Vorstieg-Sicherung (B_GAME4 + Rework B_GAME4B): Exen (Quickdraws) an der Wand-

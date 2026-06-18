@@ -71,18 +71,17 @@ export class Hud {
       .setScrollFactor(0)
       .setDepth(100);
 
-    // Anker-Anzeige (B_GAME4B.4): permanenter „gesichert"-Indikator, sichtbar
-    // solange ein Fangpunkt existiert (Sturzhöhe-Modell — kein Restzeit-Balken
-    // mehr). Doppel-Codierung mit Aura + Seil-Linie in der Szene.
+    // Sicherungs-Status (B_GAME4B.7): permanenter Indikator — grün „gesichert"
+    // wenn in die zuletzt passierte Exe geclippt, sonst rot „ungesichert"
+    // (= ein Treffer ist tödlich). Doppel-Codierung mit Aura + Seil in der Szene.
     this.securedLabel = scene.add
-      .text(pad, pad + 50, '⚓ gesichert', {
+      .text(pad, pad + 50, '⚠ ungesichert', {
         fontFamily: CSS.fontUi,
         fontSize: '12px',
-        color: CSS.success,
+        color: CSS.rescue,
       })
       .setScrollFactor(0)
-      .setDepth(100)
-      .setVisible(false);
+      .setDepth(100);
   }
 
   update({ lives, score, heightM, timeMs, secured = false }) {
@@ -93,6 +92,7 @@ export class Hud {
     this.heightText.setText(`▲ ${heightM} m`);
     this.timeText.setText(formatTime(timeMs));
 
-    this.securedLabel.setVisible(secured);
+    if (secured) this.securedLabel.setText('⚓ gesichert').setColor(CSS.success);
+    else this.securedLabel.setText('⚠ ungesichert').setColor(CSS.rescue);
   }
 }
