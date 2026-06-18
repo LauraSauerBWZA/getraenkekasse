@@ -148,7 +148,7 @@ export const EXE = {
   spacingPx: 320, // Abstand entlang der Wand (Richtwert 250–400)
   inset: 52, // x-Abstand von der Wand-Seite (noch erreichbar)
   reachRadius: 82, // px: so nah muss der Kletterer zum Einklippen ran
-  clipScore: 40, // Punkte fürs erfolgreiche Einklippen (B_GAME4B.4 → 50)
+  clipScore: 50, // Punkte fürs Einklippen (B_GAME4B.4: gleichwertig zum Sammel-Karabiner)
 };
 
 // Faire Eröffnung (B_GAME4B.3): kurze Schon-Frist beim Start, in der KEINE
