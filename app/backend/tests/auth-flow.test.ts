@@ -1009,49 +1009,41 @@ describe('PayPal-Anfrage (Mitglied)', () => {
 
   it('lehnt Anfrage ohne Login ab', async () => {
     const anon = supertest.agent(app);
-    const r = await anon.post('/aufladung/paypal').send({ betragCent: 1000 });
+    const r = await anon.post('/aufladung/paypal').send();
     expect(r.status).toBe(401);
   });
 
-  it('lehnt nicht-positive / nicht-ganzzahlige Beträge ab', async () => {
-    for (const bad of [0, -500, 12.34]) {
-      const r = await memberAgent.post('/aufladung/paypal').send({ betragCent: bad });
-      expect(r.status).toBe(400);
-    }
-  });
-
-  it('lehnt fehlenden Betrag ab', async () => {
-    const r = await memberAgent.post('/aufladung/paypal').send({});
-    expect(r.status).toBe(400);
-  });
-
-  it('legt eine offene Anfrage an, zugewiesen an den zuständigen Verwalter', async () => {
-    const r = await memberAgent.post('/aufladung/paypal').send({ betragCent: 2000 });
+  it('legt eine BETRAGLOSE offene Anfrage an, zugewiesen an den zuständigen Verwalter', async () => {
+    // PayPal-Umbau: kein Betrag mehr im Request, betragCent bleibt null.
+    const r = await memberAgent.post('/aufladung/paypal').send();
     expect(r.status).toBe(201);
     expect(r.body.anfrage).toMatchObject({
       userId: maxId,
-      betragCent: 2000,
+      betragCent: null,
       status: 'OFFEN',
       zugewiesenerVerwalterId: lauraId,
       decidedAt: null,
       decidedById: null,
       transaktionId: null,
     });
+    // Verwalter inkl. (hier leerer) WhatsApp-Nummer für die Member-Benachrichtigung.
     expect(r.body.verwalter).toMatchObject({ id: lauraId, paypalMeLink: 'laura-test' });
+    expect(r.body.verwalter).toHaveProperty('whatsappNummer');
     // Keine Buchung beim Stellen — Guthaben unverändert (Max steht bei -150).
     const me = await memberAgent.get('/auth/me');
     expect(me.body.user.guthabenCent).toBe(-150);
   });
 
-  it('listet eigene Anfragen (neueste zuerst) inkl. Verwalter-Name', async () => {
-    // Zweite Anfrage, damit Sortierung prüfbar ist.
-    await memberAgent.post('/aufladung/paypal').send({ betragCent: 500 });
+  it('listet eigene Anfragen (neueste zuerst) inkl. Verwalter-Name, alle betraglos', async () => {
+    // Zweite betraglose Anfrage, damit Sortierung prüfbar ist.
+    await memberAgent.post('/aufladung/paypal').send();
     const r = await memberAgent.get('/aufladung/meine');
     expect(r.status).toBe(200);
     expect(Array.isArray(r.body.anfragen)).toBe(true);
     expect(r.body.anfragen.length).toBeGreaterThanOrEqual(2);
-    // neueste zuerst → die 500er-Anfrage ganz oben
-    expect(r.body.anfragen[0].betragCent).toBe(500);
+    // offene Anfragen sind betraglos
+    expect(r.body.anfragen[0].betragCent).toBeNull();
+    expect(r.body.anfragen[0].status).toBe('OFFEN');
     expect(r.body.anfragen[0].zugewiesenerVerwalter).toMatchObject({
       id: lauraId,
       firstName: 'Laura',
@@ -1081,9 +1073,12 @@ describe('PayPal-Anfrage (Admin bestätigt/lehnt)', () => {
     return agg._sum.betragCent ?? 0;
   }
 
-  async function offeneAnfrage(betragCent: number) {
-    return prisma.aufladungsAnfrage.findFirst({
-      where: { betragCent, status: 'OFFEN' },
+  // Max' offene Anfragen, älteste zuerst. Anfragen sind betraglos (PayPal-Umbau)
+  // → nicht mehr per Betrag auffindbar, daher über userId + requestedAt.
+  async function offeneAnfragenVonMax() {
+    return prisma.aufladungsAnfrage.findMany({
+      where: { userId: maxId, status: 'OFFEN' },
+      orderBy: { requestedAt: 'asc' },
     });
   }
 
@@ -1098,43 +1093,61 @@ describe('PayPal-Anfrage (Admin bestätigt/lehnt)', () => {
     expect((await memberAgent.get('/admin/aufladung/anfragen')).status).toBe(403);
   });
 
-  it('liefert offene Anfragen mit Mitglied-Daten, älteste zuerst', async () => {
+  it('liefert offene Anfragen mit Mitglied-Daten, älteste zuerst — alle betraglos', async () => {
     const r = await agent.get('/admin/aufladung/anfragen');
     expect(r.status).toBe(200);
     const maxAnfragen = r.body.anfragen.filter(
       (a: { user: { id: string } }) => a.user.id === maxId,
     );
     expect(maxAnfragen.length).toBe(2);
-    // älteste zuerst → 2000 (zuerst gestellt) vor 500
-    expect(maxAnfragen[0].betragCent).toBe(2000);
-    expect(maxAnfragen[1].betragCent).toBe(500);
+    // betraglos (PayPal-Umbau) → kein Betrag mehr an der Anfrage
+    expect(maxAnfragen[0].betragCent).toBeNull();
+    expect(maxAnfragen[1].betragCent).toBeNull();
     expect(maxAnfragen[0].user).toMatchObject({ firstName: 'Max', email: 'max@example.com' });
     expect(maxAnfragen[0].status).toBe('OFFEN');
   });
 
   it('lehnt Bestätigen ohne Admin-Recht ab', async () => {
-    const anfrage = await offeneAnfrage(2000);
-    const r = await memberAgent.post(`/admin/aufladung/anfragen/${anfrage!.id}/bestaetigen`).send({});
+    const [anfrage] = await offeneAnfragenVonMax();
+    const r = await memberAgent
+      .post(`/admin/aufladung/anfragen/${anfrage.id}/bestaetigen`)
+      .send({ betragCent: 2000 });
     expect(r.status).toBe(403);
   });
 
   it('antwortet 404 auf Bestätigen unbekannter Anfrage', async () => {
-    const r = await agent.post('/admin/aufladung/anfragen/gibts-nicht/bestaetigen').send({});
+    const r = await agent
+      .post('/admin/aufladung/anfragen/gibts-nicht/bestaetigen')
+      .send({ betragCent: 1000 });
     expect(r.status).toBe(404);
   });
 
-  it('bestätigt die 2000er-Anfrage: gekoppelte Buchung, Guthaben + Topf steigen', async () => {
-    const anfrage = await offeneAnfrage(2000);
+  it('verlangt einen Betrag beim Bestätigen (fehlt/0/negativ → 400, Anfrage bleibt OFFEN)', async () => {
+    const [anfrage] = await offeneAnfragenVonMax();
+    expect((await agent.post(`/admin/aufladung/anfragen/${anfrage.id}/bestaetigen`).send({})).status).toBe(400);
+    expect((await agent.post(`/admin/aufladung/anfragen/${anfrage.id}/bestaetigen`).send({ betragCent: 0 })).status).toBe(400);
+    expect((await agent.post(`/admin/aufladung/anfragen/${anfrage.id}/bestaetigen`).send({ betragCent: -100 })).status).toBe(400);
+    expect((await agent.post(`/admin/aufladung/anfragen/${anfrage.id}/bestaetigen`).send({ betragCent: 12.5 })).status).toBe(400);
+    // unverändert offen
+    const unverändert = await prisma.aufladungsAnfrage.findUnique({ where: { id: anfrage.id } });
+    expect(unverändert?.status).toBe('OFFEN');
+    expect(unverändert?.betragCent).toBeNull();
+  });
+
+  it('bestätigt die erste Anfrage mit der echten Summe: gekoppelte Buchung, Guthaben + Topf steigen', async () => {
+    const [anfrage] = await offeneAnfragenVonMax();
     const topfVor = await verwalterTopf(lauraId);
 
+    // Verwalter gibt die TATSÄCHLICH überwiesene Summe ein (2000 = 20,00 €).
     const r = await agent
-      .post(`/admin/aufladung/anfragen/${anfrage!.id}/bestaetigen`)
-      .send({ adminNotiz: 'PayPal am 14.06. erhalten' });
+      .post(`/admin/aufladung/anfragen/${anfrage.id}/bestaetigen`)
+      .send({ betragCent: 2000, adminNotiz: 'PayPal am 14.06. erhalten' });
     expect(r.status).toBe(201);
 
-    // Anfrage terminal + verlinkt
+    // Anfrage terminal + verlinkt, Betrag zur Doku gesetzt
     expect(r.body.anfrage).toMatchObject({
       status: 'BESTAETIGT',
+      betragCent: 2000,
       decidedById: lauraId,
       adminNotiz: 'PayPal am 14.06. erhalten',
     });
@@ -1168,22 +1181,22 @@ describe('PayPal-Anfrage (Admin bestätigt/lehnt)', () => {
 
   it('verhindert doppelte Entscheidung (schon bestätigte Anfrage)', async () => {
     const bestaetigt = await prisma.aufladungsAnfrage.findFirst({
-      where: { betragCent: 2000, status: 'BESTAETIGT' },
+      where: { userId: maxId, status: 'BESTAETIGT' },
     });
     const r = await agent
       .post(`/admin/aufladung/anfragen/${bestaetigt!.id}/bestaetigen`)
-      .send({});
+      .send({ betragCent: 1000 });
     expect(r.status).toBe(400);
     expect(r.body.error).toMatch(/bereits entschieden/i);
   });
 
-  it('lehnt die 500er-Anfrage ab: kein Booking, Status ABGELEHNT', async () => {
-    const anfrage = await offeneAnfrage(500);
+  it('lehnt die verbliebene Anfrage ab: kein Booking, Status ABGELEHNT', async () => {
+    const [anfrage] = await offeneAnfragenVonMax();
     const kasseVor = await prisma.kassenTransaktion.count();
     const guthabenVor = (await memberAgent.get('/auth/me')).body.user.guthabenCent;
 
     const r = await agent
-      .post(`/admin/aufladung/anfragen/${anfrage!.id}/ablehnen`)
+      .post(`/admin/aufladung/anfragen/${anfrage.id}/ablehnen`)
       .send({ adminNotiz: 'Keine Zahlung eingegangen' });
     expect(r.status).toBe(200);
     expect(r.body.anfrage).toMatchObject({
@@ -1201,7 +1214,7 @@ describe('PayPal-Anfrage (Admin bestätigt/lehnt)', () => {
 
   it('verhindert Ablehnen einer schon entschiedenen Anfrage', async () => {
     const abgelehnt = await prisma.aufladungsAnfrage.findFirst({
-      where: { betragCent: 500, status: 'ABGELEHNT' },
+      where: { userId: maxId, status: 'ABGELEHNT' },
     });
     const r = await agent
       .post(`/admin/aufladung/anfragen/${abgelehnt!.id}/ablehnen`)
@@ -1898,6 +1911,28 @@ describe('paypal.me-Profil (eigener Link)', () => {
     expect(r.status).toBe(400);
   });
 
+  it('setzt + normalisiert die WhatsApp-Nummer (nur Ziffern), ohne paypalMeLink zu ändern', async () => {
+    // Stand: Link aktuell null (aus „leert den Link"). whatsappNummer NICHT mitgeschickt
+    // bei den Link-Tests → unangetastet; hier nur die Nummer setzen.
+    const r = await agent.patch('/admin/me/paypal').send({ whatsappNummer: '+49 170 / 1234-567' });
+    expect(r.status).toBe(200);
+    expect(r.body.user.whatsappNummer).toBe('491701234567');
+    expect(r.body.user.paypalMeLink).toBeNull(); // nicht mitgeschickt → unverändert (null)
+    expect((await agent.get('/auth/me')).body.user.whatsappNummer).toBe('491701234567');
+  });
+
+  it('leert die WhatsApp-Nummer (null)', async () => {
+    const r = await agent.patch('/admin/me/paypal').send({ whatsappNummer: null });
+    expect(r.status).toBe(200);
+    expect(r.body.user.whatsappNummer).toBeNull();
+    expect((await agent.get('/auth/me')).body.user.whatsappNummer).toBeNull();
+  });
+
+  it('lehnt eine WhatsApp-Nummer ohne Ziffern ab (400)', async () => {
+    const r = await agent.patch('/admin/me/paypal').send({ whatsappNummer: 'keine-ziffern' });
+    expect(r.status).toBe(400);
+  });
+
   it('Restore: Lauras Link auf laura-test', async () => {
     const r = await agent.patch('/admin/me/paypal').send({ paypalMeLink: 'laura-test' });
     expect(r.status).toBe(200);
@@ -1944,39 +1979,54 @@ describe('Lastverteilung (§6.9)', () => {
     bertId = await loginVerwalter(bertAgent, 'bert@example.com', 'Bert', 'bert');
   });
 
-  it('Tie-Break: bei Gleichstand gewinnt firstName alphabetisch (Anna)', async () => {
-    // Beide Töpfe 0, keine offenen Anfragen → Gleichstand → Anna < Bert.
+  // Anzahl offener (OFFEN) einem Verwalter zugewiesener Anfragen (Tie-Break-Größe).
+  async function offeneCount(verwalterId: string): Promise<number> {
+    return prisma.aufladungsAnfrage.count({
+      where: { zugewiesenerVerwalterId: verwalterId, status: 'OFFEN' },
+    });
+  }
+
+  it('Tie-Break alphabetisch: beide Töpfe 0, keine offenen Anfragen → Anna', async () => {
+    expect(await topf(annaId)).toBe(0);
+    expect(await topf(bertId)).toBe(0);
+    expect(await offeneCount(annaId)).toBe(0);
+    expect(await offeneCount(bertId)).toBe(0);
     const r = await memberAgent.get('/aufladung/zustaendiger-verwalter');
     expect(r.status).toBe(200);
     expect(r.body.verwalter.id).toBe(annaId);
   });
 
-  it('Setup: Annas Topf auf -100 senken (Einkauf aus eigenem Topf)', async () => {
-    const r = await annaAgent
-      .post('/admin/kasse/buchung')
-      .send({ typ: 'EINKAUF', konto: 'VERWALTER', betragCent: 100, vermerk: 'Anna Einkauf' });
+  it('erste betraglose Anfrage geht an Anna (alphabetisch) + liefert deren Link', async () => {
+    const r = await memberAgent.post('/aufladung/paypal').send();
     expect(r.status).toBe(201);
-    expect(await topf(annaId)).toBe(-100);
-    expect(await topf(bertId)).toBe(0);
-  });
-
-  it('niedrigste effektive Summe gewinnt (Anna, -100 < 0)', async () => {
-    const r = await memberAgent.get('/aufladung/zustaendiger-verwalter');
-    expect(r.body.verwalter.id).toBe(annaId);
-  });
-
-  it('erste Anfrage geht an Anna + liefert deren Link', async () => {
-    const r = await memberAgent.post('/aufladung/paypal').send({ betragCent: 500 });
-    expect(r.status).toBe(201);
+    expect(r.body.anfrage.betragCent).toBeNull();
     expect(r.body.anfrage.zugewiesenerVerwalterId).toBe(annaId);
     expect(r.body.verwalter).toMatchObject({ id: annaId, paypalMeLink: 'anna' });
   });
 
-  it('zweite Anfrage geht an Bert (offene Anfrage hebt Annas effektiven Stand: -100+500=400 > 0)', async () => {
-    const r = await memberAgent.post('/aufladung/paypal').send({ betragCent: 500 });
+  it('zweite Anfrage geht an Bert (Tie-Break Anzahl: Anna hat 1 offene, Bert 0)', async () => {
+    // Töpfe weiter 0=0 → Tie-Break = wenigste offene Anfragen → Bert (0 < 1).
+    expect(await offeneCount(annaId)).toBe(1);
+    expect(await offeneCount(bertId)).toBe(0);
+    const r = await memberAgent.post('/aufladung/paypal').send();
     expect(r.status).toBe(201);
     expect(r.body.anfrage.zugewiesenerVerwalterId).toBe(bertId);
     expect(r.body.verwalter).toMatchObject({ id: bertId, paypalMeLink: 'bert' });
+  });
+
+  it('niedrigster Topf dominiert den Anzahl-Tie-Break: Anna −100 → trotz gleicher Anzahl an Anna', async () => {
+    // Anna Einkauf aus eigenem Topf → -100. Nun Anna 1 offene, Bert 1 offene (Anzahl-Tie),
+    // aber Anna Topf -100 < Bert 0 → der Topf entscheidet → Anna.
+    const e = await annaAgent
+      .post('/admin/kasse/buchung')
+      .send({ typ: 'EINKAUF', konto: 'VERWALTER', betragCent: 100, vermerk: 'Anna Einkauf' });
+    expect(e.status).toBe(201);
+    expect(await topf(annaId)).toBe(-100);
+    expect(await offeneCount(annaId)).toBe(1);
+    expect(await offeneCount(bertId)).toBe(1);
+    const r = await memberAgent.post('/aufladung/paypal').send();
+    expect(r.status).toBe(201);
+    expect(r.body.anfrage.zugewiesenerVerwalterId).toBe(annaId);
   });
 
   it('Anfragen-Liste ist je Verwalter auf eigene zugewiesene gefiltert', async () => {
@@ -1993,19 +2043,24 @@ describe('Lastverteilung (§6.9)', () => {
     const bertAnfrage = await prisma.aufladungsAnfrage.findFirst({
       where: { zugewiesenerVerwalterId: bertId, status: 'OFFEN' },
     });
-    const r = await annaAgent.post(`/admin/aufladung/anfragen/${bertAnfrage!.id}/bestaetigen`).send({});
+    const r = await annaAgent
+      .post(`/admin/aufladung/anfragen/${bertAnfrage!.id}/bestaetigen`)
+      .send({ betragCent: 500 });
     expect(r.status).toBe(403);
   });
 
-  it('Bert bestätigt seine Anfrage → EINZAHLUNG landet in Berts Topf', async () => {
+  it('Bert bestätigt seine Anfrage mit echter Summe → EINZAHLUNG landet in Berts Topf', async () => {
     const bertAnfrage = await prisma.aufladungsAnfrage.findFirst({
       where: { zugewiesenerVerwalterId: bertId, status: 'OFFEN' },
     });
     const topfVor = await topf(bertId);
-    const r = await bertAgent.post(`/admin/aufladung/anfragen/${bertAnfrage!.id}/bestaetigen`).send({});
+    const r = await bertAgent
+      .post(`/admin/aufladung/anfragen/${bertAnfrage!.id}/bestaetigen`)
+      .send({ betragCent: 700 });
     expect(r.status).toBe(201);
-    expect(r.body.kassenTransaktion).toMatchObject({ konto: 'VERWALTER', verwalterId: bertId, betragCent: 500 });
-    expect(await topf(bertId)).toBe(topfVor + 500);
+    expect(r.body.anfrage.betragCent).toBe(700);
+    expect(r.body.kassenTransaktion).toMatchObject({ konto: 'VERWALTER', verwalterId: bertId, betragCent: 700 });
+    expect(await topf(bertId)).toBe(topfVor + 700);
   });
 
   it('Ablehnen nur durch den Zugewiesenen: Bert kann Annas Anfrage nicht (403)', async () => {
@@ -2016,7 +2071,7 @@ describe('Lastverteilung (§6.9)', () => {
     expect(r.status).toBe(403);
   });
 
-  it('Anna lehnt ihre eigene Anfrage ab (200)', async () => {
+  it('Anna lehnt ihre eigene Anfrage ab (200, kein Betrag nötig)', async () => {
     const annaAnfrage = await prisma.aufladungsAnfrage.findFirst({
       where: { zugewiesenerVerwalterId: annaId, status: 'OFFEN' },
     });
@@ -2030,7 +2085,7 @@ describe('Lastverteilung (§6.9)', () => {
     await bertAgent.patch('/admin/me/paypal').send({ paypalMeLink: null });
     const preview = await memberAgent.get('/aufladung/zustaendiger-verwalter');
     expect(preview.body.verwalter).toBeNull();
-    const r = await memberAgent.post('/aufladung/paypal').send({ betragCent: 500 });
+    const r = await memberAgent.post('/aufladung/paypal').send();
     expect(r.status).toBe(400);
     expect(r.body.error).toMatch(/kein verwalter mit paypal/i);
   });
