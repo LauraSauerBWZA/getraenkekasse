@@ -6,6 +6,10 @@ import { defineConfig } from 'vite';
 // echten Game-Routen testen (Dev-Stub-User, echter Auth-Flow erst in
 // B_GAME_INTEGRATION).
 export default defineConfig({
+  // Mount-agnostisch (B_GAME_INTEGRATION): relative Asset-Pfade, damit derselbe
+  // Build sowohl standalone (Dev :3002 an Root) als auch same-origin unter /game/
+  // (Prod, vom Backend ausgeliefert + per iframe eingebettet) ohne Hardcoding läuft.
+  base: './',
   server: {
     host: '0.0.0.0',
     port: 3002,

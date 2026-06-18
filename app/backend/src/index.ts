@@ -23,6 +23,11 @@ const isProd = env.NODE_ENV === 'production';
 // ../../frontend/dist. ESM-tauglich über import.meta.url aufgelöst (cwd-unabhängig,
 // damit es auch unter systemd mit beliebiger WorkingDirectory stimmt).
 const FRONTEND_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../frontend/dist');
+// Gebautes Phaser-Spiel (B_GAME_INTEGRATION): same-origin unter /game/ ausgeliefert,
+// damit das Auth-Cookie mitkommt (echter User im Score-Submit). Die React-Route
+// /spiel bettet diesen Pfad per iframe ein (bewusst anderer Pfad als die Route,
+// sonst würde ein Refresh auf /spiel das rohe Spiel statt der React-Shell liefern).
+const GAME_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../game/dist');
 
 export function buildApp() {
   const app = express();
@@ -82,6 +87,9 @@ export function buildApp() {
   // keine API-Requests schlucken (deshalb /api-Guard) und keine Assets (die holt
   // express.static davor ab).
   if (isProd) {
+    // Spiel zuerst unter /game/ (eigener statischer Mount), damit der SPA-Fallback
+    // es nicht abfängt. Danach das Frontend + SPA-Fallback.
+    app.use('/game', express.static(GAME_DIST));
     app.use(express.static(FRONTEND_DIST));
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api')) return next();
