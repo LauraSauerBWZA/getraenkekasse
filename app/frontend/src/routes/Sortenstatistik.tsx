@@ -7,9 +7,9 @@ import { api, ApiError, type SortenStat, type SortenStatistik, type StatistikZei
 import { useAuth } from '../lib/auth';
 
 const ZEITRAEUME: { key: StatistikZeitraum; label: string }[] = [
-  { key: 'woche', label: 'Woche' },
   { key: 'monat', label: 'Monat' },
   { key: 'quartal', label: 'Quartal' },
+  { key: 'jahr', label: 'Jahr' },
 ];
 
 const KATEGORIE_LABEL: Record<string, string> = {

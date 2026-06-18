@@ -9,11 +9,13 @@ export const statistikRouter = Router();
 statistikRouter.use(requireAuth, requireAdminOrLeitung);
 
 // Rollierende Zeitfenster in Tagen. Default `monat`, auch bei ungültigem/
-// fehlendem Query-Param (z.enum(...).catch).
-const ZEITRAUM_TAGE = { woche: 7, monat: 30, quartal: 90 } as const;
-const zeitraumSchema = z.enum(['woche', 'monat', 'quartal']).catch('monat');
+// fehlendem Query-Param (z.enum(...).catch). `jahr` = rollierende letzte 365 Tage
+// (= „letzte 12 Monate", KEIN Kalenderjahr) — konsistent mit dem rollierenden
+// Fenster-Ansatz der anderen Zeiträume (Bündel 2, Einheit 1: Woche raus, Jahr rein).
+const ZEITRAUM_TAGE = { monat: 30, quartal: 90, jahr: 365 } as const;
+const zeitraumSchema = z.enum(['monat', 'quartal', 'jahr']).catch('monat');
 
-// GET /statistik/sorten?zeitraum=woche|monat|quartal
+// GET /statistik/sorten?zeitraum=monat|quartal|jahr
 //
 // App-weit anonym aggregiert (KONFIGURATION §7.5, §9, §11): pro Drink Anzahl
 // gültiger Käufe + Umsatz (Σ eingefrorener preisAtKaufCent). Stornierte Käufe
