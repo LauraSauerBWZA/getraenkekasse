@@ -35,6 +35,7 @@ export class Level1Scene extends Phaser.Scene {
     this.enemiesDefeated = 0; // bleibt 0 (Walker entfallen) — Feld additiv erhalten
     this.invulnerable = false;
     this.finished = false;
+    this.reachedTop = false;
     this.maxHeightM = 0;
     this.startedAt = this.time.now;
 
@@ -102,11 +103,26 @@ export class Level1Scene extends Phaser.Scene {
     this.physics.add.collider(this.player, this.overhangs);
   }
 
-  // Ziel-Deko am Wand-Ende; der Sieg wird über den Kamera-Fortschritt ausgelöst
-  // (Spieler sieht Hubschrauber/Windenhaken, wenn die Kamera oben ankommt).
+  // Ziel am Wand-Ende. B_GAME5.6: Der Windenhaken ist ein ECHTES Treffer-Ziel —
+  // der Sieg wird per präziser Kollision auf den Haken ausgelöst (nicht mehr
+  // durch bloßes Erreichen der Wand-Oberkante). Der Haken pulsiert leicht
+  // (anvisierbar); getroffen werden muss er trotzdem gezielt.
   buildGoal() {
     this.add.sprite(GAME.width / 2, WALL.goalY - 56, 'helicopter').play('heli_rotor');
-    this.add.image(GAME.width / 2, WALL.goalY, 'windenhaken');
+    this.hook = this.physics.add.image(GAME.width / 2, WALL.goalY, 'windenhaken');
+    this.hook.body.setAllowGravity(false);
+    this.hook.body.setImmovable(true);
+    // Enge Hitbox nur um den Haken-Bügel (Seil oben zählt nicht).
+    this.hook.body.setSize(12, 18).setOffset(4, 12);
+    this.tweens.add({
+      targets: this.hook,
+      scale: 1.18,
+      duration: 650,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.inOut',
+    });
+    this.physics.add.overlap(this.player, this.hook, () => this.win());
   }
 
   showTouchHint() {
@@ -277,6 +293,15 @@ export class Level1Scene extends Phaser.Scene {
     });
   }
 
+  // Wand-Ende erreicht (Kamera steht): einmaliger Hinweis, dann liegt der Sieg
+  // allein am gezielten Haken-Treffer. Faires Verhalten: Haken bleibt erreichbar,
+  // Gefahren bleiben aktiv (Geschicklichkeits-Show-down vor dem Sieg).
+  onReachedTop() {
+    if (this.reachedTop) return;
+    this.reachedTop = true;
+    this.popup(GAME.width / 2, this.hook.y + 34, 'Haken greifen!', CSS.amberGlow);
+  }
+
   win() {
     if (this.finished) return;
     this.finished = true;
@@ -412,8 +437,10 @@ export class Level1Scene extends Phaser.Scene {
     const timeMs = this.time.now - this.startedAt;
     this.hud.update({ lives: this.lives, score: this.score, heightM: this.maxHeightM, timeMs });
 
-    // Kamera am Wand-Ende angekommen → durchgehalten → Sieg.
-    if (this.cameras.main.scrollY <= 0) this.win();
+    // Kamera am Wand-Ende: stoppt (clampt bei 0). Jetzt muss der Haken gezielt
+    // getroffen werden — Brocken/Eiszapfen fallen weiter (Show-down). Der Sieg
+    // läuft ausschließlich über die Haken-Kollision (buildGoal).
+    if (this.cameras.main.scrollY <= 0) this.onReachedTop();
     if (timeMs >= TIMEOUT_MS) this.gameOver('timeout');
   }
 }
