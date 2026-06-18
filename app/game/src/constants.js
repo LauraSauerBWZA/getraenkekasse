@@ -84,12 +84,18 @@ export const HIT = {
   smallKnockback: 90, // kleiner Stein: Schub nach unten (px, Richtung Gefahr)
 };
 
-// Herabfallende Felsbrocken (Spec §3). Finale Balancing-Werte (B_GAME2.6).
+// Höhe der Felswand in Metern — zentrale Bezugsgröße für die Schwierigkeits-
+// Progression (Spawn-Raten/Anteile skalieren von 0 m bis WALL_METERS).
+export const WALL_METERS = 500;
+
+// Herabfallende Felsbrocken (Spec §3). B_GAME5.5: Anteil großer Brocken UND
+// Spawn-Dichte wachsen mit der Höhe (unten leicht, oben fordernd).
 export const BROCKEN = {
   fallSpeed: 175, // px/s Fallgeschwindigkeit (schneller als Climb → ausweichbar)
   rateStartMs: 2600, // Spawn-Intervall unten
-  rateMinMs: 1300, // Spawn-Intervall ganz oben (schwerer)
-  bigChance: 0.3, // 30% große Brocken (−1 Leben), 70% kleine (Rückwurf)
+  rateMinMs: 1100, // Spawn-Intervall ganz oben (dichter als zuvor 1300)
+  bigChanceLow: 0.2, // Anteil große Brocken unten (mehr Rückwurf-Steine)
+  bigChanceHigh: 0.45, // Anteil große Brocken oben (mehr −1-Leben-Brocken)
 };
 
 // Eiszapfen (B_GAME5.4): zweiter Hindernis-Typ. Fällt schneller als Brocken
@@ -99,7 +105,9 @@ export const BROCKEN = {
 export const ICICLE = {
   fallSpeed: 255, // px/s (vs. Brocken 175) — fordert früheres Ausweichen
   warnMs: 360, // Vorwarn-Glitzern an der Decke, bevor der Zapfen fällt
-  rateMs: 2800, // Spawn-Intervall (wird in B_GAME5.5 höhenabhängig)
+  introHeightM: 140, // erscheint erst ab ~140 m (gestaffeltes Einführen, B_GAME5.5)
+  rateStartMs: 3200, // knapp über introHeight noch selten
+  rateMinMs: 1600, // ganz oben dicht
 };
 
 // Punkte pro Collectible (Spec §4.2).

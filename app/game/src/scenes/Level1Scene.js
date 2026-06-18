@@ -11,6 +11,7 @@ import {
   HIT,
   BROCKEN,
   ICICLE,
+  WALL_METERS,
 } from '../constants.js';
 import { WALL, OVERHANGS, COLLECTIBLES } from '../levels/level1.js';
 import { Player } from '../sprites/Player.js';
@@ -156,8 +157,19 @@ export class Level1Scene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.brocken, (_p, b) => this.handleBrockenHit(b));
   }
 
+  // Höhen-Fortschritt 0..1 — zentrale Bezugsgröße aller Progressions-Kurven.
+  progressFrac() {
+    return Phaser.Math.Clamp(this.maxHeightM / WALL_METERS, 0, 1);
+  }
+
   spawnBrocken() {
-    const big = Math.random() < BROCKEN.bigChance;
+    // Anteil großer (gefährlicher) Brocken wächst mit der Höhe.
+    const bigChance = Phaser.Math.Linear(
+      BROCKEN.bigChanceLow,
+      BROCKEN.bigChanceHigh,
+      this.progressFrac(),
+    );
+    const big = Math.random() < bigChance;
     const camTop = this.cameras.main.scrollY;
     const x = Phaser.Math.Between(24, GAME.width - 24);
     const b = this.brocken.create(x, camTop - 30, big ? 'boulder' : 'rock');
@@ -168,9 +180,12 @@ export class Level1Scene extends Phaser.Scene {
   }
 
   updateBrocken(delta) {
-    // Spawn-Intervall sinkt linear mit der Höhe (Wandhöhe ~500 m, Spec §9).
-    const frac = Phaser.Math.Clamp(this.maxHeightM / 500, 0, 1);
-    const interval = Phaser.Math.Linear(BROCKEN.rateStartMs, BROCKEN.rateMinMs, frac);
+    // Spawn-Intervall sinkt linear mit der Höhe (dichter oben).
+    const interval = Phaser.Math.Linear(
+      BROCKEN.rateStartMs,
+      BROCKEN.rateMinMs,
+      this.progressFrac(),
+    );
     this.brockenAccum += delta;
     if (this.brockenAccum >= interval) {
       this.brockenAccum = 0;
@@ -222,8 +237,17 @@ export class Level1Scene extends Phaser.Scene {
   }
 
   updateIcicles(delta) {
+    // Gestaffeltes Einführen: Eiszapfen erst ab introHeightM (unten gibt es sie
+    // nicht). Darüber steigt die Dichte bis zum Wand-Ende.
+    if (this.maxHeightM < ICICLE.introHeightM) return;
+    const frac = Phaser.Math.Clamp(
+      (this.maxHeightM - ICICLE.introHeightM) / (WALL_METERS - ICICLE.introHeightM),
+      0,
+      1,
+    );
+    const interval = Phaser.Math.Linear(ICICLE.rateStartMs, ICICLE.rateMinMs, frac);
     this.icicleAccum += delta;
-    if (this.icicleAccum >= ICICLE.rateMs) {
+    if (this.icicleAccum >= interval) {
       this.icicleAccum = 0;
       this.spawnIcicle();
     }
