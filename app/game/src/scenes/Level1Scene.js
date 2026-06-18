@@ -140,7 +140,7 @@ export class Level1Scene extends Phaser.Scene {
     const { width, height } = this.scale;
     const style = { fontFamily: CSS.fontUi, fontSize: '13px', color: CSS.inkMute };
     const a = this.add
-      .text(width / 2, height * 0.4, 'halten = bewegen (auch hoch/runter)', style)
+      .text(width / 2, height * 0.4, 'ziehen = Joystick (weiter ziehen = schneller)', style)
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(99);
