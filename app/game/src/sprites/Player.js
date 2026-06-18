@@ -48,25 +48,24 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     return Phaser.Input.Keyboard.JustDown(this.cursors.space) || (touch && touch.consumeJump());
   }
 
-  // Bewegungs-Intent (−1/0/1 je Achse) aus Tastatur ODER Touch.
-  moveInput() {
-    let mx = (this.cursors.right.isDown ? 1 : 0) - (this.cursors.left.isDown ? 1 : 0);
-    let my = (this.cursors.down.isDown ? 1 : 0) - (this.cursors.up.isDown ? 1 : 0);
-    const touch = this.scene.touch;
-    if (touch && touch.active) {
-      if (touch.moveX) mx = touch.moveX;
-      if (touch.moveY) my = touch.moveY;
-    }
-    return { mx, my };
-  }
-
   applyFreeMove() {
     this.body.setAllowGravity(false);
-    let { mx, my } = this.moveInput();
-    if (mx && my) {
-      // Diagonale nicht schneller als die Achsen.
-      mx *= Math.SQRT1_2;
-      my *= Math.SQRT1_2;
+    const touch = this.scene.touch;
+    let mx;
+    let my;
+    if (touch && touch.active && touch.moveActive) {
+      // Analoger Joystick (B_GAME_TOUCH): moveX/moveY ist bereits ein Vektor mit
+      // |v| ≤ 1 (Magnitude = Tempo) → KEINE Diagonal-Normalisierung.
+      mx = touch.moveX;
+      my = touch.moveY;
+    } else {
+      // Tastatur (Desktop, unverändert): ±1 je Achse, Diagonale normalisiert.
+      mx = (this.cursors.right.isDown ? 1 : 0) - (this.cursors.left.isDown ? 1 : 0);
+      my = (this.cursors.down.isDown ? 1 : 0) - (this.cursors.up.isDown ? 1 : 0);
+      if (mx && my) {
+        mx *= Math.SQRT1_2;
+        my *= Math.SQRT1_2;
+      }
     }
     this.setVelocity(mx * MOVE.speed, my * MOVE.speed);
     if (mx < 0) this.setFlipX(true);
@@ -88,10 +87,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   applyAirControl() {
-    const mx = (this.cursors.right.isDown ? 1 : 0) - (this.cursors.left.isDown ? 1 : 0);
     const touch = this.scene.touch;
-    const tx = touch && touch.active ? touch.moveX : 0;
-    const dir = tx || mx;
+    let dir;
+    if (touch && touch.active && touch.moveActive) {
+      dir = touch.moveX; // analoge X-Lenkung aus dem Joystick
+    } else {
+      dir = (this.cursors.right.isDown ? 1 : 0) - (this.cursors.left.isDown ? 1 : 0);
+    }
     this.setVelocityX(dir * MOVE.speed);
     if (dir < 0) this.setFlipX(true);
     else if (dir > 0) this.setFlipX(false);
