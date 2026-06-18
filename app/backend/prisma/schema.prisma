@@ -15,16 +15,20 @@ datasource db {
 // isLeitung: read-only Kassen-Einsicht (Spec §4). Schema seit B2e.1, Logik B2j.
 // paypalMeLink: paypal.me-URL des Verwalters. Schema seit B2e.1, Logik B2k
 // (Multi-Verwalter-Verteilung). Bei Nicht-Admins irrelevant.
+// whatsappNummer: WhatsApp-Nummer des Verwalters (internationales Format, nur
+// Ziffern, z.B. „491701234567") für die Member-Benachrichtigung via wa.me beim
+// PayPal-Umbau. Optional, nur bei Admins relevant.
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  firstName    String
-  lastName     String
-  passwordHash String?  // null bis Magic-Link eingelöst
-  isAdmin      Boolean  @default(false)
-  isLeitung    Boolean  @default(false)
-  paypalMeLink String?
-  isActive     Boolean  @default(true)
+  id             String   @id @default(cuid())
+  email          String   @unique
+  firstName      String
+  lastName       String
+  passwordHash   String?  // null bis Magic-Link eingelöst
+  isAdmin        Boolean  @default(false)
+  isLeitung      Boolean  @default(false)
+  paypalMeLink   String?
+  whatsappNummer String?
+  isActive       Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -160,11 +164,15 @@ model KassenTransaktion {
 // optional). transaktionId koppelt bei BESTAETIGT die erzeugte AUFLADUNG_PAYPAL-
 // Transaktion (1-1) — über die hängt via Transaktion.kassenTransaktionId auch
 // die Kassen-EINZAHLUNG dran.
+// betragCent: NULL bei der betraglosen Anfrage (PayPal-Umbau) — das Mitglied
+// überweist selbst einen frei gewählten Betrag. Beim Bestätigen setzt der
+// zuständige Verwalter die tatsächlich überwiesene Summe (Int > 0), die dann
+// gebucht und hier zur Doku gespeichert wird.
 model AufladungsAnfrage {
   id                      String       @id @default(cuid())
   userId                  String
   user                    User         @relation("UserAufladungsAnfragen", fields: [userId], references: [id], onDelete: Cascade)
-  betragCent              Int
+  betragCent              Int?
   status                  String       @default("OFFEN")
   zugewiesenerVerwalterId String
   zugewiesenerVerwalter   User         @relation("ZugewieseneAufladungsAnfragen", fields: [zugewiesenerVerwalterId], references: [id])
