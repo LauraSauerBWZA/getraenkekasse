@@ -37,7 +37,11 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}'],
         navigateFallback: 'index.html',
         // API-Pfade NICHT auf index.html fallbacken und nicht cachen — immer live.
-        navigateFallbackDenylist: [/^\/api/],
+        // /game/ ebenfalls ausnehmen (B_GAME_INTEGRATION): das same-origin per iframe
+        // eingebettete Phaser-Spiel liegt im SW-Scope; ohne Denylist würde der
+        // navigateFallback die /game/-Navigation mit der App-Shell (index.html)
+        // beantworten statt das Spiel zu laden.
+        navigateFallbackDenylist: [/^\/api/, /^\/game/],
         // Kein runtimeCaching → /api & sonstige Requests laufen NetworkOnly durch.
         cleanupOutdatedCaches: true,
         clientsClaim: true,
