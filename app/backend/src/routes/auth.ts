@@ -21,6 +21,7 @@ async function publicUser(u: {
   isAdmin: boolean;
   isLeitung: boolean;
   paypalMeLink: string | null;
+  whatsappNummer: string | null;
   isActive: boolean;
 }) {
   return {
@@ -32,6 +33,7 @@ async function publicUser(u: {
     isAdmin: u.isAdmin,
     isLeitung: u.isLeitung,
     paypalMeLink: u.paypalMeLink,
+    whatsappNummer: u.whatsappNummer,
     isActive: u.isActive,
   };
 }

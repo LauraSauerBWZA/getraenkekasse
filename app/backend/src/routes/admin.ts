@@ -480,10 +480,13 @@ adminRouter.patch('/admin/users/:id/admin', async (req, res) => {
   return res.json({ user });
 });
 
-// PATCH /admin/me/paypal — der eingeloggte Verwalter pflegt SEINEN eigenen
-// paypal.me-Link (§3, B2k). Immer nur der eigene (req.auth.sub), nie fremde.
-// Gespeichert wird der reine Handle (ohne protocol / „paypal.me/"), damit das
-// Frontend `paypal.me/{handle}/{betrag}` bauen kann. Leeren via null/"" → null.
+// PATCH /admin/me/paypal — der eingeloggte Verwalter pflegt SEIN eigenes
+// Verwalter-Profil (§3): paypal.me-Link UND (PayPal-Umbau) WhatsApp-Nummer.
+// Immer nur das eigene (req.auth.sub), nie fremde. Beide Felder sind optional —
+// nur mitgeschickte Felder werden geändert (absent = unangetastet, null = leeren).
+// paypalMeLink: gespeichert wird der reine Handle (ohne protocol/„paypal.me/").
+// whatsappNummer: gespeichert werden nur Ziffern (internationales Format ohne
+// „+"/Leerzeichen), damit das Frontend `wa.me/<ziffern>` bauen kann.
 function normalizePaypalHandle(raw: string | null): string | null {
   if (raw == null) return null;
   const s = raw
@@ -495,27 +498,58 @@ function normalizePaypalHandle(raw: string | null): string | null {
   return s || null;
 }
 
-const paypalSchema = z.object({ paypalMeLink: z.string().nullable() });
+// WhatsApp-Nummer → nur Ziffern (führendes „+", Leerzeichen, Klammern, Bindestriche
+// raus). Leer/null → null. Reine-Ziffern-Form passt direkt in den wa.me-Link.
+function normalizeWhatsapp(raw: string | null): string | null {
+  if (raw == null) return null;
+  const ziffern = raw.replace(/\D/g, '');
+  return ziffern || null;
+}
+
+const profilSchema = z.object({
+  paypalMeLink: z.string().nullable().optional(),
+  whatsappNummer: z.string().nullable().optional(),
+});
 
 adminRouter.patch('/admin/me/paypal', async (req, res) => {
-  const parsed = paypalSchema.safeParse(req.body);
+  const parsed = profilSchema.safeParse(req.body);
   if (!parsed.success) {
     return res
       .status(400)
       .json({ error: 'Ungültige Eingaben.', details: parsed.error.flatten() });
   }
-  const handle = normalizePaypalHandle(parsed.data.paypalMeLink);
-  if (handle && !/^[A-Za-z0-9._-]+$/.test(handle)) {
-    return res
-      .status(400)
-      .json({ error: 'Ungültiger paypal.me-Link — nur der Nutzername bzw. paypal.me/name.' });
+
+  const data: { paypalMeLink?: string | null; whatsappNummer?: string | null } = {};
+
+  if (parsed.data.paypalMeLink !== undefined) {
+    const handle = normalizePaypalHandle(parsed.data.paypalMeLink);
+    if (handle && !/^[A-Za-z0-9._-]+$/.test(handle)) {
+      return res
+        .status(400)
+        .json({ error: 'Ungültiger paypal.me-Link — nur der Nutzername bzw. paypal.me/name.' });
+    }
+    data.paypalMeLink = handle;
+  }
+
+  if (parsed.data.whatsappNummer !== undefined) {
+    const nummer = normalizeWhatsapp(parsed.data.whatsappNummer);
+    // Nicht-leere Eingabe, die keine Ziffer enthält → klarer Fehler statt stiller Leerung.
+    if (parsed.data.whatsappNummer && parsed.data.whatsappNummer.trim() && !nummer) {
+      return res
+        .status(400)
+        .json({ error: 'Ungültige WhatsApp-Nummer — bitte nur Ziffern (internationales Format, z.B. 491701234567).' });
+    }
+    data.whatsappNummer = nummer;
   }
 
   const user = await prisma.user.update({
     where: { id: req.auth!.sub },
-    data: { paypalMeLink: handle },
-    select: { id: true, paypalMeLink: true },
+    data,
+    select: { id: true, paypalMeLink: true, whatsappNummer: true },
   });
-  logger.info({ adminId: user.id, hatLink: handle !== null }, 'paypal.me-Link gepflegt.');
+  logger.info(
+    { adminId: user.id, hatLink: user.paypalMeLink !== null, hatWhatsapp: user.whatsappNummer !== null },
+    'Verwalter-Profil gepflegt (paypal.me / WhatsApp).',
+  );
   return res.json({ user });
 });
