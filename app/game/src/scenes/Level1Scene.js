@@ -13,7 +13,7 @@ import {
   ICICLE,
   WALL_METERS,
 } from '../constants.js';
-import { WALL, OVERHANGS, COLLECTIBLES } from '../levels/level1.js';
+import { WALL, OVERHANGS, COLLECTIBLES, EXES } from '../levels/level1.js';
 import { Player } from '../sprites/Player.js';
 import { Collectible } from '../sprites/Collectible.js';
 import { Hud } from '../utils/hud.js';
@@ -54,6 +54,7 @@ export class Level1Scene extends Phaser.Scene {
     this.buildGoal();
     this.buildBrocken();
     this.buildIcicles();
+    this.buildExes();
     this.buildCollectibles();
 
     this.touch = new TouchControls(this);
@@ -149,6 +150,17 @@ export class Level1Scene extends Phaser.Scene {
         b.destroy();
       },
     });
+  }
+
+  // Exen an der Wand (B_GAME4.1): sichtbare Quickdraws, scrollen im Welt-Raster
+  // mit (scrollFactor 1). Klipp-Logik folgt in B_GAME4.2.
+  buildExes() {
+    this.exes = [];
+    for (const e of EXES) {
+      const sprite = this.add.image(e.x, e.y, 'exe');
+      sprite.setData('clipped', false);
+      this.exes.push(sprite);
+    }
   }
 
   buildCollectibles() {

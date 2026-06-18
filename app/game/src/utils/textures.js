@@ -278,6 +278,32 @@ function carabinerTexture(scene) {
   drawPixels(scene, 'carabiner', CARABINER_GRID, 2);
 }
 
+// Exe / Express-Schlinge (16x32 = 8x16 ×2, B_GAME4.1): Quickdraw — oben + unten
+// je ein silberner Karabiner (mit Öffnung), dazwischen eine orange Bandschlinge.
+// Bewusst andere Silhouette als der einzelne Sammel-Karabiner (vertikal, an der
+// Wand) → keine Verwechslung. Geklippt-Zustand = Grün-Tint im Code.
+const EXE_GRID = [
+  '..ssss..',
+  '.sSooSs.',
+  '.so..os.',
+  '.sSooSs.',
+  '..ssss..',
+  '...nn...',
+  '...nn...',
+  '...nn...',
+  '...nn...',
+  '...nn...',
+  '...nn...',
+  '..ssss..',
+  '.sSooSs.',
+  '.so..os.',
+  '.sSooSs.',
+  '..ssss..',
+];
+function exeTexture(scene) {
+  drawPixels(scene, 'exe', EXE_GRID, 2);
+}
+
 // Seil (12x16 = 6x8 ×2): aufgerollte orange Lagen.
 const ROPE_GRID = [
   '.nnnn.',
@@ -493,6 +519,7 @@ export function buildTextures(scene) {
 
   // Collectibles (B_GAME.5) + Emblem-Item (B_GAME3.4, Mechanik in B_GAME4).
   carabinerTexture(scene);
+  exeTexture(scene); // Exe/Quickdraw für die Vorstieg-Sicherung (B_GAME4.1)
   ropeTexture(scene);
   drinkTexture(scene);
   emblemItemTexture(scene);

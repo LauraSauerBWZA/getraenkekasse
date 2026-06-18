@@ -127,6 +127,24 @@ export const ICICLE = {
   rateMinMs: 1600, // ganz oben dicht
 };
 
+// Vorstieg-Sicherung (B_GAME4): Exen (Express-Schlingen/Quickdraws) sitzen an der
+// Wand-Seite. Einklippen in Reichweite kostet einen Tastendruck, gibt Punkte und
+// öffnet ein kurzes Schutzfenster gegen Steinschlag/Eisschlag. Werte Playtest-tunbar.
+export const EXE = {
+  spacingPx: 320, // Abstand entlang der Wand (Richtwert 250–400)
+  inset: 52, // x-Abstand von der Wand-Seite (noch erreichbar)
+  reachRadius: 82, // px: so nah muss der Kletterer zum Einklippen ran
+  clipScore: 40, // Punkte fürs erfolgreiche Einklippen
+  securedMs: 1800, // Dauer des Schutzfensters nach dem Klippen
+};
+
+// Emblem-Bonus-Item (B_GAME4.5): selten, beweglich (pendelt), riskant platziert.
+export const BONUS = {
+  score: 250, // deutlich wertvoller als normale Collectibles
+  pendulumPx: 95, // horizontale Pendel-Amplitude
+  pendulumMs: 1700, // Pendel-Periode (hin/zurück)
+};
+
 // Punkte pro Collectible (Spec §4.2).
 export const SCORE = {
   karabiner: 50,

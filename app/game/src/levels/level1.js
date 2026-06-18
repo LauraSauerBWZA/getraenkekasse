@@ -1,4 +1,4 @@
-import { GAME } from '../constants.js';
+import { GAME, EXE } from '../constants.js';
 
 // Level-1-Geometrie für die Auto-Climb-Felswand (Phase B_GAME2_KLETTERN, ab
 // NACHSCHLAG.3 mit frei befahrbarer Wand: keine Lücken/Griffzonen mehr).
@@ -23,6 +23,21 @@ function buildOverhangs() {
   return list;
 }
 export const OVERHANGS = buildOverhangs();
+
+// Exen (Vorstieg-Sicherung, B_GAME4.1): regelmäßig entlang der Route, abwechselnd
+// links/rechts nahe der Wand-Seite (erreichbar). Dicht genug zum regelmäßigen
+// Sichern, aber nicht trivial. Versetzt zu den Überhängen (eigenes Raster).
+export function buildExes() {
+  const list = [];
+  let i = 0;
+  for (let y = WALL.startY - 350; y > WALL.goalY + 300; y -= EXE.spacingPx) {
+    const side = i % 2 === 0 ? 'left' : 'right';
+    list.push({ x: side === 'left' ? EXE.inset : GAME.width - EXE.inset, y, side });
+    i += 1;
+  }
+  return list;
+}
+export const EXES = buildExes();
 
 // Sammelbares entlang der Kletterroute (Spec §4.2). Karabiner im Zickzack
 // (häufig), Seile seltener, Getränke vereinzelt an riskanten Höhen.
