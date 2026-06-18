@@ -35,6 +35,23 @@ export const CSS = {
   fontDisplay: "'Fraunces', Georgia, serif",
 };
 
+// ─── B_GAME5 Balancing-Übersicht (finale Start-Werte, Playtest-tunbar) ───────
+// Optik:
+//   PLAYER.scale 1,7×  → sichtbarer Kletterer ≈ 37×54 px (vorher 22×30)
+//   Hitbox 11×24 (Quell-px) → skaliert ≈ 19×41 px = forgiving (< Sprite)
+// Mechanik / Progression (Bezug: WALL_METERS = 500 m Wandhöhe):
+//   Brocken-Intervall   2600 ms (unten) → 1100 ms (oben), linear mit Höhe
+//   Großbrocken-Anteil  20 % (unten) → 45 % (oben)
+//   Eiszapfen           erst ab 140 m; Intervall 3200 → 1600 ms; fallSpeed 255
+//                       (> Brocken 175); 360 ms Telegraph-Vorwarnung (fair)
+//   Windenhaken         enge Hitbox 12×18 px-Bügel → präziser Treffer nötig;
+//                       Kamera stoppt am Wand-Ende, Gefahren bleiben aktiv
+//                       (Show-down), Sieg nur per Haken-Kollision
+// Mobile (statischer Review): Canvas-FIT/480×800 unverändert; größerer Kletterer
+//   + Eiszapfen bleiben innerhalb 480px; Touch-Steuerung unverändert. Live-Check
+//   = Browser-Test-Checkliste (Mobile-Kurztest).
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Portrait-Canvas — passt zu Climber-Gameplay (vertikales Hochklettern) und
 // Mobile. Welt ist mehrere Screens hoch; Kamera scrollt vertikal.
 export const GAME = {
