@@ -92,6 +92,16 @@ export const BROCKEN = {
   bigChance: 0.3, // 30% große Brocken (−1 Leben), 70% kleine (Rückwurf)
 };
 
+// Eiszapfen (B_GAME5.4): zweiter Hindernis-Typ. Fällt schneller als Brocken
+// (schärferes Timing), wird aber durch ein kurzes Telegraph-Glitzern fair
+// angekündigt. Treffer = −1 Leben (scharf). Höhen-Gate + Raten-Progression
+// folgen in B_GAME5.5.
+export const ICICLE = {
+  fallSpeed: 255, // px/s (vs. Brocken 175) — fordert früheres Ausweichen
+  warnMs: 360, // Vorwarn-Glitzern an der Decke, bevor der Zapfen fällt
+  rateMs: 2800, // Spawn-Intervall (wird in B_GAME5.5 höhenabhängig)
+};
+
 // Punkte pro Collectible (Spec §4.2).
 export const SCORE = {
   karabiner: 50,

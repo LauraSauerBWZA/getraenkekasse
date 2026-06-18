@@ -10,6 +10,7 @@ import {
   SCROLL,
   HIT,
   BROCKEN,
+  ICICLE,
 } from '../constants.js';
 import { WALL, OVERHANGS, COLLECTIBLES } from '../levels/level1.js';
 import { Player } from '../sprites/Player.js';
@@ -50,6 +51,7 @@ export class Level1Scene extends Phaser.Scene {
     this.spawnPlayer();
     this.buildGoal();
     this.buildBrocken();
+    this.buildIcicles();
     this.buildCollectibles();
 
     this.touch = new TouchControls(this);
@@ -188,6 +190,54 @@ export class Level1Scene extends Phaser.Scene {
     b.destroy();
     if (big) this.hitPlayer(); // großer Brocken: −1 Leben
     else this.hitPlayerSmall(); // kleiner Stein: Rückwurf
+  }
+
+  // Eiszapfen (B_GAME5.4): zweiter Hindernis-Typ mit eigenem Spawn-Akkumulator.
+  buildIcicles() {
+    this.icicles = this.physics.add.group();
+    this.icicleAccum = 0;
+    this.physics.add.overlap(this.player, this.icicles, (_p, ic) => this.handleIcicleHit(ic));
+  }
+
+  // Telegraph-Glitzern an der Decke → erst danach fällt der Zapfen (Fairness:
+  // keine unangekündigten Tode). Position folgt dem aktuellen Kamera-Oberrand.
+  spawnIcicle() {
+    const x = Phaser.Math.Between(30, GAME.width - 30);
+    const warnY = this.cameras.main.scrollY + 12;
+    const warn = this.add.image(x, warnY, 'icicle').setAlpha(0);
+    this.tweens.add({
+      targets: warn,
+      alpha: 0.85,
+      duration: ICICLE.warnMs / 2,
+      yoyo: true,
+      onComplete: () => {
+        warn.destroy();
+        if (this.finished) return;
+        const ic = this.icicles.create(x, this.cameras.main.scrollY + 6, 'icicle');
+        ic.body.setAllowGravity(false);
+        ic.setVelocityY(ICICLE.fallSpeed);
+        ic.body.setSize(8, 12);
+      },
+    });
+  }
+
+  updateIcicles(delta) {
+    this.icicleAccum += delta;
+    if (this.icicleAccum >= ICICLE.rateMs) {
+      this.icicleAccum = 0;
+      this.spawnIcicle();
+    }
+    const camBottom = this.cameras.main.scrollY + GAME.height;
+    this.icicles.children.iterate((ic) => {
+      if (ic && ic.y > camBottom + 80) ic.destroy();
+      return true;
+    });
+  }
+
+  handleIcicleHit(ic) {
+    if (this.invulnerable) return;
+    ic.destroy();
+    this.hitPlayer(); // Eiszapfen ist scharf → −1 Leben
   }
 
   // Kleiner Stein: Schub nach unten (Richtung Gefahr) + kurze Unverwundbarkeit,
@@ -330,6 +380,7 @@ export class Level1Scene extends Phaser.Scene {
     this.clampPlayerTop();
     this.checkPushOut();
     this.updateBrocken(delta);
+    this.updateIcicles(delta);
 
     const heightM = this.currentHeightM();
     if (heightM > this.maxHeightM) this.maxHeightM = heightM;

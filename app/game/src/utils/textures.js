@@ -29,6 +29,8 @@ const PALETTE = {
   d: 0x4c4658, // großer Brocken
   D: 0x2c2738, // großer Brocken Schatten
   c: 0x12101a, // Riss
+  i: 0x9ec6e0, // Eis hell (B_GAME5.4)
+  I: 0x5f8fb5, // Eis dunkel/Kern
   // Collectibles
   s: 0xcdd2dc, // Silber hell
   S: 0x8a90a0, // Silber dunkel
@@ -235,6 +237,23 @@ const BOULDER_GRID = [
 ];
 function boulderTexture(scene) {
   drawPixels(scene, 'boulder', BOULDER_GRID, 2);
+}
+
+// Eiszapfen (10x16 = 5x8 ×2, B_GAME5.4): spitzer Eis-Dorn, hell mit dunklem
+// Kern + weißem Glanz oben. Klar von den Brocken unterscheidbar (kalt-blau,
+// schlank) → faire Lesbarkeit als anderes Gefahr-Muster.
+const ICICLE_GRID = [
+  'iiiii',
+  'wIIIi',
+  'iIIIi',
+  'iIIi.',
+  '.iIi.',
+  '.iIi.',
+  '..ii.',
+  '..i..',
+];
+function icicleTexture(scene) {
+  drawPixels(scene, 'icicle', ICICLE_GRID, 2);
 }
 
 // Karabiner (20x24 = 10x12 ×2, Optik überarbeitet B_GAME5.3): klare
@@ -468,6 +487,9 @@ export function buildTextures(scene) {
   // Felsbrocken (B_GAME2.4): kleiner Stein (Rückwurf) + großer Brocken (−1 Leben).
   rockTexture(scene);
   boulderTexture(scene);
+
+  // Eiszapfen (B_GAME5.4): fallender Eis-Dorn, neuer Hindernis-Typ.
+  icicleTexture(scene);
 
   // Collectibles (B_GAME.5) + Emblem-Item (B_GAME3.4, Mechanik in B_GAME4).
   carabinerTexture(scene);
