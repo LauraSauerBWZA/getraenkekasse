@@ -127,6 +127,20 @@ export const ICICLE = {
   rateMinMs: 1600, // ganz oben dicht
 };
 
+// ─── B_GAME4 Balancing-Übersicht (finale Start-Werte, Playtest-tunbar) ───────
+// Exen/Sicherung:  Abstand 320 px (abwechselnd L/R, inset 52), Reichweite 82 px,
+//                  +40 Klick-Punkte, Schutzfenster 1,8 s. Geschützt: kleiner
+//                  Stein wirkungslos, großer Brocken + Eiszapfen → nur Rückwurf
+//                  (kein Leben). Rausdrücken am unteren Rand bleibt ungeschützt.
+// Emblem-Bonus:    2× pro Level (versch. Höhen, mittig = riskant), +250,
+//                  pendelt ±47 px (Periode 1,7 s).
+// Eingabe:         Desktop = Taste E (linke Hand frei); Mobile = eigener
+//                  „Klippen"-Button unten links (KEIN Doppeltipp → keine
+//                  Kollision mit dem Sprung-Tap).
+// Status sichtbar: Aura (ADD-Glow) am Kletterer + Seil-Linie zur Exe + HUD-
+//                  Balken „Gesichert" mit Restzeit.
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Vorstieg-Sicherung (B_GAME4): Exen (Express-Schlingen/Quickdraws) sitzen an der
 // Wand-Seite. Einklippen in Reichweite kostet einen Tastendruck, gibt Punkte und
 // öffnet ein kurzes Schutzfenster gegen Steinschlag/Eisschlag. Werte Playtest-tunbar.

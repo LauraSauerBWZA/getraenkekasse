@@ -148,14 +148,21 @@ export class Level1Scene extends Phaser.Scene {
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(99);
+    // Mobile-Feinschliff (B_GAME4.6): auf den Einklippen-Button hinweisen.
+    const c = this.add
+      .text(width / 2, height * 0.88, 'Button unten links = an Exe einklippen (sichern)', style)
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(99);
     this.tweens.add({
-      targets: [a, b],
+      targets: [a, b, c],
       alpha: 0,
-      delay: 3000,
+      delay: 3800,
       duration: 1000,
       onComplete: () => {
         a.destroy();
         b.destroy();
+        c.destroy();
       },
     });
   }
