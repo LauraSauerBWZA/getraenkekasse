@@ -102,7 +102,7 @@ export class Level1Scene extends Phaser.Scene {
   // Ziel-Deko am Wand-Ende; der Sieg wird über den Kamera-Fortschritt ausgelöst
   // (Spieler sieht Hubschrauber/Windenhaken, wenn die Kamera oben ankommt).
   buildGoal() {
-    this.add.image(GAME.width / 2, WALL.goalY - 56, 'helicopter');
+    this.add.sprite(GAME.width / 2, WALL.goalY - 56, 'helicopter').play('heli_rotor');
     this.add.image(GAME.width / 2, WALL.goalY, 'windenhaken');
   }
 

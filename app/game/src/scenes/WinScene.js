@@ -44,7 +44,7 @@ export class WinScene extends Phaser.Scene {
   // Haken + Alpinist hoch zur Kabine, dann Hubschrauber raus aus dem Bild.
   playFlyAway(width, height) {
     const baseY = height * 0.34;
-    const heli = this.add.image(width / 2, baseY, 'helicopter').setScale(1.4);
+    const heli = this.add.sprite(width / 2, baseY, 'helicopter').setScale(1.4).play('heli_rotor');
     const hook = this.add.image(width / 2, baseY + 56, 'windenhaken').setScale(1.2);
     const climber = this.add.image(width / 2, baseY + 92, 'player_idle');
 

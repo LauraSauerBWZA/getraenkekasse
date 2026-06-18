@@ -23,6 +23,14 @@ export class BootScene extends Phaser.Scene {
 
   create() {
     buildTextures(this);
+    // Hubschrauber-Rotor-Animation (B_GAME3.6) — global einmalig registriert,
+    // von Level1-Ziel und WinScene genutzt.
+    this.anims.create({
+      key: 'heli_rotor',
+      frames: [{ key: 'helicopter' }, { key: 'helicopter_b' }],
+      frameRate: 12,
+      repeat: -1,
+    });
     this.scene.start(SCENES.menu);
   }
 }

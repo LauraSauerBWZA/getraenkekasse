@@ -310,37 +310,44 @@ function overhangTexture(scene) {
   g.destroy();
 }
 
-// Hubschrauber (64x32) — Ziel-Deko oben, fliegt in der WinScene weg.
-function helicopterTexture(scene) {
-  const w = 64;
-  const h = 32;
-  const g = scene.make.graphics({ x: 0, y: 0, add: false });
-  g.fillStyle(COLORS.amberDeep, 1);
-  g.fillRoundedRect(8, 10, 36, 16, 6); // Kabine
-  g.fillRect(40, 14, 22, 5); // Heckausleger
-  g.fillStyle(0x3a2f24, 1);
-  g.fillRect(4, 6, 52, 3); // Hauptrotor
-  g.fillRect(30, 3, 3, 8); // Rotormast
-  g.fillRect(58, 8, 3, 13); // Heckrotor
-  g.fillStyle(COLORS.ice, 1);
-  g.fillCircle(18, 18, 5); // Cockpit-Fenster
-  g.generateTexture('helicopter', w, h);
-  g.destroy();
+// Hubschrauber (64x32 = 16x8-Grid ×4): Bergwacht-Heli rot/weiß/gelb, blaues
+// Cockpit-Fenster, Heckausleger + Heckrotor, Landekufen. Zwei Frames, die sich
+// nur im Hauptrotor unterscheiden → 2-Frame-Rotor-Animation (heli_rotor).
+const HELI_BODY = [
+  '......oo........', // Rotormast
+  '..oyyyyyo......', // gelbes Dach
+  '.orbbbrrrooooo..', // rote Kabine, blaues Fenster, Heckausleger
+  '.orbbbrrrhhhhho.', // weiße Unterseite + Ausleger
+  '.oRRRRRRRo..oo..', // Kabinenboden + Heckrotor
+  '..o.....o...o...', // Streben + Heckrotor
+  '.ooooooooo......', // Landekufe
+];
+function helicopterTexture(scene, key, rotorRow) {
+  drawPixels(scene, key, [rotorRow, ...HELI_BODY], 4);
 }
 
-// Windenhaken (20x32): Seil + J-Haken — der Ziel-Hotspot.
+// Windenhaken (20x32 = 10x16-Grid ×2): Rettungsseil + Ring + offener Haken,
+// mit Gold-Glanz (q) — signalisiert „Ziel, hier hin!".
+const WINDENHAKEN_GRID = [
+  '....pp....',
+  '....pp....',
+  '....pp....',
+  '....pp....',
+  '....pp....',
+  '....pp....',
+  '...ssss...',
+  '..sq..qs..',
+  '..s....s..',
+  '..s....s..',
+  '...ssss...',
+  '....ss....',
+  '...s..s...',
+  '..s....s..',
+  '..ss..s...',
+  '...sss....',
+];
 function windenhakenTexture(scene) {
-  const w = 20;
-  const h = 32;
-  const g = scene.make.graphics({ x: 0, y: 0, add: false });
-  g.fillStyle(COLORS.inkDim, 1);
-  g.fillRect(9, 0, 2, 16); // Seil
-  g.fillStyle(COLORS.ink, 1);
-  g.fillRect(9, 14, 3, 12); // Haken vertikal
-  g.fillRect(9, 23, 8, 3); // Haken unten
-  g.fillRect(14, 19, 3, 6); // Haken-Spitze
-  g.generateTexture('windenhaken', w, h);
-  g.destroy();
+  drawPixels(scene, 'windenhaken', WINDENHAKEN_GRID, 2);
 }
 
 // HUD-Herz (16x16) — GBC-Pixel-Art (8x8-Grid ×2). Proof für den drawPixels-Helper.
@@ -390,8 +397,9 @@ export function buildTextures(scene) {
   // HUD (B_GAME.6).
   heartTexture(scene);
 
-  // Ziel (B_GAME.7): Hubschrauber + Windenhaken.
-  helicopterTexture(scene);
+  // Ziel (B_GAME.7): Hubschrauber (2 Rotor-Frames) + Windenhaken.
+  helicopterTexture(scene, 'helicopter', '..pppppppppp....'); // Rotor lang
+  helicopterTexture(scene, 'helicopter_b', '......pppp......'); // Rotor gedreht/blur
   windenhakenTexture(scene);
 
   // Felswand + Überhänge (B_GAME2).
