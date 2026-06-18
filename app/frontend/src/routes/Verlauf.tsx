@@ -146,7 +146,9 @@ function StatStrip({ journal }: { journal: Journal }) {
   return (
     <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
       {items.map((it) => (
-        <StatCard key={it.label} eyebrow={it.label} value={it.wert} />
+        // Eyebrow-Bereich auf 2-Zeilen-Höhe fixiert: „DIESE WOCHE"/„LÄNGSTE PAUSE"
+        // brechen um, „STREAK" nicht → so stehen alle drei Werte auf gleicher Höhe.
+        <StatCard key={it.label} eyebrow={it.label} value={it.wert} eyebrowMinHeight={26} />
       ))}
     </div>
   );

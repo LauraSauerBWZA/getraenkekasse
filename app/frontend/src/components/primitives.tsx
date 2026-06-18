@@ -378,15 +378,22 @@ export function StatCard({
   value,
   sub,
   tone = 'dark',
+  eyebrowMinHeight,
 }: {
   eyebrow: string;
   value: ReactNode;
   sub?: ReactNode;
   tone?: GlassTone;
+  // Feste Mindesthöhe für den Eyebrow-Bereich (px). Reserviert z.B. 2 Zeilen, damit
+  // in einer Karten-Reihe die Werte auf gleicher Höhe stehen, auch wenn ein Label
+  // umbricht und ein anderes nicht. Ohne Wert: unverändertes Verhalten.
+  eyebrowMinHeight?: number;
 }) {
   return (
     <Glass tone={tone} style={{ borderRadius: 'var(--bwza-radius-md)', padding: '12px 12px', flex: 1, textAlign: 'center' }}>
-      <div className="bwza-eyebrow">{eyebrow}</div>
+      <div className="bwza-eyebrow" style={eyebrowMinHeight ? { minHeight: eyebrowMinHeight, lineHeight: 1.25 } : undefined}>
+        {eyebrow}
+      </div>
       <div
         style={{
           fontFamily: 'var(--bwza-font-ui)',
