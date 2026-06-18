@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import { Eyebrow, EmptyState, Glass, GlassButton, GlassInput, Loading } from '../components/primitives';
 import { BackBar } from '../components/BackBar';
-import { api, ApiError, formatGuthaben, type AdminUser } from '../lib/api';
+import { api, ApiError, formatGuthaben, type AdminUser, type KassenKonto } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 // Eingabe „1,50" / „1.50" / „2" → 150/150/200 Cent. Null bei ungültig/leer/negativ.
@@ -33,6 +33,9 @@ export default function AdminAufladungBargeld() {
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [betragEuro, setBetragEuro] = useState('');
   const [vermerk, setVermerk] = useState('');
+  // Wohin fließt das Bargeld? Verwalter-Topf (wie bisher, Default) oder direkt in
+  // die Bar-Vereinskasse/Box (Bündel 2, Einheit 2).
+  const [konto, setKonto] = useState<KassenKonto>('VERWALTER');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [erfolg, setErfolg] = useState<ErfolgsData | null>(null);
@@ -85,6 +88,7 @@ export default function AdminAufladungBargeld() {
         userId: selected.id,
         betragCent,
         vermerk: vermerkTrim,
+        konto,
       });
       setErfolg({
         empfaenger: selected,
@@ -102,6 +106,7 @@ export default function AdminAufladungBargeld() {
     setSelected(null);
     setBetragEuro('');
     setVermerk('');
+    setKonto('VERWALTER');
     setErr(null);
     setErfolg(null);
     void load(); // frisches guthabenCent
@@ -171,6 +176,47 @@ export default function AdminAufladungBargeld() {
               placeholder="z.B. Bar gegeben nach der Übung"
               error={err}
             />
+
+            {/* Konto-Wahl: wohin fließt das Bargeld? */}
+            <div>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: 0.3,
+                  color: 'var(--bwza-ink-dim)',
+                  paddingLeft: 2,
+                  marginBottom: 6,
+                }}
+              >
+                BARGELD GEHT IN
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <GlassButton
+                  type="button"
+                  variant={konto === 'VERWALTER' ? 'primary' : 'ghost'}
+                  size="sm"
+                  full
+                  onClick={() => setKonto('VERWALTER')}
+                >
+                  Mein Topf
+                </GlassButton>
+                <GlassButton
+                  type="button"
+                  variant={konto === 'BOX' ? 'primary' : 'ghost'}
+                  size="sm"
+                  full
+                  onClick={() => setKonto('BOX')}
+                >
+                  Vereinskasse/Box
+                </GlassButton>
+              </div>
+              <div style={{ marginTop: 6, fontSize: 11, color: 'var(--bwza-ink-mute)', lineHeight: 1.45 }}>
+                {konto === 'VERWALTER'
+                  ? 'Geld liegt bei dir (Verwalter-Topf) — wie bisher.'
+                  : 'Geld liegt direkt in der gemeinsamen Bar-Kasse (Box).'}
+              </div>
+            </div>
           </Glass>
 
           <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>

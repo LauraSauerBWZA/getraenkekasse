@@ -95,16 +95,18 @@ aufladungRouter.get('/aufladung/meine', async (req, res) => {
 // POST /admin/aufladung/bargeld — Verwalter trägt eine Bargeld-Einzahlung
 // eines Mitglieds ein. Erzeugt zwei wechselseitig verknüpfte Buchungen
 // atomar (KONFIGURATION.md §6.4):
-//   - Mitglieder-Transaktion: typ=AUFLADUNG_BARGELD, +X, Vermerk
-//   - Kassen-Buchung:         typ=EINZAHLUNG, konto=VERWALTER,
-//                             verwalterId=eingeloggter Admin, +X, Vermerk
-// Vermerk ist Pflicht (§6.8). verwalterId = eingeloggter Admin — die
-// Multi-Verwalter-Verteilung kommt in B2k und degeneriert hier sauber zum
-// Einzelfall.
+//   - Mitglieder-Transaktion: typ=AUFLADUNG_BARGELD, +X, Vermerk (unverändert)
+//   - Kassen-Buchung:         typ=EINZAHLUNG, +X, Vermerk — Konto je nach Wahl:
+//       * konto=VERWALTER, verwalterId=eingeloggter Admin (Verwalter-Topf, Default)
+//       * konto=BOX,       verwalterId=null (Bar-Vereinskasse/Box)
+// Vermerk ist Pflicht (§6.8). Die Konto-Wahl (Bündel 2, Einheit 2) nutzt das
+// bestehende Schema-Feld `konto` — kein Schema-Change. Default VERWALTER hält das
+// bisherige Verhalten (kompatibel mit Clients, die kein `konto` schicken).
 const bargeldSchema = z.object({
   userId: z.string().min(1),
   betragCent: z.number().int().positive(),
   vermerk: z.string(),
+  konto: z.enum(['VERWALTER', 'BOX']).default('VERWALTER'),
 });
 
 aufladungRouter.post('/admin/aufladung/bargeld', requireAdmin, async (req, res) => {
@@ -127,6 +129,10 @@ aufladungRouter.post('/admin/aufladung/bargeld', requireAdmin, async (req, res) 
 
   const adminId = req.auth!.sub;
   const betragCent = parsed.data.betragCent;
+  const konto = parsed.data.konto;
+  // BOX hat keinen Verwalter-Bezug (verwalterId=null); VERWALTER bucht auf den
+  // Topf des eingeloggten Admins.
+  const verwalterId = konto === 'VERWALTER' ? adminId : null;
 
   // Wechselseitige Verlinkung: erst die Kassen-Zeile ohne FK, dann die
   // Mitglieder-Zeile mit FK auf die Kasse, dann die Kassen-Zeile um die
@@ -135,8 +141,8 @@ aufladungRouter.post('/admin/aufladung/bargeld', requireAdmin, async (req, res) 
     const kasse = await tx.kassenTransaktion.create({
       data: {
         typ: 'EINZAHLUNG',
-        konto: 'VERWALTER',
-        verwalterId: adminId,
+        konto,
+        verwalterId,
         betragCent,
         notiz: vermerk,
         erstelltVonId: adminId,
