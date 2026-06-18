@@ -256,52 +256,56 @@ function emblemItemTexture(scene) {
   drawPixels(scene, 'emblem_item', EMBLEM_ITEM_GRID, 2);
 }
 
-// Durchgehende Felswand-Kachel (256x256, NACHSCHLAG.2): grobe, natürliche
-// Felsstruktur ohne Gitter/Rahmen, ohne Seil/Griffzonen — die ganze Wandbreite
-// ist frei befahrbar. Große Kachel + unregelmäßige Sprenkel/Risse lassen die
-// Wiederholung beim Kacheln kaum auffallen (Platzhalter; echte Pixel-Art folgt).
+// Durchgehende Felswand-Kachel (256x256, B_GAME3.5): dunkle, kühle Pixel-Rock-
+// Struktur auf 8px-Raster (blockiger GBC-Look). Bewusst dunkel/dezent, damit die
+// bunten Vordergrund-Sprites davor klar lesbar bleiben. Vertikal kachelbar.
+const WALL_TONES = [0x262232, 0x2d2838, 0x211d2a, 0x322c3e];
 function wallTexture(scene) {
   const s = 256;
+  const cell = 8;
   const g = scene.make.graphics({ x: 0, y: 0, add: false });
-  g.fillStyle(COLORS.rock, 1);
+  g.fillStyle(WALL_TONES[0], 1);
   g.fillRect(0, 0, s, s);
-
-  // dunklere Felsflecken (verschiedene Größen)
-  g.fillStyle(0x3a322a, 1);
-  for (let i = 0; i < 90; i++) {
-    const w = 6 + Math.random() * 22;
-    const h = 6 + Math.random() * 22;
-    g.fillRect(Math.random() * s, Math.random() * s, w, h);
+  // Jede 8px-Zelle ein zufälliger dunkler Ton → blockige Felsmaserung.
+  for (let y = 0; y < s; y += cell) {
+    for (let x = 0; x < s; x += cell) {
+      g.fillStyle(WALL_TONES[Math.floor(Math.random() * WALL_TONES.length)], 1);
+      g.fillRect(x, y, cell, cell);
+    }
   }
-  // hellere Aufhellungen
-  g.fillStyle(0x554a3d, 1);
-  for (let i = 0; i < 55; i++) {
-    const w = 4 + Math.random() * 16;
-    const h = 4 + Math.random() * 16;
-    g.fillRect(Math.random() * s, Math.random() * s, w, h);
+  // Vereinzelte dunkle Risse (rasterausgerichtet, dezent).
+  g.fillStyle(0x17141c, 1);
+  for (let i = 0; i < 10; i++) {
+    const x = Math.floor(Math.random() * (s / cell)) * cell;
+    const y0 = Math.floor(Math.random() * (s / cell)) * cell;
+    const len = 3 + Math.floor(Math.random() * 5);
+    for (let k = 0; k < len; k++) g.fillRect(x, (y0 + k * cell) % s, cell, cell);
   }
-  // feine Risse
-  g.fillStyle(0x241f19, 1);
-  for (let i = 0; i < 14; i++) {
-    g.fillRect(Math.random() * s, Math.random() * s, 2, 18 + Math.random() * 40);
-  }
-
   g.generateTexture('wall', s, s);
   g.destroy();
 }
 
-// Überhang-Block (170x46, B_GAME2): ragt von einer Seite in die Wand, blockiert
-// eine Spur — dunkler Fels, klar als Hindernis lesbar.
+// Überhang-Block (170x46, B_GAME2): ragt in die Wand, blockiert eine Spur.
+// Blockige Pixel-Maserung wie die Wand, aber mit heller Ober-/dunkler Unterkante,
+// damit der Vorsprung klar als solides Hindernis lesbar ist.
+const OVERHANG_TONES = [0x342e42, 0x2d2838, 0x3b3450];
 function overhangTexture(scene) {
   const w = 170;
   const h = 46;
+  const cell = 8;
   const g = scene.make.graphics({ x: 0, y: 0, add: false });
-  g.fillStyle(0x2a241d, 1);
-  g.fillRoundedRect(0, 0, w, h, 8);
-  g.fillStyle(COLORS.rock, 1);
-  g.fillRect(0, 0, w, 6); // helle Oberkante
-  g.lineStyle(1, 0x000000, 0.3);
-  g.strokeRoundedRect(0, 0, w, h, 8);
+  g.fillStyle(OVERHANG_TONES[1], 1);
+  g.fillRect(0, 0, w, h);
+  for (let y = 0; y < h; y += cell) {
+    for (let x = 0; x < w; x += cell) {
+      g.fillStyle(OVERHANG_TONES[Math.floor(Math.random() * OVERHANG_TONES.length)], 1);
+      g.fillRect(x, y, cell, cell);
+    }
+  }
+  g.fillStyle(0x564d6a, 1); // helle Oberkante (Vorsprung-Lesbarkeit)
+  g.fillRect(0, 0, w, 4);
+  g.fillStyle(0x14111c, 1); // dunkle Unterkante
+  g.fillRect(0, h - 4, w, 4);
   g.generateTexture('overhang', w, h);
   g.destroy();
 }
