@@ -127,23 +127,30 @@ export const ICICLE = {
   rateMinMs: 1600, // ganz oben dicht
 };
 
-// ─── B_GAME4 Balancing-Übersicht (finale Start-Werte, Playtest-tunbar) ───────
-// Exen/Sicherung:  Abstand 320 px (abwechselnd L/R, inset 52), Reichweite 82 px,
-//                  +40 Klick-Punkte, Schutzfenster 1,8 s. Geschützt: kleiner
-//                  Stein wirkungslos, großer Brocken + Eiszapfen → nur Rückwurf
-//                  (kein Leben). Rausdrücken am unteren Rand bleibt ungeschützt.
+// ─── B_GAME4B Sturzhöhe-Balancing (finale Start-Werte, Playtest-tunbar) ──────
+// Mechanik:        Sturzhöhe statt Zeitfenster. Geclippte Exe = Anker (Fangpunkt).
+//                  Gefährlicher Treffer MIT Anker → −1 Leben + Sturz auf Anker-
+//                  Höhe (Spieler + Scroll springen runter), dann weiter. OHNE
+//                  Anker → Totalabsturz = sofort Game Over. 0 Leben → Game Over.
+// Treffer-Typen:   kleiner Stein = immer harmloser Rückwurf (kein Leben, auch
+//                  ohne Anker, Q1); großer Brocken + Eiszapfen = Sturz/Game-Over.
+//                  Rausdrücken am unteren Rand bleibt unabhängig (wie gehabt).
+// Exen:            Abstand 320 px (abwechselnd L/R, inset 52), Reichweite 82 px,
+//                  +50 Klick-Punkte. Erste Exe früh+zentral, Schon-Frist 1,5 s
+//                  (keine großen Brocken am Start).
+// Edge-Case:       Anker unter dem Bildrand → Sturz am unteren Rand begrenzt,
+//                  −1 Leben gilt trotzdem (konsistent zu checkPushOut, Q3).
 // Emblem-Bonus:    2× pro Level (versch. Höhen, mittig = riskant), +250,
 //                  pendelt ±47 px (Periode 1,7 s).
-// Eingabe:         Desktop = Taste E (linke Hand frei); Mobile = eigener
-//                  „Klippen"-Button unten links (KEIN Doppeltipp → keine
-//                  Kollision mit dem Sprung-Tap).
-// Status sichtbar: Aura (ADD-Glow) am Kletterer + Seil-Linie zur Exe + HUD-
-//                  Balken „Gesichert" mit Restzeit.
+// Eingabe:         Desktop = Taste E; Mobile = „Klippen"-Button unten links
+//                  (KEIN Doppeltipp → keine Kollision mit dem Sprung-Tap).
+// Status sichtbar: ruhige Dauer-Aura (ADD-Glow) + permanente Seil-Linie zum
+//                  Anker + HUD-Label „⚓ gesichert" (kein Timer-Balken mehr).
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Vorstieg-Sicherung (B_GAME4): Exen (Express-Schlingen/Quickdraws) sitzen an der
-// Wand-Seite. Einklippen in Reichweite kostet einen Tastendruck, gibt Punkte und
-// öffnet ein kurzes Schutzfenster gegen Steinschlag/Eisschlag. Werte Playtest-tunbar.
+// Vorstieg-Sicherung (B_GAME4 + Rework B_GAME4B): Exen (Quickdraws) an der Wand-
+// Seite. Einklippen in Reichweite gibt Punkte und setzt einen Fangpunkt (Anker);
+// die zuletzt geclippte Exe begrenzt einen Sturz (Sturzhöhe-Modell, siehe oben).
 export const EXE = {
   spacingPx: 320, // Abstand entlang der Wand (Richtwert 250–400)
   inset: 52, // x-Abstand von der Wand-Seite (noch erreichbar)
