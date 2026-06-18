@@ -5,12 +5,22 @@ import { BackBar } from '../components/BackBar';
 import { ScrollList } from '../components/ScrollList';
 import { api, ApiError, formatGuthaben, type AdminAnfrage } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useRefreshOnFocus } from '../lib/useRefreshOnFocus';
 
 function formatBetrag(cent: number): string {
   return (cent / 100).toLocaleString('de-DE', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }) + ' €';
+}
+
+// Eingabe „1,50" / „1.50" / „2" → 150/150/200 Cent. Null bei ungültig/leer/negativ.
+function parseEuroToCent(input: string): number | null {
+  const trimmed = input.trim().replace(',', '.');
+  if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) return null;
+  const euro = Number(trimmed);
+  if (!Number.isFinite(euro) || euro <= 0) return null;
+  return Math.round(euro * 100);
 }
 
 function formatZeit(iso: string): string {
@@ -46,6 +56,9 @@ export default function AdminAufladungAnfragen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Beim Zurückkehren in die App die Liste frisch holen (Bündel-1-Muster).
+  useRefreshOnFocus(() => void load());
 
   // Nach einer Entscheidung die Anfrage aus der Liste nehmen (sie ist nicht mehr
   // OFFEN) + kurze Bestätigung anzeigen.
@@ -113,6 +126,10 @@ export default function AdminAufladungAnfragen() {
   );
 }
 
+// Welcher Inline-Dialog ist offen? Bestätigen verlangt die tatsächlich überwiesene
+// Summe (Betrag Pflicht), Ablehnen eine optionale Notiz.
+type Modus = 'idle' | 'bestaetigen' | 'ablehnen';
+
 function AnfrageCard({
   anfrage,
   onEntschieden,
@@ -122,18 +139,31 @@ function AnfrageCard({
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [ablehnenOffen, setAblehnenOffen] = useState(false);
+  const [modus, setModus] = useState<Modus>('idle');
   const [notiz, setNotiz] = useState('');
+  const [betragEuro, setBetragEuro] = useState('');
 
   const name = `${anfrage.user.firstName} ${anfrage.user.lastName}`;
 
+  const schliessen = () => {
+    setModus('idle');
+    setNotiz('');
+    setBetragEuro('');
+    setErr(null);
+  };
+
   const bestaetigen = async () => {
+    const betragCent = parseEuroToCent(betragEuro);
+    if (betragCent === null) {
+      setErr('Bitte die überwiesene Summe angeben, z.B. „10" oder „12,50".');
+      return;
+    }
     setErr(null);
     setBusy(true);
     try {
-      const r = await api.adminAufladungBestaetigen(anfrage.id);
+      const r = await api.adminAufladungBestaetigen(anfrage.id, betragCent);
       onEntschieden(anfrage.id, {
-        text: `${name}: ${formatBetrag(anfrage.betragCent)} gutgeschrieben — neues Guthaben ${formatGuthaben(r.guthabenCent)}.`,
+        text: `${name}: ${formatBetrag(betragCent)} gutgeschrieben — neues Guthaben ${formatGuthaben(r.guthabenCent)}.`,
         ton: 'gut',
       });
     } catch (e) {
@@ -148,7 +178,7 @@ function AnfrageCard({
     try {
       await api.adminAufladungAblehnen(anfrage.id, notiz.trim() || undefined);
       onEntschieden(anfrage.id, {
-        text: `${name}: Anfrage über ${formatBetrag(anfrage.betragCent)} abgelehnt.`,
+        text: `${name}: PayPal-Anfrage abgelehnt.`,
         ton: 'neutral',
       });
     } catch (e) {
@@ -179,16 +209,18 @@ function AnfrageCard({
             {anfrage.user.email} · {formatZeit(anfrage.requestedAt)}
           </div>
         </div>
+        {/* Betraglose Anfrage → kein Betrag an der Karte; nur ein PayPal-Marker. */}
         <div
           style={{
             flexShrink: 0,
-            fontFamily: 'var(--bwza-font-display)',
-            fontSize: 18,
-            fontWeight: 600,
-            color: 'var(--bwza-ink)',
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: 0.4,
+            textTransform: 'uppercase',
+            color: 'var(--bwza-ink-mute)',
           }}
         >
-          {formatBetrag(anfrage.betragCent)}
+          PayPal
         </div>
       </div>
 
@@ -196,7 +228,28 @@ function AnfrageCard({
         <div style={{ marginTop: 8, fontSize: 11, color: 'var(--bwza-rescue-soft)' }}>{err}</div>
       )}
 
-      {ablehnenOffen ? (
+      {modus === 'bestaetigen' && (
+        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <GlassInput
+            label="Überwiesene Summe (€)"
+            value={betragEuro}
+            onChange={(e) => setBetragEuro(e.target.value)}
+            placeholder="z.B. 10 oder 12,50"
+            hint="Genau der Betrag, der real auf deinem PayPal eingegangen ist."
+            autoFocus
+          />
+          <div style={{ display: 'flex', gap: 10 }}>
+            <GlassButton variant="ghost" full size="md" disabled={busy} onClick={schliessen}>
+              Zurück
+            </GlassButton>
+            <GlassButton full size="md" disabled={busy} onClick={() => void bestaetigen()}>
+              {busy ? 'Buche …' : 'Gutschreiben'}
+            </GlassButton>
+          </div>
+        </div>
+      )}
+
+      {modus === 'ablehnen' && (
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <GlassInput
             label="Notiz (optional)"
@@ -206,17 +259,7 @@ function AnfrageCard({
             autoFocus
           />
           <div style={{ display: 'flex', gap: 10 }}>
-            <GlassButton
-              variant="ghost"
-              full
-              size="md"
-              disabled={busy}
-              onClick={() => {
-                setAblehnenOffen(false);
-                setNotiz('');
-                setErr(null);
-              }}
-            >
+            <GlassButton variant="ghost" full size="md" disabled={busy} onClick={schliessen}>
               Zurück
             </GlassButton>
             <GlassButton full size="md" disabled={busy} onClick={() => void ablehnen()}>
@@ -224,22 +267,26 @@ function AnfrageCard({
             </GlassButton>
           </div>
         </div>
-      ) : (
+      )}
+
+      {modus === 'idle' && (
         <div style={{ marginTop: 12, display: 'flex', gap: 10 }}>
           <GlassButton
             variant="ghost"
             full
             size="md"
             disabled={busy}
-            onClick={() => {
-              setAblehnenOffen(true);
-              setErr(null);
-            }}
+            onClick={() => { setModus('ablehnen'); setErr(null); }}
           >
             Ablehnen
           </GlassButton>
-          <GlassButton full size="md" disabled={busy} onClick={() => void bestaetigen()}>
-            {busy ? 'Bestätige …' : 'Bestätigen'}
+          <GlassButton
+            full
+            size="md"
+            disabled={busy}
+            onClick={() => { setModus('bestaetigen'); setErr(null); }}
+          >
+            Bestätigen
           </GlassButton>
         </div>
       )}
