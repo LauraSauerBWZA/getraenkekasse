@@ -92,6 +92,14 @@ export default function AdminAufladungAnfragen() {
         </div>
       </div>
 
+      {/* Bargeld-Aufladung — von hier erreichbar (Bündel 2, Einheit 4: alle
+          Aufladungen an einer Stelle, kein eigener Hub-Button mehr). */}
+      <div style={{ marginBottom: 16 }}>
+        <GlassButton variant="ghost" full size="md" onClick={() => navigate('/admin/aufladung-bargeld')}>
+          Bargeld-Einzahlung eintragen
+        </GlassButton>
+      </div>
+
       {erfolg && (
         <Glass tone="amber" style={{ borderRadius: 16, padding: '12px 14px', marginBottom: 14 }}>
           <div

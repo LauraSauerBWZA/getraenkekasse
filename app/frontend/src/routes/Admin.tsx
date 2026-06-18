@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, Banknote, Beer, Download, Inbox, Landmark, User, UserPlus, Users, type LucideIcon } from 'lucide-react';
+import { Beer, Download, Inbox, Landmark, User, Users, type LucideIcon } from 'lucide-react';
 import { Eyebrow, Glass, GlassButton } from '../components/primitives';
 import { BackBar } from '../components/BackBar';
 import { api, ApiError, downloadJson } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
-// Admin-Hub (UI-Fix 3): reine Button-Übersicht. „Mitglied einladen" ist jetzt eine
-// eigene Unterseite (/admin/einladen, AdminEinladen.tsx) statt eines offenen
-// Formulars hier oben — erreichbar über den ersten Hub-Button.
+// Admin-Hub (Bündel 2, Einheit 4: verschlankt). Weniger Buttons, sinnvoll
+// gruppiert — drei frühere Einstiege wandern unter verwandte Hub-Punkte und sind
+// dort weiter voll erreichbar (Routen unverändert):
+//   - „Mitglied einladen"  → unter „Mitglieder & Salden" (/admin/mitglieder)
+//   - „Sortenstatistik"    → unter „Drink-Katalog" (/admin/drinks)
+//   - „Bargeld-Aufladung"  → unter „Aufladungen" (/admin/aufladung-anfragen)
 export default function Admin() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -38,40 +41,26 @@ export default function Admin() {
       </div>
 
       <HubButton
-        icon={UserPlus}
-        kicker="Mitglieder"
-        title="Mitglied einladen"
-        sub="Magic-Link erzeugen, ausgestellte Invites sehen"
-        onClick={() => navigate('/admin/einladen')}
-        first
-      />
-      <HubButton
         icon={Users}
         kicker="Mitglieder"
         title="Mitglieder & Salden"
-        sub="Saldo sehen, Guthaben korrigieren, Transaktionen stornieren"
+        sub="Einladen, Saldo sehen, Guthaben korrigieren, stornieren, reaktivieren"
         onClick={() => navigate('/admin/mitglieder')}
+        first
       />
       <HubButton
         icon={Beer}
         kicker="Katalog"
         title="Drink-Katalog"
-        sub="Sorten pflegen, Preise ändern, ausblenden"
+        sub="Sorten pflegen, Preise ändern, ausblenden · Sortenstatistik"
         onClick={() => navigate('/admin/drinks')}
       />
       <HubButton
         icon={Inbox}
         kicker="Kasse"
-        title="Aufladungs-Anfragen"
-        sub="Offene PayPal-Anfragen bestätigen oder ablehnen"
+        title="Aufladungen"
+        sub="PayPal-Anfragen bestätigen/ablehnen · Bargeld eintragen"
         onClick={() => navigate('/admin/aufladung-anfragen')}
-      />
-      <HubButton
-        icon={Banknote}
-        kicker="Kasse"
-        title="Bargeld-Aufladung"
-        sub="Einzahlung eines Mitglieds eintragen"
-        onClick={() => navigate('/admin/aufladung-bargeld')}
       />
       <HubButton
         icon={Landmark}
@@ -79,13 +68,6 @@ export default function Admin() {
         title="Vereinskasse"
         sub="Töpfe, Box, Deckung, Einkauf · Einlage · Spende · Korrektur"
         onClick={() => navigate('/admin/kasse')}
-      />
-      <HubButton
-        icon={BarChart3}
-        kicker="Statistik"
-        title="Sortenstatistik"
-        sub="Anzahl + Umsatz je Getränk (anonym, Zeitfilter)"
-        onClick={() => navigate('/statistik')}
       />
       <HubButton
         icon={User}

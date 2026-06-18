@@ -140,9 +140,17 @@ export default function AdminDrinks() {
         </div>
       </div>
 
-      <div style={{ marginBottom: 18 }}>
+      <div style={{ marginBottom: 12 }}>
         <GlassButton full size="lg" onClick={() => setFormMode({ mode: 'create' })}>
           + Neuer Drink
+        </GlassButton>
+      </div>
+
+      {/* Sortenstatistik — von hier erreichbar (Bündel 2, Einheit 4: rund um die
+          Getränke gebündelt, kein eigener Hub-Button mehr). */}
+      <div style={{ marginBottom: 18 }}>
+        <GlassButton variant="ghost" full size="md" onClick={() => navigate('/statistik')}>
+          Sortenstatistik ansehen
         </GlassButton>
       </div>
 
