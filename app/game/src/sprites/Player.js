@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { MOVE } from '../constants.js';
+import { MOVE, PLAYER } from '../constants.js';
 
 // Der Alpinist — Forced-Scroll-Mechanik (Phase B_GAME2_KLETTERN, NACHSCHLAG2).
 //
@@ -14,7 +14,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.setCollideWorldBounds(true);
     this.body.setAllowGravity(false);
-    this.body.setSize(16, 28).setOffset(3, 2);
+    // B_GAME5.1: deutlich größer + forgiving Hitbox (Box < sichtbares Sprite).
+    this.setScale(PLAYER.scale);
+    this.body
+      .setSize(PLAYER.hitboxW, PLAYER.hitboxH)
+      .setOffset(PLAYER.hitboxOffsetX, PLAYER.hitboxOffsetY);
 
     this.jumping = false;
     this.moving = false;

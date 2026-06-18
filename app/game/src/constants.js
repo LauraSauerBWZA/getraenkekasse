@@ -58,6 +58,19 @@ export const MOVE = {
   jumpVy: -460, // Sprung-Burst nach oben (Bogen, schnelles Ausweichen)
 };
 
+// Spieler-Darstellung (B_GAME5.1): Kletterer deutlich größer als das
+// 22x32-Basissprite. Die Hitbox ist BEWUSST kleiner als das sichtbare Sprite
+// (forgiving hitbox), damit der größere Kletterer kein unfair großes Ziel wird.
+// Body-Maße sind in Quell-Pixeln (vor Scale) — Phaser multipliziert sie mit
+// `scale`. Finale Werte im Balancing-Pass (B_GAME5.7) justiert.
+export const PLAYER = {
+  scale: 1.7, // sichtbare Größe ≈ 37x54 px (1,7× von 22x32)
+  hitboxW: 11, // schmaler als die 22px-Sprite-Breite → seitlich verzeihend
+  hitboxH: 24, // etwas kürzer als 32 → Kopf/Füße ragen leicht hitbox-frei
+  hitboxOffsetX: 5, // zentriert die schmale Box im Sprite
+  hitboxOffsetY: 5, // Box sitzt am Rumpf, nicht am Helm-Rand
+};
+
 // Auto-Scroll-Kamera (NACHSCHLAG2.1): scrollt eigenständig hoch, Speed steigt
 // linear mit dem Höhen-Fortschritt (Beschleunigungskurve = linear).
 export const SCROLL = {
