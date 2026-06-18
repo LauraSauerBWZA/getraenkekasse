@@ -86,7 +86,7 @@ gameRouter.get('/game/scores/leaderboard', async (req, res) => {
   const scores = await prisma.gameScore.findMany({
     where,
     orderBy: [{ score: 'desc' }, { createdAt: 'asc' }],
-    include: { user: { select: { id: true, firstName: true, lastName: true } } },
+    include: { user: { select: { id: true, firstName: true } } },
   });
 
   // Pro User nur den besten Lauf (erster Treffer in der sortierten Liste).
@@ -99,7 +99,7 @@ gameRouter.get('/game/scores/leaderboard', async (req, res) => {
   const leaderboard = [...bestByUser.values()].slice(0, 20).map((s, i) => ({
     rank: i + 1,
     userId: s.userId,
-    userName: `${s.user.firstName} ${s.user.lastName}`.trim(),
+    userName: s.user.firstName, // B_GAME_INTEGRATION: vorerst nur Vorname (Spitzname später)
     score: s.score,
     level: s.level,
     timeMs: s.timeMs,
