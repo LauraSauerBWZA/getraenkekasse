@@ -172,6 +172,7 @@ export class Level1Scene extends Phaser.Scene {
   buildExes() {
     this.exes = [];
     this.lastClippedExe = null;
+    this.clippedPath = []; // B_GAME4B.6: geclippte Exen in Clip-Reihenfolge (Boden→oben)
     for (const e of EXES) {
       const sprite = this.add.image(e.x, e.y, 'exe');
       sprite.setData('clipped', false);
@@ -207,8 +208,10 @@ export class Level1Scene extends Phaser.Scene {
     nearest.setData('clipped', true);
     nearest.setTint(0x88e0a0); // geklippt-Indikator (grünlich)
     this.score += EXE.clipScore;
-    // B_GAME4B.1: zuletzt geclippte Exe = aktueller Fangpunkt (Anker).
+    // B_GAME4B.1: zuletzt geclippte Exe = Fall-Anker (Sturzziel).
     this.lastClippedExe = nearest;
+    // B_GAME4B.6: Seil-Polyline VERLÄNGERN (neuer Stützpunkt, kein Reset).
+    this.clippedPath.push(nearest);
     this.popup(nearest.x, nearest.y - 20, `+${EXE.clipScore} eingeklippt`, CSS.success);
   }
 
@@ -231,20 +234,24 @@ export class Level1Scene extends Phaser.Scene {
   }
 
   updateAnchorVisuals() {
-    const anchored = this.hasAnchor();
-    this.aura.setVisible(anchored);
     this.ropeGfx.clear();
-    if (!anchored) return;
-    // Ruhige Dauer-Aura (kein Puls) — signalisiert „du hast einen Fangpunkt".
-    this.aura.setPosition(this.player.x, this.player.y).setScale(1).setAlpha(0.5);
-    // Permanente Seil-Linie zum Anker (Welt-Koordinaten).
+    const path = this.clippedPath;
+    if (path.length === 0) {
+      this.aura.setVisible(false);
+      return;
+    }
+    // B_GAME4B.6: durchgehende, wachsende Polyline Boden → Exe1 → … → letzter Clip
+    // → Kletterer. Bleibt permanent gezeichnet (auch ungesichert).
+    const pts = [{ x: path[0].x, y: GAME.worldHeight }];
+    for (const e of path) pts.push({ x: e.x, y: e.y });
+    pts.push({ x: this.player.x, y: this.player.y });
     this.ropeGfx.lineStyle(2, 0x88e0a0, 0.8);
-    this.ropeGfx.lineBetween(
-      this.player.x,
-      this.player.y,
-      this.lastClippedExe.x,
-      this.lastClippedExe.y,
-    );
+    this.ropeGfx.beginPath();
+    this.ropeGfx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) this.ropeGfx.lineTo(pts[i].x, pts[i].y);
+    this.ropeGfx.strokePath();
+    // Aura vorläufig an „mind. ein Clip" gekoppelt; secured-Logik folgt B_GAME4B.7.
+    this.aura.setVisible(true).setPosition(this.player.x, this.player.y).setScale(1).setAlpha(0.5);
   }
 
   // Emblem-Bonus-Item (B_GAME4.5): seltenes, pendelndes, riskant platziertes
