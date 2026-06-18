@@ -155,7 +155,17 @@ export default function AdminMitgliedDetail() {
 
       <Historie txs={txs} onChanged={() => void load()} />
 
-      {detail && detail.id !== user.id && (
+      {/* Reaktivieren, wenn deaktiviert; sonst Entfernen (nicht für den eigenen
+          Account). Soft-Delete bleibt reversibel (Bündel 2, Einheit 3). */}
+      {detail && !detail.isActive && (
+        <MitgliedReaktivierenCard
+          userId={detail.id}
+          name={`${detail.firstName} ${detail.lastName}`}
+          onDone={() => void load()}
+        />
+      )}
+
+      {detail && detail.isActive && detail.id !== user.id && (
         <MitgliedEntfernenCard
           userId={detail.id}
           name={`${detail.firstName} ${detail.lastName}`}
@@ -163,6 +173,51 @@ export default function AdminMitgliedDetail() {
         />
       )}
     </div>
+  );
+}
+
+// Reaktivierung eines deaktivierten (soft-gelöschten) Kontos (Bündel 2, Einheit 3).
+// Daten/Guthaben blieben erhalten → nach isActive=true ist das Konto wieder voll
+// nutzbar (Login, Salden, Statistik). Nicht destruktiv → einstufig, ohne Abfrage.
+function MitgliedReaktivierenCard({
+  userId,
+  name,
+  onDone,
+}: {
+  userId: string;
+  name: string;
+  onDone: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const reaktivieren = async () => {
+    setErr(null);
+    setBusy(true);
+    try {
+      await api.adminReactivateUser(userId);
+      onDone();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Konto konnte nicht reaktiviert werden.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Glass
+      tone="dark"
+      style={{ borderRadius: 18, padding: '16px', marginTop: 28, display: 'flex', flexDirection: 'column', gap: 12 }}
+    >
+      <div className="bwza-eyebrow">Konto deaktiviert</div>
+      <div style={{ fontSize: 13, color: 'var(--bwza-ink)', lineHeight: 1.5 }}>
+        <strong>{name}</strong> ist deaktiviert (kein Login, aus den aktiven Listen ausgeblendet).
+        Alle Daten und das Guthaben sind erhalten — reaktivieren macht das Konto wieder voll nutzbar.
+      </div>
+      {err && <div style={{ fontSize: 12, color: 'var(--bwza-rescue-soft)' }}>{err}</div>}
+      <GlassButton full size="md" disabled={busy} onClick={() => void reaktivieren()}>
+        {busy ? 'Reaktiviere …' : 'Konto reaktivieren'}
+      </GlassButton>
+    </Glass>
   );
 }
 

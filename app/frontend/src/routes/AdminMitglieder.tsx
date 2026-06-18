@@ -12,16 +12,19 @@ export default function AdminMitglieder() {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
+  // Umschalter: auch deaktivierte (soft-gelöschte) Mitglieder zeigen — damit der
+  // Admin sie sehen und im Detail reaktivieren kann (Bündel 2, Einheit 3).
+  const [zeigeInaktive, setZeigeInaktive] = useState(false);
 
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      const r = await api.adminUsers();
+      const r = await api.adminUsers(zeigeInaktive);
       setUsers(r.users);
     } catch (e) {
       setLoadError(e instanceof ApiError ? e.message : 'Mitgliederliste konnte nicht geladen werden.');
     }
-  }, []);
+  }, [zeigeInaktive]);
 
   useEffect(() => {
     void load();
@@ -63,13 +66,33 @@ export default function AdminMitglieder() {
         </div>
       </div>
 
+      {/* Mitglied einladen — von hier erreichbar (Bündel 2, Einheit 4: kein
+          eigener Hub-Button mehr, sondern unter „Mitglieder & Salden"). */}
       <div style={{ marginBottom: 14 }}>
+        <GlassButton variant="primary" full size="md" onClick={() => navigate('/admin/einladen')}>
+          Mitglied einladen
+        </GlassButton>
+      </div>
+
+      <div style={{ marginBottom: 10 }}>
         <GlassInput
           label="Mitglied suchen"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Name oder Email"
         />
+      </div>
+
+      {/* Umschalter: deaktivierte Konten mit anzeigen (für Reaktivierung). */}
+      <div style={{ marginBottom: 14 }}>
+        <GlassButton
+          variant={zeigeInaktive ? 'primary' : 'ghost'}
+          full
+          size="sm"
+          onClick={() => setZeigeInaktive((v) => !v)}
+        >
+          {zeigeInaktive ? 'Deaktivierte werden angezeigt' : 'Auch deaktivierte zeigen'}
+        </GlassButton>
       </div>
 
       {loadError ? (
@@ -94,6 +117,7 @@ export default function AdminMitglieder() {
 
 function MemberRow({ user, onPick }: { user: AdminUser; onPick: () => void }) {
   const negativ = user.guthabenCent < 0;
+  const inaktiv = !user.isActive;
   return (
     <Glass
       tone="dark"
@@ -105,6 +129,7 @@ function MemberRow({ user, onPick }: { user: AdminUser; onPick: () => void }) {
         alignItems: 'center',
         gap: 12,
         cursor: 'pointer',
+        opacity: inaktiv ? 0.55 : 1,
       }}
     >
       <div style={{ minWidth: 0, flex: 1 }}>
@@ -133,6 +158,20 @@ function MemberRow({ user, onPick }: { user: AdminUser; onPick: () => void }) {
               }}
             >
               admin
+            </span>
+          )}
+          {inaktiv && (
+            <span
+              style={{
+                marginLeft: 8,
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: 0.4,
+                color: 'var(--bwza-rescue-soft)',
+                textTransform: 'uppercase',
+              }}
+            >
+              deaktiviert
             </span>
           )}
         </div>

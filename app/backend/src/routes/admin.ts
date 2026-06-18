@@ -65,13 +65,17 @@ adminRouter.post('/admin/invite', async (req, res) => {
   });
 });
 
-// GET /admin/users — listet aktive Mitglieder für Admin-Auswahl (z.B. Bargeld-
-// Aufladung). Minimale Variante in B2e.2 — die reiche Übersicht mit Such-/
-// Filter-Affordances + Inline-Korrektur kommt in B2g. Live-`guthabenCent` aus
-// `computeGuthabenCent` pro User (§6.1).
-adminRouter.get('/admin/users', async (_req, res) => {
+// GET /admin/users — listet Mitglieder für Admin-Auswahl (z.B. Bargeld-Aufladung).
+// Live-`guthabenCent` aus `computeGuthabenCent` pro User (§6.1).
+//   - Default: nur aktive Mitglieder (unverändertes Verhalten für bestehende
+//     Aufrufer wie die Bargeld-Aufladung).
+//   - ?includeInactive=true (Bündel 2, Einheit 3): auch deaktivierte Mitglieder,
+//     damit der Admin sie sehen und reaktivieren kann. `isActive` ist jetzt immer
+//     Teil der Antwort (harmlos additiv).
+adminRouter.get('/admin/users', async (req, res) => {
+  const includeInactive = req.query.includeInactive === 'true';
   const users = await prisma.user.findMany({
-    where: { isActive: true },
+    where: includeInactive ? {} : { isActive: true },
     orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
     select: {
       id: true,
@@ -79,6 +83,7 @@ adminRouter.get('/admin/users', async (_req, res) => {
       firstName: true,
       lastName: true,
       isAdmin: true,
+      isActive: true,
     },
   });
 
@@ -364,6 +369,32 @@ adminRouter.delete('/admin/users/:id', async (req, res) => {
 
   logger.info({ mitgliedId: ziel.id, adminId: req.auth!.sub, topfCent }, 'Mitglied entfernt (Soft-Delete).');
   return res.json({ ok: true, warnung });
+});
+
+// PATCH /admin/users/:id/reactivate — versehentlich entferntes Konto wieder
+// aktivieren (Bündel 2, Einheit 3). Soft-Delete ist reversibel: Daten/Guthaben
+// blieben erhalten → isActive=true macht das Konto wieder voll nutzbar (Login,
+// Salden/Statistik/Aggregate). requireAdmin (adminRouter-Gate) — ein Mitglied
+// kommt deaktiviert nicht mehr rein und kann sich daher nicht selbst reaktivieren.
+//   - Unbekannte ID → 404. Bereits aktiv → 400 (nichts zu tun).
+// Bewusst KEIN Re-Assign offener Anfragen o.ä.: die Reaktivierung stellt nur den
+// Login-/Sichtbarkeits-Status wieder her; alle Buchungen lagen ohnehin unverändert.
+adminRouter.patch('/admin/users/:id/reactivate', async (req, res) => {
+  const ziel = await prisma.user.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, isActive: true },
+  });
+  if (!ziel) return res.status(404).json({ error: 'Mitglied nicht gefunden.' });
+  if (ziel.isActive) return res.status(400).json({ error: 'Mitglied ist bereits aktiv.' });
+
+  const user = await prisma.user.update({
+    where: { id: ziel.id },
+    data: { isActive: true },
+    select: { id: true, firstName: true, lastName: true, isAdmin: true, isLeitung: true, isActive: true },
+  });
+
+  logger.info({ mitgliedId: user.id, adminId: req.auth!.sub }, 'Mitglied reaktiviert.');
+  return res.json({ ok: true, user });
 });
 
 // POST /admin/users/:id/reset-password — Admin-Passwort-Reset (Account-B).
