@@ -36,6 +36,7 @@ export class Level1Scene extends Phaser.Scene {
     this.invulnerable = false;
     this.finished = false;
     this.reachedTop = false;
+    this.securedUntil = 0; // B_GAME4.3: Ende des Schutzfensters (this.time.now-Basis)
     this.maxHeightM = 0;
     this.startedAt = this.time.now;
 
@@ -196,7 +197,14 @@ export class Level1Scene extends Phaser.Scene {
     nearest.setTint(0x88e0a0); // geklippt-Indikator (grünlich)
     this.score += EXE.clipScore;
     this.lastClippedExe = nearest;
-    this.popup(nearest.x, nearest.y - 20, `+${EXE.clipScore} klick`, CSS.success);
+    // B_GAME4.3: Schutzfenster öffnen/auffrischen.
+    this.securedUntil = this.time.now + EXE.securedMs;
+    this.popup(nearest.x, nearest.y - 20, `+${EXE.clipScore} gesichert`, CSS.success);
+  }
+
+  // Gesichert = kurzes Schutzfenster nach dem Klippen aktiv (B_GAME4.3).
+  isSecured() {
+    return this.time.now < this.securedUntil;
   }
 
   buildCollectibles() {
@@ -267,6 +275,12 @@ export class Level1Scene extends Phaser.Scene {
     if (this.invulnerable) return;
     const big = b.getData('big');
     b.destroy();
+    // Gesichert (B_GAME4.3): großer Brocken abgemildert zu Rückwurf (kein Leben),
+    // kleiner Stein wirkungslos (Seil fängt). Ungesichert = unveränderte Werte.
+    if (this.isSecured()) {
+      if (big) this.hitPlayerSmall();
+      return;
+    }
     if (big) this.hitPlayer(); // großer Brocken: −1 Leben
     else this.hitPlayerSmall(); // kleiner Stein: Rückwurf
   }
@@ -325,6 +339,12 @@ export class Level1Scene extends Phaser.Scene {
   handleIcicleHit(ic) {
     if (this.invulnerable) return;
     ic.destroy();
+    // Gesichert mildert Eisschlag analog zum großen Brocken ab (Q2: Steinschlag =
+    // Eisschlag) → nur Rückwurf statt −1 Leben.
+    if (this.isSecured()) {
+      this.hitPlayerSmall();
+      return;
+    }
     this.hitPlayer(); // Eiszapfen ist scharf → −1 Leben
   }
 
