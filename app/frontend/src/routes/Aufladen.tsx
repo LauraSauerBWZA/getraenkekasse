@@ -1,30 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Banknote, CreditCard } from 'lucide-react';
-import { Eyebrow, EmptyState, Glass, GlassButton, GlassInput, Loading, StatusChip } from '../components/primitives';
+import { Banknote, CreditCard, ExternalLink, MessageCircle } from 'lucide-react';
+import { Eyebrow, EmptyState, Glass, GlassButton, Loading, StatusChip } from '../components/primitives';
 import { ScrollList } from '../components/ScrollList';
 import {
   api,
   ApiError,
   formatGuthaben,
-  paypalMeUrl,
+  paypalMeUrlOhneBetrag,
+  waMeUrl,
   type AufladungsStatus,
   type MeineAnfrage,
   type VerwalterPublic,
 } from '../lib/api';
 import { useAuth } from '../lib/auth';
-
-// Schnellwahl-Beträge (Cent) — §7.1. „Anderer Betrag" über das Eingabefeld.
-const PRESET_CENT = [500, 1000, 2000, 5000];
-
-// Eingabe „1,50" / „1.50" / „2" → 150/150/200 Cent. Null bei ungültig/leer/negativ.
-function parseEuroToCent(input: string): number | null {
-  const trimmed = input.trim().replace(',', '.');
-  if (!trimmed) return null;
-  if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) return null;
-  const euro = Number(trimmed);
-  if (!Number.isFinite(euro) || euro <= 0) return null;
-  return Math.round(euro * 100);
-}
+import { useRefreshOnFocus } from '../lib/useRefreshOnFocus';
 
 function formatBetrag(cent: number): string {
   return (cent / 100).toLocaleString('de-DE', {
@@ -45,16 +34,21 @@ const STATUS_TONE: Record<AufladungsStatus, 'gold' | 'green' | 'coral'> = {
   ABGELEHNT: 'coral',
 };
 
+// Nach dem Melden gesetzte Rückmeldung: an wen + (falls Nummer hinterlegt) der
+// fertige wa.me-Link als Fallback, falls window.open vom Browser geblockt wurde.
+interface Benachrichtigung {
+  verwalterName: string;
+  waUrl: string | null;
+}
+
 export default function Aufladen() {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const [verwalter, setVerwalter] = useState<VerwalterPublic | null>(null);
   const [anfragen, setAnfragen] = useState<MeineAnfrage[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [customOpen, setCustomOpen] = useState(false);
-  const [customEuro, setCustomEuro] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [hinweis, setHinweis] = useState<string | null>(null);
+  const [benachrichtigung, setBenachrichtigung] = useState<Benachrichtigung | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -74,37 +68,35 @@ export default function Aufladen() {
     void load();
   }, [load]);
 
-  const stelleAnfrage = async (betragCent: number) => {
+  // Beim Zurückkehren in die App frisch (Guthaben + Status der eigenen Anfragen).
+  useRefreshOnFocus(() => {
+    void load();
+    void refresh();
+  });
+
+  // „Überweisung erledigt — Verwalter benachrichtigen": legt die betraglose Anfrage
+  // an und öffnet (falls Nummer hinterlegt) WhatsApp mit vorgefertigtem Text.
+  const melden = async () => {
+    if (!user) return;
     setErr(null);
-    setHinweis(null);
+    setBenachrichtigung(null);
     setBusy(true);
     try {
-      const r = await api.aufladungPaypal(betragCent);
-      // paypal.me öffnen, falls Link hinterlegt — sonst nur Anfrage anlegen.
-      if (r.verwalter.paypalMeLink) {
-        window.open(paypalMeUrl(r.verwalter.paypalMeLink, betragCent), '_blank', 'noopener');
-      }
-      setHinweis(
-        `Anfrage über ${formatBetrag(betragCent)} gestellt. Überweise den Betrag an ` +
-          `${r.verwalter.firstName}; sobald die Zahlung da ist, bestätigt ${r.verwalter.firstName} die Aufladung.`,
-      );
-      setCustomOpen(false);
-      setCustomEuro('');
+      const r = await api.aufladungPaypal();
+      const v = r.verwalter;
+      const meinName = `${user.firstName} ${user.lastName}`.trim();
+      const text =
+        `Hallo ${v.firstName}, ich habe gerade per PayPal Geld für die Getränkekasse ` +
+        `überwiesen. Bitte freischalten. Grüße, ${meinName}`;
+      const waUrl = v.whatsappNummer ? waMeUrl(v.whatsappNummer, text) : null;
+      if (waUrl) window.open(waUrl, '_blank', 'noopener');
+      setBenachrichtigung({ verwalterName: v.firstName, waUrl });
       await load();
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Anfrage fehlgeschlagen.');
     } finally {
       setBusy(false);
     }
-  };
-
-  const submitCustom = () => {
-    const betragCent = parseEuroToCent(customEuro);
-    if (betragCent === null) {
-      setErr('Betrag bitte als z.B. „15" oder „12,50" angeben (positiv).');
-      return;
-    }
-    void stelleAnfrage(betragCent);
   };
 
   if (!user) return null;
@@ -114,7 +106,7 @@ export default function Aufladen() {
   return (
     <div className="bwza-stage" style={{ padding: '0 var(--bwza-page-x) 40px' }}>
       <div style={{ paddingTop: 30, paddingBottom: 18 }}>
-        <div className="bwza-eyebrow">Phase B2f · Aufladen</div>
+        <div className="bwza-eyebrow">Aufladen</div>
         <div
           style={{
             fontFamily: 'var(--bwza-font-display)',
@@ -146,7 +138,7 @@ export default function Aufladen() {
         </Glass>
       )}
 
-      {/* PayPal-Aufladung */}
+      {/* PayPal-Aufladung — betraglos, Mitglied wählt den Betrag selbst in PayPal */}
       <Glass tone="amber" style={{ borderRadius: 22, padding: '18px 16px' }}>
         <Eyebrow icon={CreditCard}>PayPal</Eyebrow>
         <div
@@ -163,107 +155,77 @@ export default function Aufladen() {
         </div>
 
         {verwalter && hatLink ? (
-          <div style={{ marginTop: 4, fontSize: 12, color: 'var(--bwza-ink-mute)' }}>
-            paypal.me/{verwalter.paypalMeLink} · Betrag wählen, App öffnet PayPal.
-          </div>
+          <>
+            <div style={{ marginTop: 6, fontSize: 13, color: 'var(--bwza-ink-dim)', lineHeight: 1.5 }}>
+              Überweise einen <strong>frei gewählten Betrag</strong> an{' '}
+              <span style={{ color: 'var(--bwza-ink)' }}>paypal.me/{verwalter.paypalMeLink}</span>.
+              Danach den Verwalter benachrichtigen — er schaltet die Aufladung mit der
+              tatsächlich überwiesenen Summe frei.
+            </div>
+
+            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <GlassButton
+                full
+                size="lg"
+                onClick={() =>
+                  window.open(paypalMeUrlOhneBetrag(verwalter.paypalMeLink!), '_blank', 'noopener')
+                }
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <ExternalLink size={18} strokeWidth={2} aria-hidden />
+                  PayPal öffnen
+                </span>
+              </GlassButton>
+              <GlassButton variant="ghost" full size="lg" disabled={busy} onClick={() => void melden()}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <MessageCircle size={18} strokeWidth={2} aria-hidden />
+                  {busy ? 'Sende …' : 'Überweisung erledigt — Verwalter benachrichtigen'}
+                </span>
+              </GlassButton>
+            </div>
+
+            {err && (
+              <div style={{ marginTop: 10, fontSize: 12, color: 'var(--bwza-rescue-soft)' }}>{err}</div>
+            )}
+          </>
         ) : (
-          <div style={{ marginTop: 6, fontSize: 12, color: 'var(--bwza-rescue-soft)' }}>
+          <div style={{ marginTop: 6, fontSize: 12, color: 'var(--bwza-rescue-soft)', lineHeight: 1.45 }}>
             Aktuell ist kein PayPal-Link hinterlegt — bitte per Bargeld aufladen (unten) oder
             deinen Verwalter ansprechen.
           </div>
         )}
 
-        {hatLink && (
-          <>
-            <div
-              style={{
-                marginTop: 14,
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 8,
-              }}
-            >
-              {PRESET_CENT.map((cent) => (
-                <GlassButton
-                  key={cent}
-                  variant="ghost"
-                  size="md"
-                  full
-                  disabled={busy}
-                  onClick={() => void stelleAnfrage(cent)}
-                >
-                  {formatBetrag(cent)}
-                </GlassButton>
-              ))}
-            </div>
-
-            {customOpen ? (
-              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <GlassInput
-                  label="Anderer Betrag (€)"
-                  value={customEuro}
-                  onChange={(e) => setCustomEuro(e.target.value)}
-                  placeholder="15,00"
-                  hint="Euro mit Komma oder Punkt, z.B. 15 oder 12,50"
-                  error={err}
-                  autoFocus
-                />
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <GlassButton
-                    variant="ghost"
-                    full
-                    size="md"
-                    disabled={busy}
-                    onClick={() => {
-                      setCustomOpen(false);
-                      setCustomEuro('');
-                      setErr(null);
-                    }}
-                  >
-                    Abbrechen
-                  </GlassButton>
-                  <GlassButton full size="md" disabled={busy} onClick={submitCustom}>
-                    {busy ? 'Stelle …' : 'Anfrage stellen'}
-                  </GlassButton>
-                </div>
-              </div>
-            ) : (
-              <div style={{ marginTop: 8 }}>
-                <GlassButton
-                  variant="ghost"
-                  size="sm"
-                  full
-                  disabled={busy}
-                  onClick={() => {
-                    setCustomOpen(true);
-                    setErr(null);
-                  }}
-                >
-                  Anderer Betrag
-                </GlassButton>
-              </div>
-            )}
-
-            {err && !customOpen && (
-              <div style={{ marginTop: 10, fontSize: 12, color: 'var(--bwza-rescue-soft)' }}>{err}</div>
-            )}
-          </>
-        )}
-
-        {hinweis && (
+        {benachrichtigung && (
           <div
             style={{
               marginTop: 14,
-              padding: '10px 12px',
+              padding: '12px 14px',
               borderRadius: 12,
               background: 'rgba(0,0,0,0.28)',
               border: '1px solid var(--bwza-glass-line)',
               fontSize: 12,
               color: 'var(--bwza-ink-dim)',
-              lineHeight: 1.45,
+              lineHeight: 1.5,
             }}
           >
-            {hinweis}
+            Anfrage gestellt — {benachrichtigung.verwalterName} kann jetzt freischalten.
+            {benachrichtigung.waUrl ? (
+              <>
+                {' '}WhatsApp sollte sich geöffnet haben; falls nicht:{' '}
+                <a
+                  href={benachrichtigung.waUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: 'var(--bwza-ink)', textDecoration: 'underline' }}
+                >
+                  WhatsApp öffnen
+                </a>
+                .
+              </>
+            ) : (
+              <> Sag {benachrichtigung.verwalterName} kurz persönlich Bescheid, dass du überwiesen hast
+                {' '}(keine WhatsApp-Nummer hinterlegt).</>
+            )}
           </div>
         )}
       </Glass>
@@ -305,7 +267,7 @@ function EigeneAnfragen({ anfragen }: { anfragen: MeineAnfrage[] | null }) {
       {anfragen === null ? (
         <Loading />
       ) : anfragen.length === 0 ? (
-        <EmptyState title="Noch keine Anfragen" sub="Wähle oben einen Betrag, um per PayPal aufzuladen." />
+        <EmptyState title="Noch keine Anfragen" sub="Überweise per PayPal und melde dich beim Verwalter." />
       ) : (
         <ScrollList>
           {anfragen.map((a) => (
@@ -325,6 +287,9 @@ function AnfrageRow({ anfrage }: { anfrage: MeineAnfrage }) {
   });
   const kannErneutOeffnen =
     anfrage.status === 'OFFEN' && Boolean(anfrage.zugewiesenerVerwalter.paypalMeLink);
+
+  // Bestätigte Anfragen tragen die vom Verwalter eingegebene Summe; offene sind betraglos.
+  const titel = anfrage.betragCent != null ? formatBetrag(anfrage.betragCent) : 'PayPal-Aufladung';
 
   return (
     <Glass
@@ -347,14 +312,14 @@ function AnfrageRow({ anfrage }: { anfrage: MeineAnfrage }) {
             letterSpacing: -0.1,
           }}
         >
-          {formatBetrag(anfrage.betragCent)}
+          {titel}
         </div>
         <div style={{ marginTop: 2, fontSize: 11, color: 'var(--bwza-ink-mute)' }}>
           {datum} · an {anfrage.zugewiesenerVerwalter.firstName}
         </div>
         {kannErneutOeffnen && (
           <a
-            href={paypalMeUrl(anfrage.zugewiesenerVerwalter.paypalMeLink!, anfrage.betragCent)}
+            href={paypalMeUrlOhneBetrag(anfrage.zugewiesenerVerwalter.paypalMeLink!)}
             target="_blank"
             rel="noreferrer"
             style={{
