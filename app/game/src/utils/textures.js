@@ -237,17 +237,23 @@ function boulderTexture(scene) {
   drawPixels(scene, 'boulder', BOULDER_GRID, 2);
 }
 
-// Karabiner (16x16 = 8x8 ×2): silberner Ring mit Loch, Glanz oben-links,
-// goldenes Gate rechts — metallisch + wertvoll.
+// Karabiner (20x24 = 10x12 ×2, Optik überarbeitet B_GAME5.3): klare
+// Birnen-/HMS-Form mit oben angedeutetem Nasen-Verschluss, silbernem Korpus
+// (s/S) und hellem Schnapper/Gate (f) an der rechten Innenseite. Eindeutig als
+// Kletter-Karabiner lesbar — nicht mehr der frühere unklare Mini-Ring.
 const CARABINER_GRID = [
-  '..ssss..',
-  '.sf..Ss.',
-  'ss....ss',
-  's......s',
-  'ss....sa',
-  '.s....Sa',
-  '.sS..Ss.',
-  '..ssss..',
+  '...oo.....',
+  '..osso....',
+  '.oSffSo...',
+  'oSs..sSo..',
+  'os....sfo.',
+  'os....sfo.',
+  'os....sfo.',
+  'os....sfo.',
+  'oSs..sso..',
+  '.oSssSo...',
+  '..osso....',
+  '...oo.....',
 ];
 function carabinerTexture(scene) {
   drawPixels(scene, 'carabiner', CARABINER_GRID, 2);
