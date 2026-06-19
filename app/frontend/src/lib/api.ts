@@ -104,40 +104,15 @@ export interface KassenTransaktion {
   createdAt: string;
 }
 
-export const AUFLADUNGS_STATUS = ['OFFEN', 'BESTAETIGT', 'ABGELEHNT'] as const;
-export type AufladungsStatus = (typeof AUFLADUNGS_STATUS)[number];
-
 // Öffentliche Verwalter-Sicht (kein passwordHash o.ä.), wie vom Backend geliefert.
+// Bündel 5: Die member-initiierte AufladungsAnfrage entfällt — übrig bleibt nur die
+// Anzeige des zuständigen Verwalters (Name + paypal.me + WhatsApp) im Aufladen-Tab.
 export interface VerwalterPublic {
   id: string;
   firstName: string;
   lastName: string;
   paypalMeLink: string | null;
   whatsappNummer: string | null;
-}
-
-export interface AufladungsAnfrage {
-  id: string;
-  userId: string;
-  // betraglos bei OFFEN (PayPal-Umbau); gesetzt beim Bestätigen (= überwiesene Summe).
-  betragCent: number | null;
-  status: AufladungsStatus;
-  zugewiesenerVerwalterId: string;
-  requestedAt: string;
-  decidedAt: string | null;
-  decidedById: string | null;
-  adminNotiz: string | null;
-  transaktionId: string | null;
-}
-
-// /aufladung/meine liefert die eigene Anfrage inkl. zugewiesenem Verwalter.
-export interface MeineAnfrage extends AufladungsAnfrage {
-  zugewiesenerVerwalter: VerwalterPublic;
-}
-
-// Admin-Liste liefert die Anfrage inkl. Mitglied-Daten.
-export interface AdminAnfrage extends AufladungsAnfrage {
-  user: { id: string; firstName: string; lastName: string; email: string };
 }
 
 // Mitglied-Detail (B2g): Stammdaten + Live-Saldo.
@@ -489,39 +464,12 @@ export const api = {
       body: JSON.stringify({ notiz }),
     }),
 
-  // Mitglied: zuständigen Verwalter (Name + paypal.me-Link) für den Aufladen-Tab
+  // Mitglied: zuständigen Verwalter (Name + paypal.me-Link + WhatsApp) für den
+  // Aufladen-Tab. Bündel 5: einziger verbliebener Member-Aufladen-Endpoint — das
+  // Mitglied überweist direkt per paypal.me und gibt dem Verwalter per WhatsApp
+  // Bescheid; der Verwalter bucht admin-direkt (kein Anfrage-Absenden mehr).
   aufladungZustaendigerVerwalter: () =>
     request<{ verwalter: VerwalterPublic | null }>('/aufladung/zustaendiger-verwalter'),
-  // Mitglied: BETRAGLOSE PayPal-Aufladungs-Anfrage stellen → offene Anfrage +
-  // zuständiger Verwalter (paypal.me + WhatsApp-Nummer für die Benachrichtigung)
-  aufladungPaypal: () =>
-    request<{ anfrage: AufladungsAnfrage; verwalter: VerwalterPublic }>('/aufladung/paypal', {
-      method: 'POST',
-      body: JSON.stringify({}),
-    }),
-  // Mitglied: eigene Anfragen (neueste zuerst) inkl. zugewiesenem Verwalter
-  aufladungMeine: () => request<{ anfragen: MeineAnfrage[] }>('/aufladung/meine'),
-  // Admin: offene PayPal-Anfragen
-  adminAufladungAnfragen: () =>
-    request<{ anfragen: AdminAnfrage[] }>('/admin/aufladung/anfragen'),
-  // Admin: Anfrage bestätigen mit der TATSÄCHLICH überwiesenen Summe (betragCent,
-  // Pflicht) → gekoppelte Buchung + neues Mitglied-Guthaben
-  adminAufladungBestaetigen: (id: string, betragCent: number, adminNotiz?: string) =>
-    request<{
-      anfrage: AufladungsAnfrage;
-      transaktion: Transaktion;
-      kassenTransaktion: KassenTransaktion;
-      guthabenCent: number;
-    }>(`/admin/aufladung/anfragen/${id}/bestaetigen`, {
-      method: 'POST',
-      body: JSON.stringify(adminNotiz ? { betragCent, adminNotiz } : { betragCent }),
-    }),
-  // Admin: Anfrage ablehnen (keine Buchung)
-  adminAufladungAblehnen: (id: string, adminNotiz?: string) =>
-    request<{ anfrage: AufladungsAnfrage }>(`/admin/aufladung/anfragen/${id}/ablehnen`, {
-      method: 'POST',
-      body: JSON.stringify(adminNotiz ? { adminNotiz } : {}),
-    }),
 };
 
 // Löst einen Browser-Download einer JSON-Datei aus (Blob-Muster aus Account-A).

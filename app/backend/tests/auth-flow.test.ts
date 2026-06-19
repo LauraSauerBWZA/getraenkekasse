@@ -1045,307 +1045,26 @@ describe('Aufladungs-Storno', () => {
   });
 });
 
-// B2f.2 — PayPal-Aufladungs-Anfrage stellen (Mitglied) + zuständiger-Verwalter-
-// Link. Stand: ein einziger Admin (Laura) → zuständig ist immer Laura (Single-
-// Verwalter-Fall, §6.9-Degeneration). Max ist als memberAgent eingeloggt.
-describe('PayPal-Anfrage (Mitglied)', () => {
-  let lauraId: string;
-  let maxId: string;
-
-  it('Setup: IDs holen + Lauras paypal.me-Link setzen', async () => {
-    lauraId = (await agent.get('/auth/me')).body.user.id;
-    maxId = (await memberAgent.get('/auth/me')).body.user.id;
-    // Pflege-UI ist B2k — fürs Anzeigen hier direkt am User setzen.
-    await prisma.user.update({ where: { id: lauraId }, data: { paypalMeLink: 'laura-test' } });
-    expect(lauraId).toBeTruthy();
-    expect(maxId).toBeTruthy();
-  });
-
-  it('lehnt zuständiger-Verwalter ohne Login ab', async () => {
-    const anon = supertest.agent(app);
-    const r = await anon.get('/aufladung/zustaendiger-verwalter');
-    expect(r.status).toBe(401);
-  });
-
-  it('liefert den zuständigen Verwalter mit paypal.me-Link', async () => {
-    const r = await memberAgent.get('/aufladung/zustaendiger-verwalter');
-    expect(r.status).toBe(200);
-    expect(r.body.verwalter).toMatchObject({
-      id: lauraId,
-      firstName: 'Laura',
-      paypalMeLink: 'laura-test',
-    });
-    // keine sensiblen Felder
-    expect(r.body.verwalter.passwordHash).toBeUndefined();
-  });
-
-  it('lehnt Anfrage ohne Login ab', async () => {
-    const anon = supertest.agent(app);
-    const r = await anon.post('/aufladung/paypal').send();
-    expect(r.status).toBe(401);
-  });
-
-  it('legt eine BETRAGLOSE offene Anfrage an, zugewiesen an den zuständigen Verwalter', async () => {
-    // PayPal-Umbau: kein Betrag mehr im Request, betragCent bleibt null.
-    const r = await memberAgent.post('/aufladung/paypal').send();
-    expect(r.status).toBe(201);
-    expect(r.body.anfrage).toMatchObject({
-      userId: maxId,
-      betragCent: null,
-      status: 'OFFEN',
-      zugewiesenerVerwalterId: lauraId,
-      decidedAt: null,
-      decidedById: null,
-      transaktionId: null,
-    });
-    // Verwalter inkl. (hier leerer) WhatsApp-Nummer für die Member-Benachrichtigung.
-    expect(r.body.verwalter).toMatchObject({ id: lauraId, paypalMeLink: 'laura-test' });
-    expect(r.body.verwalter).toHaveProperty('whatsappNummer');
-    // Keine Buchung beim Stellen — Guthaben unverändert (Max steht bei -150).
-    const me = await memberAgent.get('/auth/me');
-    expect(me.body.user.guthabenCent).toBe(-150);
-  });
-
-  it('listet eigene Anfragen (neueste zuerst) inkl. Verwalter-Name, alle betraglos', async () => {
-    // Zweite betraglose Anfrage, damit Sortierung prüfbar ist.
-    await memberAgent.post('/aufladung/paypal').send();
-    const r = await memberAgent.get('/aufladung/meine');
-    expect(r.status).toBe(200);
-    expect(Array.isArray(r.body.anfragen)).toBe(true);
-    expect(r.body.anfragen.length).toBeGreaterThanOrEqual(2);
-    // offene Anfragen sind betraglos
-    expect(r.body.anfragen[0].betragCent).toBeNull();
-    expect(r.body.anfragen[0].status).toBe('OFFEN');
-    expect(r.body.anfragen[0].zugewiesenerVerwalter).toMatchObject({
-      id: lauraId,
-      firstName: 'Laura',
-    });
-  });
-
-  it('zeigt einem anderen Mitglied NICHT die fremden Anfragen', async () => {
-    // Admin Laura hat selbst noch keine Anfrage gestellt.
-    const r = await agent.get('/aufladung/meine');
-    expect(r.status).toBe(200);
-    expect(r.body.anfragen).toEqual([]);
-  });
-});
-
-// B2f.3 — Admin bestätigt/lehnt PayPal-Anfragen. Stand aus B2f.2: Max hat zwei
-// OFFENE Anfragen (2000 zuerst gestellt, dann 500), beide Laura zugewiesen.
-// Max-Guthaben -150, Lauras Verwalter-Topf 0 (nach den B2e.4-Stornos).
-describe('PayPal-Anfrage (Admin bestätigt/lehnt)', () => {
-  let lauraId: string;
-  let maxId: string;
-
-  async function verwalterTopf(verwalterId: string): Promise<number> {
-    const agg = await prisma.kassenTransaktion.aggregate({
-      _sum: { betragCent: true },
-      where: { konto: 'VERWALTER', verwalterId },
-    });
-    return agg._sum.betragCent ?? 0;
-  }
-
-  // Max' offene Anfragen, älteste zuerst. Anfragen sind betraglos (PayPal-Umbau)
-  // → nicht mehr per Betrag auffindbar, daher über userId + requestedAt.
-  async function offeneAnfragenVonMax() {
-    return prisma.aufladungsAnfrage.findMany({
-      where: { userId: maxId, status: 'OFFEN' },
-      orderBy: { requestedAt: 'asc' },
-    });
-  }
-
-  it('Setup: IDs holen', async () => {
-    lauraId = (await agent.get('/auth/me')).body.user.id;
-    maxId = (await memberAgent.get('/auth/me')).body.user.id;
-  });
-
-  it('lehnt Anfragen-Liste ohne Login / ohne Admin ab', async () => {
-    const anon = supertest.agent(app);
-    expect((await anon.get('/admin/aufladung/anfragen')).status).toBe(401);
-    expect((await memberAgent.get('/admin/aufladung/anfragen')).status).toBe(403);
-  });
-
-  it('liefert offene Anfragen mit Mitglied-Daten, älteste zuerst — alle betraglos', async () => {
-    const r = await agent.get('/admin/aufladung/anfragen');
-    expect(r.status).toBe(200);
-    const maxAnfragen = r.body.anfragen.filter(
-      (a: { user: { id: string } }) => a.user.id === maxId,
-    );
-    expect(maxAnfragen.length).toBe(2);
-    // betraglos (PayPal-Umbau) → kein Betrag mehr an der Anfrage
-    expect(maxAnfragen[0].betragCent).toBeNull();
-    expect(maxAnfragen[1].betragCent).toBeNull();
-    expect(maxAnfragen[0].user).toMatchObject({ firstName: 'Max', email: 'max@example.com' });
-    expect(maxAnfragen[0].status).toBe('OFFEN');
-  });
-
-  it('lehnt Bestätigen ohne Admin-Recht ab', async () => {
-    const [anfrage] = await offeneAnfragenVonMax();
-    const r = await memberAgent
-      .post(`/admin/aufladung/anfragen/${anfrage.id}/bestaetigen`)
-      .send({ betragCent: 2000 });
-    expect(r.status).toBe(403);
-  });
-
-  it('antwortet 404 auf Bestätigen unbekannter Anfrage', async () => {
-    const r = await agent
-      .post('/admin/aufladung/anfragen/gibts-nicht/bestaetigen')
-      .send({ betragCent: 1000 });
-    expect(r.status).toBe(404);
-  });
-
-  it('verlangt einen Betrag beim Bestätigen (fehlt/0/negativ → 400, Anfrage bleibt OFFEN)', async () => {
-    const [anfrage] = await offeneAnfragenVonMax();
-    expect((await agent.post(`/admin/aufladung/anfragen/${anfrage.id}/bestaetigen`).send({})).status).toBe(400);
-    expect((await agent.post(`/admin/aufladung/anfragen/${anfrage.id}/bestaetigen`).send({ betragCent: 0 })).status).toBe(400);
-    expect((await agent.post(`/admin/aufladung/anfragen/${anfrage.id}/bestaetigen`).send({ betragCent: -100 })).status).toBe(400);
-    expect((await agent.post(`/admin/aufladung/anfragen/${anfrage.id}/bestaetigen`).send({ betragCent: 12.5 })).status).toBe(400);
-    // unverändert offen
-    const unverändert = await prisma.aufladungsAnfrage.findUnique({ where: { id: anfrage.id } });
-    expect(unverändert?.status).toBe('OFFEN');
-    expect(unverändert?.betragCent).toBeNull();
-  });
-
-  it('bestätigt die erste Anfrage mit der echten Summe: gekoppelte Buchung, Guthaben + Topf steigen', async () => {
-    const [anfrage] = await offeneAnfragenVonMax();
-    const topfVor = await verwalterTopf(lauraId);
-
-    // Verwalter gibt die TATSÄCHLICH überwiesene Summe ein (2000 = 20,00 €).
-    const r = await agent
-      .post(`/admin/aufladung/anfragen/${anfrage.id}/bestaetigen`)
-      .send({ betragCent: 2000, adminNotiz: 'PayPal am 14.06. erhalten' });
-    expect(r.status).toBe(201);
-
-    // Anfrage terminal + verlinkt, Betrag zur Doku gesetzt
-    expect(r.body.anfrage).toMatchObject({
-      status: 'BESTAETIGT',
-      betragCent: 2000,
-      decidedById: lauraId,
-      adminNotiz: 'PayPal am 14.06. erhalten',
-    });
-    expect(r.body.anfrage.decidedAt).toBeTruthy();
-    expect(r.body.anfrage.transaktionId).toBe(r.body.transaktion.id);
-
-    // Mitglieder-Transaktion
-    expect(r.body.transaktion).toMatchObject({
-      typ: 'AUFLADUNG_PAYPAL',
-      userId: maxId,
-      erstelltVonId: lauraId,
-      betragCent: 2000,
-    });
-    expect(r.body.transaktion.kassenTransaktionId).toBe(r.body.kassenTransaktion.id);
-
-    // Kassen-EINZAHLUNG auf den zugewiesenen Verwalter-Topf
-    expect(r.body.kassenTransaktion).toMatchObject({
-      typ: 'EINZAHLUNG',
-      konto: 'VERWALTER',
-      verwalterId: lauraId,
-      betragCent: 2000,
-      erstelltVonId: lauraId,
-    });
-
-    // Max-Guthaben -150 → 1850, Lauras Topf +2000
-    expect(r.body.guthabenCent).toBe(1850);
-    const me = await memberAgent.get('/auth/me');
-    expect(me.body.user.guthabenCent).toBe(1850);
-    expect(await verwalterTopf(lauraId)).toBe(topfVor + 2000);
-  });
-
-  it('verhindert doppelte Entscheidung (schon bestätigte Anfrage)', async () => {
-    const bestaetigt = await prisma.aufladungsAnfrage.findFirst({
-      where: { userId: maxId, status: 'BESTAETIGT' },
-    });
-    const r = await agent
-      .post(`/admin/aufladung/anfragen/${bestaetigt!.id}/bestaetigen`)
-      .send({ betragCent: 1000 });
-    expect(r.status).toBe(400);
-    expect(r.body.error).toMatch(/bereits entschieden/i);
-  });
-
-  it('lehnt die verbliebene Anfrage ab: kein Booking, Status ABGELEHNT', async () => {
-    const [anfrage] = await offeneAnfragenVonMax();
-    const kasseVor = await prisma.kassenTransaktion.count();
-    const guthabenVor = (await memberAgent.get('/auth/me')).body.user.guthabenCent;
-
-    const r = await agent
-      .post(`/admin/aufladung/anfragen/${anfrage.id}/ablehnen`)
-      .send({ adminNotiz: 'Keine Zahlung eingegangen' });
-    expect(r.status).toBe(200);
-    expect(r.body.anfrage).toMatchObject({
-      status: 'ABGELEHNT',
-      decidedById: lauraId,
-      adminNotiz: 'Keine Zahlung eingegangen',
-      transaktionId: null,
-    });
-
-    // keine Buchung
-    expect(await prisma.kassenTransaktion.count()).toBe(kasseVor);
-    const me = await memberAgent.get('/auth/me');
-    expect(me.body.user.guthabenCent).toBe(guthabenVor);
-  });
-
-  it('verhindert Ablehnen einer schon entschiedenen Anfrage', async () => {
-    const abgelehnt = await prisma.aufladungsAnfrage.findFirst({
-      where: { userId: maxId, status: 'ABGELEHNT' },
-    });
-    const r = await agent
-      .post(`/admin/aufladung/anfragen/${abgelehnt!.id}/ablehnen`)
-      .send({});
-    expect(r.status).toBe(400);
-  });
-
-  it('nach Entscheidung sind keine offenen Anfragen von Max mehr in der Liste', async () => {
-    const r = await agent.get('/admin/aufladung/anfragen');
-    const maxOffen = r.body.anfragen.filter((a: { user: { id: string } }) => a.user.id === maxId);
-    expect(maxOffen).toEqual([]);
-  });
-
-  // Verifiziert die generische B2e.4-Storno-Rückbuchung für AUFLADUNG_PAYPAL.
-  it('Storno der bestätigten PayPal-Aufladung bucht die Kassen-Einzahlung zurück', async () => {
-    const topfVor = await verwalterTopf(lauraId);
-    const guthabenVor = (await memberAgent.get('/auth/me')).body.user.guthabenCent;
-
-    // Die bei der Bestätigung erzeugte AUFLADUNG_PAYPAL-Transaktion (+2000)
-    const paypalTx = await prisma.transaktion.findFirst({
-      where: { userId: maxId, typ: 'AUFLADUNG_PAYPAL', betragCent: 2000 },
-    });
-    expect(paypalTx).toBeTruthy();
-    expect(paypalTx!.kassenTransaktionId).toBeTruthy();
-
-    const r = await agent
-      .post(`/transaktionen/${paypalTx!.id}/storno`)
-      .send({ notiz: 'PayPal-Zahlung zurückgezogen.' });
-    expect(r.status).toBe(201);
-
-    expect(r.body.transaktion).toMatchObject({
-      typ: 'STORNO',
-      stornoVonId: paypalTx!.id,
-      betragCent: -2000,
-      erstelltVonId: lauraId,
-    });
-    // Gegen-KORREKTUR auf demselben Verwalter-Topf
-    expect(r.body.kassenGegenbuchung).toMatchObject({
-      typ: 'KORREKTUR',
-      konto: 'VERWALTER',
-      verwalterId: lauraId,
-      betragCent: -2000,
-    });
-    expect(r.body.kassenGegenbuchung.notiz).toMatch(/storno-rückbuchung/i);
-
-    // Guthaben + Topf wieder zurück
-    expect(r.body.guthabenCent).toBe(guthabenVor - 2000);
-    expect(await verwalterTopf(lauraId)).toBe(topfVor - 2000);
-  });
-});
-
 // B2g.1 — Mitglied-Detail (Stammdaten + Live-Saldo + Historie + stornierbar).
 // Stand nach allen vorigen Blöcken: Max-Guthaben -150, mit reicher Historie
 // (KAUF/STORNO/AUFLADUNG_BARGELD/AUFLADUNG_PAYPAL, teils storniert).
 describe('Mitglied-Detail (Admin)', () => {
   let maxId: string;
 
-  it('Setup: Max-Id', async () => {
+  it('Setup: Max-Id + stornierte PayPal-Aufladung (für die Storno-Markierung)', async () => {
     maxId = (await memberAgent.get('/auth/me')).body.user.id;
+    // Bündel 5: Die frühere PayPal-Anfrage-Maschinerie (die diese Daten erzeugte) ist
+    // weg. Stattdessen admin-direkt eine PayPal-Aufladung 2000 für Max buchen und
+    // sofort stornieren → es existiert eine stornierte AUFLADUNG_PAYPAL und eine
+    // jüngste VERWALTER/Laura-EINZAHLUNG. Netto 0 → Max-Guthaben bleibt -150.
+    const e = await agent.post('/admin/aufladung/einzahlung').send({
+      userId: maxId, betragCent: 2000, vermerk: 'PayPal direkt (Detail-Test)', methode: 'PAYPAL',
+    });
+    expect(e.status).toBe(201);
+    const s = await agent
+      .post(`/transaktionen/${e.body.transaktion.id}/storno`)
+      .send({ notiz: 'Detail-Test Storno' });
+    expect(s.status).toBe(201);
   });
 
   it('lehnt Detail ohne Login / ohne Admin ab', async () => {
@@ -2012,9 +1731,10 @@ describe('paypal.me-Profil (eigener Link)', () => {
   });
 });
 
-// B2k.3 — Lastverteilung (§6.9). Isoliert: Laura-Link kurz entfernt, damit nur
-// zwei frische Verwalter (Anna, Bert) wählbar sind; Töpfe gezielt befüllt.
-describe('Lastverteilung (§6.9)', () => {
+// B5 — Lastverteilung (vereinfacht). Zuständiger Verwalter = aktiver Admin MIT
+// paypalMeLink + niedrigstem Topf, Tie-Break alphabetisch. Member-Anfragen gibt es
+// nicht mehr (Bündel 5) → beobachtet rein über GET /aufladung/zustaendiger-verwalter.
+describe('Lastverteilung (vereinfacht, §6.9)', () => {
   const annaAgent = supertest.agent(app);
   const bertAgent = supertest.agent(app);
   let annaId: string;
@@ -2045,121 +1765,55 @@ describe('Lastverteilung (§6.9)', () => {
     return u.id;
   }
 
-  it('Setup: Laura-Link entfernen, Anna + Bert als Verwalter anlegen', async () => {
+  it('Setup: Laura-Link entfernen, Anna + Bert als Verwalter (mit Link) anlegen', async () => {
     await agent.patch('/admin/me/paypal').send({ paypalMeLink: null });
     annaId = await loginVerwalter(annaAgent, 'anna@example.com', 'Anna', 'anna');
     bertId = await loginVerwalter(bertAgent, 'bert@example.com', 'Bert', 'bert');
   });
 
-  // Anzahl offener (OFFEN) einem Verwalter zugewiesener Anfragen (Tie-Break-Größe).
-  async function offeneCount(verwalterId: string): Promise<number> {
-    return prisma.aufladungsAnfrage.count({
-      where: { zugewiesenerVerwalterId: verwalterId, status: 'OFFEN' },
-    });
-  }
-
-  it('Tie-Break alphabetisch: beide Töpfe 0, keine offenen Anfragen → Anna', async () => {
+  it('beide Töpfe 0 → Tie-Break alphabetisch → Anna', async () => {
     expect(await topf(annaId)).toBe(0);
     expect(await topf(bertId)).toBe(0);
-    expect(await offeneCount(annaId)).toBe(0);
-    expect(await offeneCount(bertId)).toBe(0);
     const r = await memberAgent.get('/aufladung/zustaendiger-verwalter');
     expect(r.status).toBe(200);
     expect(r.body.verwalter.id).toBe(annaId);
+    expect(r.body.verwalter).toMatchObject({ paypalMeLink: 'anna' });
   });
 
-  it('erste betraglose Anfrage geht an Anna (alphabetisch) + liefert deren Link', async () => {
-    const r = await memberAgent.post('/aufladung/paypal').send();
-    expect(r.status).toBe(201);
-    expect(r.body.anfrage.betragCent).toBeNull();
-    expect(r.body.anfrage.zugewiesenerVerwalterId).toBe(annaId);
-    expect(r.body.verwalter).toMatchObject({ id: annaId, paypalMeLink: 'anna' });
-  });
-
-  it('zweite Anfrage geht an Bert (Tie-Break Anzahl: Anna hat 1 offene, Bert 0)', async () => {
-    // Töpfe weiter 0=0 → Tie-Break = wenigste offene Anfragen → Bert (0 < 1).
-    expect(await offeneCount(annaId)).toBe(1);
-    expect(await offeneCount(bertId)).toBe(0);
-    const r = await memberAgent.post('/aufladung/paypal').send();
-    expect(r.status).toBe(201);
-    expect(r.body.anfrage.zugewiesenerVerwalterId).toBe(bertId);
-    expect(r.body.verwalter).toMatchObject({ id: bertId, paypalMeLink: 'bert' });
-  });
-
-  it('niedrigster Topf dominiert den Anzahl-Tie-Break: Anna −100 → trotz gleicher Anzahl an Anna', async () => {
-    // Anna Einkauf aus eigenem Topf → -100. Nun Anna 1 offene, Bert 1 offene (Anzahl-Tie),
-    // aber Anna Topf -100 < Bert 0 → der Topf entscheidet → Anna.
-    const e = await annaAgent
+  it('niedrigster Topf dominiert den alphabetischen Tie-Break: Bert −200 → Bert', async () => {
+    // Bert kauft aus seinem eigenen Topf ein → Topf -200 < Annas 0 → Bert zuständig,
+    // obwohl Anna alphabetisch vorn liegt.
+    const e = await bertAgent
       .post('/admin/kasse/buchung')
-      .send({ typ: 'EINKAUF', konto: 'VERWALTER', betragCent: 100, vermerk: 'Anna Einkauf' });
+      .send({ typ: 'EINKAUF', konto: 'VERWALTER', betragCent: 200, vermerk: 'Bert Einkauf' });
     expect(e.status).toBe(201);
-    expect(await topf(annaId)).toBe(-100);
-    expect(await offeneCount(annaId)).toBe(1);
-    expect(await offeneCount(bertId)).toBe(1);
-    const r = await memberAgent.post('/aufladung/paypal').send();
-    expect(r.status).toBe(201);
-    expect(r.body.anfrage.zugewiesenerVerwalterId).toBe(annaId);
+    expect(await topf(bertId)).toBe(-200);
+    const r = await memberAgent.get('/aufladung/zustaendiger-verwalter');
+    expect(r.body.verwalter.id).toBe(bertId);
   });
 
-  it('Anfragen-Liste ist je Verwalter auf eigene zugewiesene gefiltert', async () => {
-    const annaListe = await annaAgent.get('/admin/aufladung/anfragen');
-    const bertListe = await bertAgent.get('/admin/aufladung/anfragen');
-    expect(annaListe.body.anfragen.every((a: { zugewiesenerVerwalterId: string }) => a.zugewiesenerVerwalterId === annaId)).toBe(true);
-    expect(bertListe.body.anfragen.every((a: { zugewiesenerVerwalterId: string }) => a.zugewiesenerVerwalterId === bertId)).toBe(true);
-    // Annas Anfrage taucht nicht in Berts Liste auf und umgekehrt
-    expect(annaListe.body.anfragen.length).toBeGreaterThanOrEqual(1);
-    expect(bertListe.body.anfragen.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('Bestätigen nur durch den Zugewiesenen: Anna kann Berts Anfrage nicht (403)', async () => {
-    const bertAnfrage = await prisma.aufladungsAnfrage.findFirst({
-      where: { zugewiesenerVerwalterId: bertId, status: 'OFFEN' },
+  it('Admin OHNE paypalMeLink wird ignoriert — auch bei niedrigstem Topf', async () => {
+    // Cara: aktiver Admin ohne Link, Topf künstlich auf -500 (niedrigster). Trotzdem
+    // NICHT zuständig (kein paypal.me) → bleibt Bert (niedrigster MIT Link).
+    const cara = await prisma.user.create({
+      data: { email: 'cara-lv@example.com', firstName: 'Cara', lastName: 'V', isAdmin: true },
     });
-    const r = await annaAgent
-      .post(`/admin/aufladung/anfragen/${bertAnfrage!.id}/bestaetigen`)
-      .send({ betragCent: 500 });
-    expect(r.status).toBe(403);
-  });
-
-  it('Bert bestätigt seine Anfrage mit echter Summe → EINZAHLUNG landet in Berts Topf', async () => {
-    const bertAnfrage = await prisma.aufladungsAnfrage.findFirst({
-      where: { zugewiesenerVerwalterId: bertId, status: 'OFFEN' },
+    await prisma.kassenTransaktion.create({
+      data: { typ: 'EINKAUF', konto: 'VERWALTER', verwalterId: cara.id, betragCent: -500, notiz: 'Cara Topf', erstelltVonId: cara.id },
     });
-    const topfVor = await topf(bertId);
-    const r = await bertAgent
-      .post(`/admin/aufladung/anfragen/${bertAnfrage!.id}/bestaetigen`)
-      .send({ betragCent: 700 });
-    expect(r.status).toBe(201);
-    expect(r.body.anfrage.betragCent).toBe(700);
-    expect(r.body.kassenTransaktion).toMatchObject({ konto: 'VERWALTER', verwalterId: bertId, betragCent: 700 });
-    expect(await topf(bertId)).toBe(topfVor + 700);
+    expect(await topf(cara.id)).toBe(-500);
+    const r = await memberAgent.get('/aufladung/zustaendiger-verwalter');
+    expect(r.body.verwalter.id).toBe(bertId);
+    // Cara wieder deaktivieren, damit spätere Aktiv-User-Zählungen unberührt bleiben.
+    await prisma.user.update({ where: { id: cara.id }, data: { isActive: false } });
   });
 
-  it('Ablehnen nur durch den Zugewiesenen: Bert kann Annas Anfrage nicht (403)', async () => {
-    const annaAnfrage = await prisma.aufladungsAnfrage.findFirst({
-      where: { zugewiesenerVerwalterId: annaId, status: 'OFFEN' },
-    });
-    const r = await bertAgent.post(`/admin/aufladung/anfragen/${annaAnfrage!.id}/ablehnen`).send({});
-    expect(r.status).toBe(403);
-  });
-
-  it('Anna lehnt ihre eigene Anfrage ab (200, kein Betrag nötig)', async () => {
-    const annaAnfrage = await prisma.aufladungsAnfrage.findFirst({
-      where: { zugewiesenerVerwalterId: annaId, status: 'OFFEN' },
-    });
-    const r = await annaAgent.post(`/admin/aufladung/anfragen/${annaAnfrage!.id}/ablehnen`).send({});
-    expect(r.status).toBe(200);
-    expect(r.body.anfrage.status).toBe('ABGELEHNT');
-  });
-
-  it('kein Verwalter mit Link → PayPal-Anfrage 400 (kein Crash)', async () => {
+  it('kein Verwalter mit Link → verwalter = null (kein Crash)', async () => {
     await annaAgent.patch('/admin/me/paypal').send({ paypalMeLink: null });
     await bertAgent.patch('/admin/me/paypal').send({ paypalMeLink: null });
-    const preview = await memberAgent.get('/aufladung/zustaendiger-verwalter');
-    expect(preview.body.verwalter).toBeNull();
-    const r = await memberAgent.post('/aufladung/paypal').send();
-    expect(r.status).toBe(400);
-    expect(r.body.error).toMatch(/kein verwalter mit paypal/i);
+    const r = await memberAgent.get('/aufladung/zustaendiger-verwalter');
+    expect(r.status).toBe(200);
+    expect(r.body.verwalter).toBeNull();
   });
 
   it('Restore: Lauras Link wieder setzen', async () => {

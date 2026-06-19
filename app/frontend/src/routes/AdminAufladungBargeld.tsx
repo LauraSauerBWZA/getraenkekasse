@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Banknote, Check, Smartphone } from 'lucide-react';
 import { EmptyState, Glass, GlassButton, GlassInput, Loading } from '../components/primitives';
 import { BackBar } from '../components/BackBar';
-import { OffeneAnfragen } from '../components/OffeneAnfragen';
 import {
   api,
   ApiError,
@@ -150,22 +149,17 @@ export default function AdminAufladungBargeld() {
       </div>
 
       {phase === 'mitglied' && (
-        <>
-          {/* Offene member-initiierte PayPal-Anfragen OBERHALB der Mitglieder-Auswahl
-              (Bündel 4, Einheit 1). Keine offen → der Abschnitt rendert nichts. */}
-          <OffeneAnfragen />
-          <MitgliederWahl
-            users={gefiltert}
-            loadError={loadError}
-            filter={filter}
-            setFilter={setFilter}
-            onPick={(u) => {
-              setSelected(u);
-              setErr(null);
-              setPhase('methode');
-            }}
-          />
-        </>
+        <MitgliederWahl
+          users={gefiltert}
+          loadError={loadError}
+          filter={filter}
+          setFilter={setFilter}
+          onPick={(u) => {
+            setSelected(u);
+            setErr(null);
+            setPhase('methode');
+          }}
+        />
       )}
 
       {phase === 'methode' && (

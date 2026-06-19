@@ -6,9 +6,9 @@ import { logger } from '../logger.js';
 // kein gespeicherter Cursor. Aus routes/aufladung.ts extrahiert (Cleanup), damit
 // die Neuzuweisung beim Verwalter-Wegfall (Demote/Remove) dieselbe Logik nutzt.
 //
-// PayPal-Umbau: Anfragen sind jetzt BETRAGLOS — der frühere „Summe offener
-// Anfragen"-Term entfällt. Zuständigkeit rein über den aktuellen Verwalter-Topf,
-// mit der ANZAHL offener zugewiesener Anfragen als Tie-Break (statt Beträge).
+// Bündel 5: Member-initiierte Anfragen entfallen — der frühere „Anzahl offener
+// Anfragen"-Tie-Break ist damit gegenstandslos und raus. Zuständigkeit rein über
+// den aktuellen Verwalter-Topf (niedrigster zuerst), Tie-Break alphabetisch.
 
 // Verwalter-Topf-Saldo: SUM(KassenTransaktion.betragCent) WHERE konto=VERWALTER.
 async function topfCent(verwalterId: string): Promise<number> {
@@ -19,36 +19,23 @@ async function topfCent(verwalterId: string): Promise<number> {
   return topf._sum.betragCent ?? 0;
 }
 
-// Anzahl noch OFFENER, diesem Verwalter zugewiesener Anfragen (Tie-Break gegen
-// Klumpung: bei gleichem Topf bekommt der mit weniger schon offenen die nächste).
-async function offeneAnfragenCount(verwalterId: string): Promise<number> {
-  return prisma.aufladungsAnfrage.count({
-    where: { zugewiesenerVerwalterId: verwalterId, status: 'OFFEN' },
-  });
-}
-
-// Der am wenigsten haltende Kandidat. Regel (§6.9): niedrigster Topf →
-// Tie-Break wenigste offene zugewiesene Anfragen → Tie-Break alphabetisch
-// (Vorname). Die Liste kommt bereits firstName-aufsteigend sortiert; der stabile
-// Sort behält bei vollem Gleichstand diese alphabetische Reihenfolge. Leere Liste
-// → null, ein Kandidat → dieser.
+// Der am wenigsten haltende Kandidat. Regel (§6.9): niedrigster Topf → Tie-Break
+// alphabetisch (Vorname). Die Liste kommt bereits firstName-aufsteigend sortiert;
+// der stabile Sort behält bei Topf-Gleichstand diese alphabetische Reihenfolge.
+// Leere Liste → null, ein Kandidat → dieser.
 export async function leastLoaded(candidates: User[]): Promise<User | null> {
   if (candidates.length === 0) return null;
   if (candidates.length === 1) return candidates[0];
   const bewertet = await Promise.all(
-    candidates.map(async (v) => ({
-      v,
-      topf: await topfCent(v.id),
-      offen: await offeneAnfragenCount(v.id),
-    })),
+    candidates.map(async (v) => ({ v, topf: await topfCent(v.id) })),
   );
   // Stabiler Sort (ES2019+) → alphabetische Eingangsreihenfolge bleibt der letzte
   // Tie-Break, ohne ihn explizit vergleichen zu müssen.
-  bewertet.sort((a, b) => a.topf - b.topf || a.offen - b.offen);
+  bewertet.sort((a, b) => a.topf - b.topf);
   return bewertet[0].v;
 }
 
-// Member-facing: zuständiger Verwalter für eine NEUE PayPal-Anfrage — nur aktive
+// Member-facing: zuständiger Verwalter fürs Aufladen anzeigen — nur aktive
 // Admins MIT nicht-leerem paypalMeLink (ohne Link gibt es nichts zum Überweisen).
 export async function ermittleZustaendigenVerwalter(): Promise<User | null> {
   const verwalter = await prisma.user.findMany({
