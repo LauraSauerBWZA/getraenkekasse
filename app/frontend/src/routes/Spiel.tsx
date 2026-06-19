@@ -14,11 +14,16 @@ export default function Spiel() {
     <div
       style={{
         position: 'fixed',
-        inset: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        // Voller dynamischer Viewport (Bündel 5, Einheit 4): kein App-seitiges
+        // Letterboxing. Verbleibende Balken kommen aus dem Spiel selbst
+        // (app/game: Phaser Scale.FIT auf fixem 480×800) — nicht aus dieser Hülle.
+        height: '100dvh',
         zIndex: 50,
         background: 'var(--bwza-bg)',
-        display: 'flex',
-        flexDirection: 'column',
+        overflow: 'hidden',
       }}
     >
       <button
@@ -53,7 +58,7 @@ export default function Spiel() {
         src={src}
         title="Bergwacht-Alpinist"
         allow="fullscreen; autoplay"
-        style={{ flex: 1, width: '100%', height: '100%', border: 0, display: 'block' }}
+        style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
       />
     </div>
   );
