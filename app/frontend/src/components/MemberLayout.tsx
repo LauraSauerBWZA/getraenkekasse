@@ -1,4 +1,4 @@
-import { useState, type PropsWithChildren } from 'react';
+import { useLayoutEffect, useState, type PropsWithChildren } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Gamepad2, History, Home, Wallet } from 'lucide-react';
 import { Avatar, BergMark } from './primitives';
@@ -36,6 +36,17 @@ export function MemberLayout({ children }: PropsWithChildren) {
   const navigate = useNavigate();
   const location = useLocation();
   const [drawer, setDrawer] = useState(false);
+
+  // Dokument-Scroll sperren, solange eine Member-Route aktiv ist (Bündel 4,
+  // Einheit 2): unterbindet den iOS-Standalone-Rubber-Band, der die fixierte Shell
+  // (v.a. die untere Nav) sonst beim Wischen mitzieht. useLayoutEffect (synchron vor
+  // Paint) hält die Klasse beim Wechsel zwischen Member-Routen ohne Flackern. Beim
+  // Unmount (Wechsel auf Admin/Login) entfernt → dort scrollt der Body wieder normal.
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.classList.add('bwza-app-locked');
+    return () => root.classList.remove('bwza-app-locked');
+  }, []);
 
   // Admins sehen einen zusätzlichen 🎮-Tab; Mitglieder die unveränderten 3 Tabs.
   const tabs = user?.isAdmin ? [...TABS, SPIEL_TAB] : TABS;

@@ -52,6 +52,29 @@ body::before {
     var(--bwza-bg);
 }
 
+/* iOS-Standalone-PWA-Lock (Bündel 4, Einheit 2). Auf den Member-Routen ist die
+   MemberLayout-Shell (position:fixed; inset:0) die EINZIGE Scroll-Quelle. Ohne
+   diesen Lock ist das Dokument vertikal nicht gesperrt (touch-action:pan-y, nur
+   X-Overscroll geblockt) → in der installierten iOS-PWA rubber-bandet der Body
+   hinter der fixierten Hülle und zieht die untere Nav beim Wischen mit / lässt sie
+   zurückrutschen (in Safari pinnt fixed, in Standalone nicht). Die Klasse setzt
+   MemberLayout beim Mount auf <html> und entfernt sie beim Unmount → NUR auf
+   Member-Routen aktiv; Admin-Screens scrollen weiter ihren Body (BackBar + Spacer).
+   Doppelt abgesichert: overflow:hidden + overscroll-behavior:none (iOS 16.4+) und
+   position:fixed am Body (hartes Lock für ältere iOS). Die Shell bleibt
+   viewport-verankert (position:fixed am Body spannt KEINEN Containing-Block auf). */
+html.bwza-app-locked,
+html.bwza-app-locked body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+html.bwza-app-locked body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
 * { box-sizing: border-box; }
 
 button { font-family: inherit; }
