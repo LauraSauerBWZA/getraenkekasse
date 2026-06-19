@@ -22,15 +22,21 @@ const SPIEL_TAB = { to: '/spiel', label: 'Spiel', icon: Gamepad2 };
 // Persistente Shell für die Member-Screens: Top-Header (Avatar→Drawer, Back-Pfeil
 // auf Nicht-Tab-Routen wie /buchen) + persistente Bottom-Nav (3 Tabs).
 //
-// Höhenmodell (Bündel 3, Einheit 1): Die Shell ist eine **fixierte Vollviewport-
-// Flex-Spalte** (`position:fixed; inset:0`), der mittlere Bereich ist der EINZIGE
-// Scroller, die Bottom-Nav ist die unterste **Flex-Zeile** — NICHT mehr
-// `position:fixed`. Grund: Eine `position:fixed`-Leiste über einem im Dokumentfluss
-// scrollenden Body sprang im iOS-Standalone beim ersten Laden, weil
-// `env(safe-area-inset-bottom)` (an dem Höhe + Padding der Leiste hingen) erst nach
-// dem ersten Reflow/Scroll auf den echten Home-Indicator-Wert auflöst. Als unterste
-// Flex-Zeile einer den Viewport exakt füllenden Shell sitzt die Nav sofort korrekt;
-// der Safe-Area-Inset wirkt nur noch als Padding INNERHALB der Leiste.
+// Höhenmodell (Bündel 3 → 5): Die Shell ist eine **fixierte Flex-Spalte**, der
+// mittlere Bereich ist der EINZIGE Scroller, die Bottom-Nav ist die unterste
+// **Flex-Zeile** (kein `position:fixed`); der Safe-Area-Inset wirkt als Padding
+// INNERHALB der Leiste.
+//
+// Bündel 5, Einheit 3: Shell an den **dynamischen Viewport** gebunden —
+// `position:fixed; top/left/right:0; height:100dvh` statt `inset:0`. Grund:
+// `inset:0` (≙ bottom:0) ankerte die Unterkante in iOS-**Standalone** an der
+// safe-area-AUSGESCHLOSSENEN Viewportkante → ein Charcoal-Spalt unter der Nav; in
+// **Safari** an der Layout-Viewport (hinter der Adressleiste) → Nav verdeckt.
+// `100dvh` misst in beiden Kontexten die SICHTBARE Höhe: Standalone = Vollbild bis
+// zur Kante (Nav-bg füllt die Safe-Area, Tab-Inhalt per env() über dem Indicator),
+// Safari = Höhe ohne Adressleiste (Nav sitzt darüber). Der Body-Lock (Bündel 4)
+// bleibt. Kompromiss Safari: beim Ein-/Ausblenden der Leiste wandert die Nav mit
+// dem dvh — akzeptiert (PWA hat Priorität).
 export function MemberLayout({ children }: PropsWithChildren) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -56,7 +62,12 @@ export function MemberLayout({ children }: PropsWithChildren) {
     <div
       style={{
         position: 'fixed',
-        inset: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        // Dynamischer Viewport (Bündel 5): in PWA Vollbild bis zur Kante, in Safari
+        // ohne Adressleiste → Nav sitzt in beiden Fällen bündig/sichtbar unten.
+        height: '100dvh',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
