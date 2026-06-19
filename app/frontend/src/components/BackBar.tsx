@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Home } from 'lucide-react';
+import { useAuth } from '../lib/auth';
 
 // Zurück-Leiste oben auf den Admin-/Leitung-Unter-Screens.
 //
@@ -14,8 +15,9 @@ import { ChevronLeft } from 'lucide-react';
 // #root) einen transformierten Containing-Block aufspannt. Safe-Area bleibt im
 // Padding berücksichtigt (`env(safe-area-inset-*)`). Inhalt auf Stage-Breite
 // zentriert (passt zur `.bwza-stage`), Chrome blutet edge-to-edge.
-export function BackBar({ to, title }: { to?: string; title?: string }) {
+export function BackBar({ to, title, home = '/admin' }: { to?: string; title?: string; home?: string }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const barRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(0);
 
@@ -60,32 +62,60 @@ export function BackBar({ to, title }: { to?: string; title?: string }) {
             paddingRight: 'calc(var(--bwza-page-x) + env(safe-area-inset-right, 0px))',
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'space-between',
             gap: 10,
           }}
         >
-          <button
-            type="button"
-            onClick={() => (to ? navigate(to) : navigate(-1))}
-            style={{
-              all: 'unset',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              minHeight: 'var(--bwza-tap)',
-              color: 'var(--bwza-ink)',
-              fontFamily: 'var(--bwza-font-ui)',
-              fontSize: 14,
-              fontWeight: 600,
-            }}
-          >
-            <ChevronLeft size={18} strokeWidth={2.2} aria-hidden />
-            Zurück
-          </button>
-          {title && (
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--bwza-ink-dim)', letterSpacing: -0.1 }}>
-              · {title}
-            </span>
+          {/* Links: „Zurück" (eine Ebene) + optionaler Titel. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <button
+              type="button"
+              onClick={() => (to ? navigate(to) : navigate(-1))}
+              style={{
+                all: 'unset',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                minHeight: 'var(--bwza-tap)',
+                color: 'var(--bwza-ink)',
+                fontFamily: 'var(--bwza-font-ui)',
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
+              <ChevronLeft size={18} strokeWidth={2.2} aria-hidden />
+              Zurück
+            </button>
+            {title && (
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--bwza-ink-dim)', letterSpacing: -0.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                · {title}
+              </span>
+            )}
+          </div>
+
+          {/* Rechts: dezenter Home-Button → Admin-Hub (Verwaltungs-Startseite).
+              Bündel 4, Einheit 3. Nur für Admins (Leitung-only erreicht /admin nicht);
+              „Zurück" bleibt davon unberührt (eine Ebene zurück). */}
+          {user?.isAdmin && (
+            <button
+              type="button"
+              onClick={() => navigate(home)}
+              aria-label="Zur Verwaltungs-Startseite"
+              style={{
+                all: 'unset',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 'var(--bwza-tap)',
+                minHeight: 'var(--bwza-tap)',
+                color: 'var(--bwza-ink-dim)',
+                flexShrink: 0,
+              }}
+            >
+              <Home size={19} strokeWidth={2.1} aria-hidden />
+            </button>
           )}
         </div>
       </div>
