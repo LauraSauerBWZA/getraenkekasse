@@ -348,6 +348,49 @@ describe('Admin-Drink-CRUD', () => {
     expect(r.body.drink.marke).toBeNull();
     expect(r.body.drink.volumenMl).toBeNull();
   });
+
+  // Drink-Fotos: Etikett-Bild (komprimierte JPEG-Data-URL).
+  it('akzeptiert ein gültiges JPEG-Etikett (data:image/jpeg) + speichert es', async () => {
+    const bild = 'data:image/jpeg;base64,' + 'A'.repeat(2000);
+    const r = await agent.post('/admin/drinks').send({
+      name: 'Fanta', preisCent: 150, kategorie: 'alkoholfrei', bildDataUrl: bild,
+    });
+    expect(r.status).toBe(201);
+    expect(r.body.drink.bildDataUrl).toBe(bild);
+  });
+
+  it('lehnt ein Nicht-JPEG-Bild ab (400, klare Meldung)', async () => {
+    const r = await agent.post('/admin/drinks').send({
+      name: 'BadImg', preisCent: 100, kategorie: 'alkoholfrei', bildDataUrl: 'data:image/png;base64,AAAA',
+    });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/jpeg/i);
+  });
+
+  it('lehnt ein zu großes Bild ab (>200 KB → 400)', async () => {
+    const big = 'data:image/jpeg;base64,' + 'A'.repeat(200 * 1024 + 1);
+    const r = await agent.post('/admin/drinks').send({
+      name: 'HugeImg', preisCent: 100, kategorie: 'alkoholfrei', bildDataUrl: big,
+    });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/zu groß/i);
+  });
+
+  it('Etikett ist NICHT im Gesamt-Export enthalten (Bloat-Schutz)', async () => {
+    const r = await agent.get('/admin/export');
+    expect(r.status).toBe(200);
+    const fanta = r.body.drinkKatalog.find((d: { name: string }) => d.name === 'Fanta');
+    expect(fanta).toBeTruthy();
+    expect('bildDataUrl' in fanta).toBe(false);
+  });
+
+  it('entfernt das Etikett per Update (bildDataUrl: "") → null', async () => {
+    const list = await agent.get('/admin/drinks');
+    const fanta = list.body.drinks.find((d: { name: string }) => d.name === 'Fanta');
+    const r = await agent.patch(`/admin/drinks/${fanta.id}`).send({ bildDataUrl: '' });
+    expect(r.status).toBe(200);
+    expect(r.body.drink.bildDataUrl).toBeNull();
+  });
 });
 
 // Buchungs-Flow läuft als Member (memberAgent ist seit dem Admin-CRUD-Setup

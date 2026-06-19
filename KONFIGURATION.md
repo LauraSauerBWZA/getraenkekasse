@@ -129,6 +129,7 @@ Zwei Buchungs-Ebenen:
 | `kategorie` | String (validiert) | `alkoholfrei`, `alkoholisch`, `sonstiges` (fest) |
 | `marke` | String, nullable | optional; Marke/Brauerei (z.B. „Coca-Cola", „Augustiner") — NEU Update 16 |
 | `volumenMl` | Int, nullable | optional; Gebindegröße in Millilitern (z.B. 500, 330, 200) — NEU Update 16 |
+| `bildDataUrl` | String, nullable | optional; komprimiertes Etikett-JPEG als Data-URL (`data:image/jpeg;base64,…`), clientseitig auf 400×400 (~30–50 KB) komprimiert, lebt in der DB; **nicht im Daten-Export** — NEU Drink-Fotos |
 | `isActive` | Boolean, default true | Soft-Disable statt Hard-Delete |
 | `createdAt` / `updatedAt` | DateTime | |
 

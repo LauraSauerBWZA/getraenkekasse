@@ -9,12 +9,32 @@ export const drinksRouter = Router();
 
 drinksRouter.use(requireAuth, requireAdmin);
 
+// Etikett-Bild (Drink-Fotos): komprimierte JPEG-Data-URL. Sicherheits-Obergrenze
+// ~200 KB String-Länge (das Frontend liefert ~30–50 KB); muss als JPEG-Data-URL
+// kommen. `null`/`''` entfernt das Bild. Eigene Validierung mit klaren Meldungen.
+const BILD_PREFIX = 'data:image/jpeg;base64,';
+const MAX_BILD_LEN = 200 * 1024;
+
+// Liefert eine klare Fehlermeldung oder null (gültig). Akzeptiert auch leeren
+// String / null (= Bild entfernen). undefined wird vom Aufrufer separat behandelt.
+function pruefeBild(bild: string | null): string | null {
+  if (bild === null || bild === '') return null; // entfernen → ok
+  if (!bild.startsWith(BILD_PREFIX)) {
+    return 'Bild muss ein JPEG (data:image/jpeg;base64,…) sein.';
+  }
+  if (bild.length > MAX_BILD_LEN) {
+    return 'Bild ist zu groß (max ~200 KB) — bitte erneut auswählen.';
+  }
+  return null;
+}
+
 // name: nicht leer, max 80 Zeichen
 // preisCent: ganzzahlig, >= 0 (kostenlose Drinks erlaubt, negativ nicht)
 // icon: optional, Emoji-String, max 8 Zeichen (Emoji + ggf. Modifier)
 // kategorie: aus fester Liste
 // marke: optional, max 40 Zeichen (leer = nicht gesetzt)
 // volumenMl: optional, ganzzahlig > 0 wenn gesetzt; null löscht den Wert (Update)
+// bildDataUrl: optional, string|null; Inhalt wird per pruefeBild() validiert.
 const createSchema = z.object({
   name: z.string().trim().min(1).max(80),
   preisCent: z.number().int().min(0),
@@ -22,6 +42,7 @@ const createSchema = z.object({
   kategorie: drinkKategorieSchema,
   marke: z.string().trim().max(40).optional(),
   volumenMl: z.number().int().positive().nullable().optional(),
+  bildDataUrl: z.string().nullable().optional(),
 });
 
 const updateSchema = createSchema.partial().refine(
@@ -48,6 +69,11 @@ drinksRouter.post('/admin/drinks', async (req, res) => {
     return res.status(400).json({ error: 'Ungültige Eingaben.', details: parsed.error.flatten() });
   }
 
+  // Bild separat validieren (klare Meldung). undefined = kein Bild → null.
+  const bildRaw = parsed.data.bildDataUrl ?? null;
+  const bildFehler = pruefeBild(bildRaw);
+  if (bildFehler) return res.status(400).json({ error: bildFehler });
+
   const drink = await prisma.drink.create({
     data: {
       name: parsed.data.name,
@@ -57,6 +83,7 @@ drinksRouter.post('/admin/drinks', async (req, res) => {
       // leere Marke → null; Volumen null/undefined → null (nicht gesetzt)
       marke: parsed.data.marke ? parsed.data.marke : null,
       volumenMl: parsed.data.volumenMl ?? null,
+      bildDataUrl: bildRaw === '' ? null : bildRaw,
     },
   });
 
@@ -83,6 +110,12 @@ drinksRouter.patch('/admin/drinks/:id', async (req, res) => {
   // marke: leerer String löscht (→ null), wie beim icon. volumenMl: null löscht.
   if (parsed.data.marke !== undefined) data.marke = parsed.data.marke === '' ? null : parsed.data.marke;
   if (parsed.data.volumenMl !== undefined) data.volumenMl = parsed.data.volumenMl;
+  // bildDataUrl: null/'' entfernt das Bild, sonst validierte Data-URL setzen.
+  if (parsed.data.bildDataUrl !== undefined) {
+    const bildFehler = pruefeBild(parsed.data.bildDataUrl);
+    if (bildFehler) return res.status(400).json({ error: bildFehler });
+    data.bildDataUrl = parsed.data.bildDataUrl === '' ? null : parsed.data.bildDataUrl;
+  }
 
   const drink = await prisma.drink.update({ where: { id: existing.id }, data });
   logger.info({ drinkId: drink.id }, 'Drink aktualisiert.');
