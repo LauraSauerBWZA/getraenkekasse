@@ -1,7 +1,34 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Home } from 'lucide-react';
 import { useAuth } from '../lib/auth';
+
+// Logische Eltern-Hierarchie (Bündel 5, Einheit 1): „Zurück" geht EINE EBENE
+// Richtung Hub (Unterscreen → Rubrik → /admin → Theke), NICHT die Browser-History
+// (navigate(-1)). So landet man verlässlich an der erwarteten Stelle, egal über
+// welchen Weg man auf den Screen kam. `/statistik` und `/leitung` sind rollen-
+// abhängig (Admin → Verwaltung, Leitung-only → Leitungs-Kontext).
+function parentPath(pathname: string, isAdmin: boolean): string {
+  if (pathname.startsWith('/admin/mitglieder/')) return '/admin/mitglieder';
+  switch (pathname) {
+    case '/admin':
+      return '/'; // Hub → Theke
+    case '/admin/mitglieder':
+    case '/admin/drinks':
+    case '/admin/aufladung-bargeld':
+    case '/admin/kasse':
+    case '/admin/profil':
+      return '/admin';
+    case '/admin/einladen':
+      return '/admin/mitglieder';
+    case '/statistik':
+      return isAdmin ? '/admin/drinks' : '/leitung';
+    case '/leitung':
+      return isAdmin ? '/admin' : '/';
+    default:
+      return '/admin';
+  }
+}
 
 // Zurück-Leiste oben auf den Admin-/Leitung-Unter-Screens.
 //
@@ -17,9 +44,15 @@ import { useAuth } from '../lib/auth';
 // zentriert (passt zur `.bwza-stage`), Chrome blutet edge-to-edge.
 export function BackBar({ to, title, home = '/admin' }: { to?: string; title?: string; home?: string }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const barRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(0);
+
+  // „Zurück"-Ziel: expliziter `to` schlägt alles, sonst eine Ebene Richtung Hub.
+  const zurueckZiel = to ?? parentPath(location.pathname, !!user?.isAdmin);
+  // Home-Button auf dem Hub selbst ausblenden (dort wirkungslos), sonst für Admins.
+  const zeigeHome = !!user?.isAdmin && location.pathname !== '/admin';
 
   // Leistenhöhe messen (inkl. Safe-Area-Padding) und als Spacer-Höhe spiegeln.
   // ResizeObserver fängt Orientierungs-/Safe-Area-Änderungen ohne festen px-Wert.
@@ -70,7 +103,7 @@ export function BackBar({ to, title, home = '/admin' }: { to?: string; title?: s
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
             <button
               type="button"
-              onClick={() => (to ? navigate(to) : navigate(-1))}
+              onClick={() => navigate(zurueckZiel)}
               style={{
                 all: 'unset',
                 cursor: 'pointer',
@@ -95,9 +128,9 @@ export function BackBar({ to, title, home = '/admin' }: { to?: string; title?: s
           </div>
 
           {/* Rechts: dezenter Home-Button → Admin-Hub (Verwaltungs-Startseite).
-              Bündel 4, Einheit 3. Nur für Admins (Leitung-only erreicht /admin nicht);
-              „Zurück" bleibt davon unberührt (eine Ebene zurück). */}
-          {user?.isAdmin && (
+              Nur für Admins und NICHT auf dem Hub selbst (dort wirkungslos, Bündel 5).
+              „Zurück" bleibt davon unberührt (eine Ebene Richtung Hub). */}
+          {zeigeHome && (
             <button
               type="button"
               onClick={() => navigate(home)}
