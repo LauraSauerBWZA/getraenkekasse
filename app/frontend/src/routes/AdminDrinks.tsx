@@ -3,11 +3,13 @@ import {
   useEffect,
   useMemo,
   useState,
+  type ChangeEvent,
   type CSSProperties,
   type FormEvent,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { EmptyState, Glass, GlassButton, GlassInput, KategorieMarker, Loading } from '../components/primitives';
+import { DrinkEtikett, EmptyState, Glass, GlassButton, GlassInput, Loading } from '../components/primitives';
+import { comprimiereEtikett } from '../lib/etikett';
 import { BackBar } from '../components/BackBar';
 import {
   api,
@@ -256,7 +258,7 @@ function DrinkCatalogRow({
           minWidth: 0,
         }}
       >
-        <KategorieMarker kategorie={drink.kategorie} size={36} />
+        <DrinkEtikett drink={drink} size={36} />
         <div style={{ minWidth: 0, flex: 1 }}>
           <div
             style={{
@@ -328,8 +330,26 @@ function DrinkForm({
   const [kategorie, setKategorie] = useState<DrinkKategorie>(initial?.kategorie ?? 'alkoholfrei');
   const [marke, setMarke] = useState(initial?.marke ?? '');
   const [volumenStr, setVolumenStr] = useState(initial?.volumenMl != null ? String(initial.volumenMl) : '');
+  const [bildDataUrl, setBildDataUrl] = useState<string | null>(initial?.bildDataUrl ?? null);
+  const [bildBusy, setBildBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Etikett gewählt → clientseitig auf 400×400 JPEG komprimieren (Center-Crop).
+  const onBildWahl = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // gleiche Datei erneut wählbar
+    if (!file) return;
+    setErr(null);
+    setBildBusy(true);
+    try {
+      setBildDataUrl(await comprimiereEtikett(file));
+    } catch {
+      setErr('Bild konnte nicht geladen werden, bitte ein anderes wählen.');
+    } finally {
+      setBildBusy(false);
+    }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -360,6 +380,7 @@ function DrinkForm({
         if (icon.trim()) payload.icon = icon.trim();
         if (markeTrim) payload.marke = markeTrim;
         if (vol.value != null) payload.volumenMl = vol.value;
+        if (bildDataUrl) payload.bildDataUrl = bildDataUrl;
         const r = await api.adminDrinkCreate(payload);
         onSaved(r.drink, true);
       } else {
@@ -375,6 +396,8 @@ function DrinkForm({
         if (markeTrim !== (mode.drink.marke ?? '')) patch.marke = markeTrim;
         // volumenMl: null löscht; nur senden wenn tatsächlich geändert
         if (vol.value !== (mode.drink.volumenMl ?? null)) patch.volumenMl = vol.value;
+        // bildDataUrl: null entfernt serverseitig; nur senden wenn geändert.
+        if (bildDataUrl !== (mode.drink.bildDataUrl ?? null)) patch.bildDataUrl = bildDataUrl;
         if (Object.keys(patch).length === 0) {
           // Nichts geändert — einfach schließen
           onSaved(mode.drink, false);
@@ -475,6 +498,13 @@ function DrinkForm({
 
           <KategorieSelect value={kategorie} onChange={setKategorie} />
 
+          <EtikettPicker
+            bildDataUrl={bildDataUrl}
+            busy={bildBusy}
+            onWahl={onBildWahl}
+            onEntfernen={() => setBildDataUrl(null)}
+          />
+
           {err && (
             <div
               style={{
@@ -553,6 +583,118 @@ function KategorieSelect({
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function EtikettPicker({
+  bildDataUrl,
+  busy,
+  onWahl,
+  onEntfernen,
+}: {
+  bildDataUrl: string | null;
+  busy: boolean;
+  onWahl: (e: ChangeEvent<HTMLInputElement>) => void;
+  onEntfernen: () => void;
+}) {
+  const labelStyle: CSSProperties = {
+    cursor: busy ? 'wait' : 'pointer',
+    textAlign: 'center',
+    padding: '9px 12px',
+    borderRadius: 12,
+    fontSize: 12.5,
+    fontWeight: 600,
+    color: 'var(--bwza-ink)',
+    background: 'rgba(0,0,0,0.30)',
+    border: '1px solid var(--bwza-glass-line)',
+    opacity: busy ? 0.6 : 1,
+  };
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: 0.3,
+          color: 'var(--bwza-ink-dim)',
+          marginBottom: 6,
+          paddingLeft: 2,
+        }}
+      >
+        Etikett (optional)
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {bildDataUrl ? (
+          <img
+            src={bildDataUrl}
+            alt="Etikett-Vorschau"
+            width={72}
+            height={72}
+            style={{
+              width: 72,
+              height: 72,
+              objectFit: 'cover',
+              borderRadius: 'var(--bwza-radius-sm)',
+              border: '1px solid var(--bwza-glass-line)',
+              flexShrink: 0,
+              display: 'block',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: 72,
+              height: 72,
+              flexShrink: 0,
+              borderRadius: 'var(--bwza-radius-sm)',
+              border: '1px dashed var(--bwza-glass-line)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 10,
+              color: 'var(--bwza-ink-mute)',
+            }}
+          >
+            kein Bild
+          </div>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0, flex: 1 }}>
+          <label style={labelStyle}>
+            {busy ? 'Verarbeite …' : bildDataUrl ? 'Anderes Bild' : 'Bild wählen'}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={onWahl}
+              disabled={busy}
+              style={{ display: 'none' }}
+            />
+          </label>
+          {bildDataUrl && (
+            <button
+              type="button"
+              onClick={onEntfernen}
+              disabled={busy}
+              style={{
+                all: 'unset',
+                cursor: busy ? 'wait' : 'pointer',
+                textAlign: 'center',
+                padding: '8px 12px',
+                borderRadius: 12,
+                fontSize: 12,
+                fontWeight: 600,
+                color: 'var(--bwza-rescue-soft)',
+                border: '1px solid var(--bwza-glass-line)',
+              }}
+            >
+              Bild entfernen
+            </button>
+          )}
+        </div>
+      </div>
+      <div style={{ marginTop: 6, fontSize: 10.5, color: 'var(--bwza-ink-mute)', lineHeight: 1.4 }}>
+        Wird auf 400×400 (JPEG) komprimiert und mit gespeichert.
       </div>
     </div>
   );

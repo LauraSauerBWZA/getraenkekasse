@@ -513,6 +513,42 @@ export function KategorieMarker({ kategorie, size = 40 }: { kategorie: string; s
   );
 }
 
+// ─────────── DrinkEtikett (Drink-Fotos) ───────────
+// Quadratisches Etikett-Thumbnail: zeigt das komprimierte Bild (1:1, object-fit:cover,
+// dezent gerahmt/abgerundet) wenn vorhanden, sonst den bisherigen KategorieMarker
+// (Fallback unverändert). Gemeinsam genutzt in Drink-Katalog, Picker und Confirm-Sheet.
+export function DrinkEtikett({
+  drink,
+  size = 40,
+  radius = 'var(--bwza-radius-sm)',
+}: {
+  drink: { kategorie: string; bildDataUrl?: string | null; name?: string };
+  size?: number;
+  radius?: number | string;
+}) {
+  if (!drink.bildDataUrl) {
+    return <KategorieMarker kategorie={drink.kategorie} size={size} />;
+  }
+  return (
+    <img
+      src={drink.bildDataUrl}
+      alt={drink.name ? `Etikett ${drink.name}` : 'Etikett'}
+      width={size}
+      height={size}
+      style={{
+        width: size,
+        height: size,
+        flexShrink: 0,
+        objectFit: 'cover',
+        borderRadius: radius,
+        border: '1px solid var(--bwza-glass-line)',
+        background: 'rgba(0,0,0,0.30)',
+        display: 'block',
+      }}
+    />
+  );
+}
+
 // ─────────── Eyebrow (B5-Icons) ───────────
 // Kicker-Label mit konsistentem lucide-Line-Icon statt Emoji-Glyph. Icon im
 // Teal-Akzent, Text in der bestehenden `.bwza-eyebrow`-Optik. Einheitliche

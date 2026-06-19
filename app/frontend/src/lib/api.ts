@@ -41,6 +41,8 @@ export interface Drink {
   kategorie: DrinkKategorie;
   marke: string | null;
   volumenMl: number | null;
+  // Komprimiertes Etikett-JPEG als Data-URL (Drink-Fotos), null = kein Bild.
+  bildDataUrl: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -54,6 +56,8 @@ export interface DrinkInput {
   // marke: leerer String löscht (Update). volumenMl: null löscht, sonst Int > 0.
   marke?: string | null;
   volumenMl?: number | null;
+  // bildDataUrl: Data-URL setzt das Etikett, '' oder null entfernt es (Update).
+  bildDataUrl?: string | null;
 }
 
 export const TRANSAKTION_TYPEN = [
