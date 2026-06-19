@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../db.js';
 import { requireAuth } from '../auth/middleware.js';
 import { computeGuthabenCent } from '../domain/guthaben.js';
+import { kassenStornoData, transaktionStornoData } from '../domain/storno.js';
 import { logger } from '../logger.js';
 
 // Fix kodiert (KONFIGURATION.md §6.3 / PROMPTS/02d-storno.md §3).
@@ -169,14 +170,7 @@ buchenRouter.post('/transaktionen/:id/storno', async (req, res) => {
 
   const { storno, kassenGegen } = await prisma.$transaction(async (tx) => {
     const stornoZeile = await tx.transaktion.create({
-      data: {
-        typ: 'STORNO',
-        userId: original.userId,
-        erstelltVonId,
-        stornoVonId: original.id,
-        betragCent: -original.betragCent,
-        notiz,
-      },
+      data: transaktionStornoData(original, { erstelltVonId, notiz }),
     });
 
     let gegen: Awaited<ReturnType<typeof tx.kassenTransaktion.create>> | null = null;
@@ -184,15 +178,16 @@ buchenRouter.post('/transaktionen/:id/storno', async (req, res) => {
       const originalKasse = await tx.kassenTransaktion.findUnique({
         where: { id: original.kassenTransaktionId! },
       });
+      // stornoVonId auf der Gegenbuchung (Bündel 3) markiert die EINZAHLUNG als
+      // storniert — so blockt der Kassen-Storno-Weg (kasse.ts) einen Doppel-Storno
+      // dieser Buchung von der anderen Seite.
       if (originalKasse) {
         gegen = await tx.kassenTransaktion.create({
           data: {
-            typ: 'KORREKTUR',
-            konto: originalKasse.konto,
-            verwalterId: originalKasse.verwalterId,
-            betragCent: -originalKasse.betragCent,
-            notiz: `Storno-Rückbuchung zu KassenTransaktion ${originalKasse.id}: ${notiz}`,
-            erstelltVonId,
+            ...kassenStornoData(originalKasse, {
+              erstelltVonId,
+              notiz: `Storno-Rückbuchung zu KassenTransaktion ${originalKasse.id}: ${notiz}`,
+            }),
           },
         });
       }

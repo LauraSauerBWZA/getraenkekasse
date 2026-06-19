@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { requireAdmin, requireAdminOrLeitung, requireAuth } from '../auth/middleware.js';
-import { computeMitgliederGuthabenSummeCent } from '../domain/guthaben.js';
+import { computeGuthabenCent, computeMitgliederGuthabenSummeCent } from '../domain/guthaben.js';
+import { kassenStornoData, transaktionStornoData } from '../domain/storno.js';
 import { logger } from '../logger.js';
 
 export const kasseRouter = Router();
@@ -88,18 +89,35 @@ kasseRouter.get('/admin/kasse/historie', requireAdminOrLeitung, async (_req, res
     include: { verwalter: { select: { firstName: true, lastName: true } } },
   });
 
-  const buchungen = rows.map((r) => ({
-    id: r.id,
-    typ: r.typ,
-    konto: r.konto,
-    verwalterId: r.verwalterId,
-    verwalterName: r.verwalter ? `${r.verwalter.firstName} ${r.verwalter.lastName}` : null,
-    betragCent: r.betragCent,
-    notiz: r.notiz,
-    transaktionId: r.transaktionId,
-    einlageGegenId: r.einlageGegenId,
-    createdAt: r.createdAt,
-  }));
+  // Welche Buchungen sind bereits storniert? Eine Zeile gilt als storniert, sobald
+  // eine andere Zeile via stornoVonId auf sie zeigt. Set der referenzierten IDs.
+  const stornierteIds = new Set(
+    rows.filter((r) => r.stornoVonId !== null).map((r) => r.stornoVonId as string),
+  );
+
+  const buchungen = rows.map((r) => {
+    const istStorno = r.stornoVonId !== null;
+    const storniert = stornierteIds.has(r.id);
+    // Nicht stornierbar: Storno-Buchungen selbst, bereits stornierte und die
+    // zweizeilige EINLAGE_BOX-Umschichtung (einlageGegenId) — deren Halb-Storno
+    // wäre unausgeglichen (bewusst aus dem Scope, eigene Phase).
+    const stornierbar = !istStorno && !storniert && r.einlageGegenId === null;
+    return {
+      id: r.id,
+      typ: r.typ,
+      konto: r.konto,
+      verwalterId: r.verwalterId,
+      verwalterName: r.verwalter ? `${r.verwalter.firstName} ${r.verwalter.lastName}` : null,
+      betragCent: r.betragCent,
+      notiz: r.notiz,
+      transaktionId: r.transaktionId,
+      einlageGegenId: r.einlageGegenId,
+      stornoVonId: r.stornoVonId,
+      storniert,
+      stornierbar,
+      createdAt: r.createdAt,
+    };
+  });
 
   return res.json({ buchungen });
 });
@@ -224,4 +242,108 @@ kasseRouter.post('/admin/kasse/einlage', requireAdmin, async (req, res) => {
     'Einlage in die Box gebucht.',
   );
   return res.status(201).json(result);
+});
+
+// POST /admin/kasse/buchung/:id/storno — eine Kassen-Buchung stornieren (Bündel 3,
+// Einheit 3). Storno = Gegenbuchung (KORREKTUR, umgekehrtes Vorzeichen,
+// stornoVonId=Original, gleiches Konto/verwalterId), KEIN Hard-Delete. Pflicht-Notiz.
+//
+// Ist die Buchung eine an eine Mitglieder-Aufladung GEKOPPELTE EINZAHLUNG
+// (transaktionId gesetzt), wird in DERSELBEN $transaction auch die Mitglieder-Seite
+// zurückgerollt — identisch zum bestehenden Mitglieder-Storno-Weg (buchen.ts), über
+// die gemeinsamen Builder in domain/storno.ts. Keine Doppel-Buchung.
+//
+// Nicht stornierbar: Storno-Buchungen selbst (stornoVonId gesetzt), bereits
+// stornierte (eine Zeile zeigt via stornoVonId auf sie) und die EINLAGE_BOX-
+// Umschichtung (einlageGegenId) — analog zur stornierbar-Logik der Historie.
+const kassenStornoSchema = z.object({
+  notiz: z.string(),
+});
+
+kasseRouter.post('/admin/kasse/buchung/:id/storno', requireAdmin, async (req, res) => {
+  const parsed = kassenStornoSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Ungültige Eingaben.', details: parsed.error.flatten() });
+  }
+  const notiz = parsed.data.notiz.trim();
+  if (!notiz) return res.status(400).json({ error: 'Notiz ist beim Storno Pflicht.' });
+
+  const original = await prisma.kassenTransaktion.findUnique({ where: { id: req.params.id } });
+  if (!original) return res.status(404).json({ error: 'Kassen-Buchung nicht gefunden.' });
+
+  // Keine Storno-Stornos.
+  if (original.stornoVonId !== null) {
+    return res.status(400).json({ error: 'Eine Storno-Buchung kann nicht storniert werden.' });
+  }
+  // Kein Doppel-Storno — zeigt schon eine Zeile via stornoVonId auf diese Buchung?
+  const bereits = await prisma.kassenTransaktion.findFirst({
+    where: { stornoVonId: original.id },
+    select: { id: true },
+  });
+  if (bereits) {
+    return res.status(400).json({ error: 'Diese Buchung wurde bereits storniert.' });
+  }
+  // EINLAGE_BOX-Umschichtung ist zweizeilig gekoppelt — Halb-Storno wäre
+  // unausgeglichen (bewusst aus dem Scope).
+  if (original.einlageGegenId !== null) {
+    return res
+      .status(400)
+      .json({ error: 'Box-Einlagen können hier (noch) nicht einzeln storniert werden.' });
+  }
+
+  const adminId = req.auth!.sub;
+
+  // Bei gekoppelter EINZAHLUNG die Mitglieder-Aufladung mitziehen — aber nur, wenn
+  // sie nicht schon (vom Mitglieder-Weg) storniert wurde. Defensive Sicherung.
+  const gekoppelt = original.transaktionId !== null;
+
+  const result = await prisma.$transaction(async (tx) => {
+    const gegen = await tx.kassenTransaktion.create({
+      data: kassenStornoData(original, { erstelltVonId: adminId, notiz }),
+    });
+
+    let mitgliedStorno: Awaited<ReturnType<typeof tx.transaktion.create>> | null = null;
+    let betroffenerUserId: string | null = null;
+    if (gekoppelt) {
+      const aufladung = await tx.transaktion.findUnique({
+        where: { id: original.transaktionId! },
+      });
+      if (aufladung) {
+        const schonStorniert = await tx.transaktion.findFirst({
+          where: { typ: 'STORNO', stornoVonId: aufladung.id },
+          select: { id: true },
+        });
+        if (!schonStorniert) {
+          mitgliedStorno = await tx.transaktion.create({
+            data: transaktionStornoData(aufladung, { erstelltVonId: adminId, notiz }),
+          });
+          betroffenerUserId = aufladung.userId;
+        }
+      }
+    }
+
+    return { gegen, mitgliedStorno, betroffenerUserId };
+  });
+
+  const guthabenCent = result.betroffenerUserId
+    ? await computeGuthabenCent(result.betroffenerUserId)
+    : null;
+
+  logger.info(
+    {
+      adminId,
+      originalId: original.id,
+      gegenId: result.gegen.id,
+      gekoppelt,
+      mitgliedStornoId: result.mitgliedStorno?.id ?? null,
+      betragCent: result.gegen.betragCent,
+    },
+    'Kassen-Buchung storniert.',
+  );
+
+  return res.status(201).json({
+    storno: result.gegen,
+    mitgliedStorno: result.mitgliedStorno,
+    guthabenCent,
+  });
 });

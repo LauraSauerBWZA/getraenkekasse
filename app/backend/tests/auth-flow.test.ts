@@ -3256,3 +3256,224 @@ describe('formatVolumen', () => {
     expect(formatVolumen(250)).toBe('0,25 l');
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────
+// Bündel 3, Einheit 2: admin-DIREKTE Einzahlung (Methode BAR/PAYPAL, ohne Anfrage)
+// ──────────────────────────────────────────────────────────────────────────
+describe('Admin-direkte Einzahlung (Bündel 3)', () => {
+  const anon = supertest(app);
+
+  async function topfSumme(verwalterId: string): Promise<number> {
+    const agg = await prisma.kassenTransaktion.aggregate({
+      _sum: { betragCent: true },
+      where: { konto: 'VERWALTER', verwalterId },
+    });
+    return agg._sum.betragCent ?? 0;
+  }
+  async function boxSumme(): Promise<number> {
+    const agg = await prisma.kassenTransaktion.aggregate({
+      _sum: { betragCent: true },
+      where: { konto: 'BOX' },
+    });
+    return agg._sum.betragCent ?? 0;
+  }
+
+  it('weist Anon (401) und Mitglied (403) ab', async () => {
+    const r1 = await anon.post('/admin/aufladung/einzahlung').send({
+      userId: 'x', betragCent: 500, vermerk: 'x', methode: 'BAR',
+    });
+    expect(r1.status).toBe(401);
+    const memberMe = await memberAgent.get('/auth/me');
+    const r2 = await memberAgent.post('/admin/aufladung/einzahlung').send({
+      userId: memberMe.body.user.id, betragCent: 500, vermerk: 'x', methode: 'BAR',
+    });
+    expect(r2.status).toBe(403);
+  });
+
+  it('lehnt Betrag <= 0, leeren Vermerk und unbekanntes Mitglied ab', async () => {
+    const memberMe = await memberAgent.get('/auth/me');
+    const maxId = memberMe.body.user.id;
+    const r0 = await agent.post('/admin/aufladung/einzahlung').send({
+      userId: maxId, betragCent: 0, vermerk: 'x', methode: 'BAR',
+    });
+    expect(r0.status).toBe(400);
+    const rV = await agent.post('/admin/aufladung/einzahlung').send({
+      userId: maxId, betragCent: 500, vermerk: '   ', methode: 'BAR',
+    });
+    expect(rV.status).toBe(400);
+    const rU = await agent.post('/admin/aufladung/einzahlung').send({
+      userId: 'gibts-nicht', betragCent: 500, vermerk: 'x', methode: 'BAR',
+    });
+    expect(rU.status).toBe(404);
+  });
+
+  it('BAR/VERWALTER bucht AUFLADUNG_BARGELD + EINZAHLUNG auf den Admin-Topf', async () => {
+    const adminMe = await agent.get('/auth/me');
+    const memberMe = await memberAgent.get('/auth/me');
+    const lauraId = adminMe.body.user.id;
+    const maxId = memberMe.body.user.id;
+    const topfVor = await topfSumme(lauraId);
+
+    const r = await agent.post('/admin/aufladung/einzahlung').send({
+      userId: maxId, betragCent: 1500, vermerk: 'Bar nach Übung', methode: 'BAR', konto: 'VERWALTER',
+    });
+    expect(r.status).toBe(201);
+    expect(r.body.transaktion).toMatchObject({ typ: 'AUFLADUNG_BARGELD', userId: maxId, betragCent: 1500 });
+    expect(r.body.kassenTransaktion).toMatchObject({
+      typ: 'EINZAHLUNG', konto: 'VERWALTER', verwalterId: lauraId, betragCent: 1500,
+    });
+    expect(r.body.transaktion.kassenTransaktionId).toBe(r.body.kassenTransaktion.id);
+    expect(r.body.kassenTransaktion.transaktionId).toBe(r.body.transaktion.id);
+    expect(await topfSumme(lauraId)).toBe(topfVor + 1500);
+  });
+
+  it('BAR/BOX bucht EINZAHLUNG ohne Verwalter-Bezug (konto=BOX)', async () => {
+    const memberMe = await memberAgent.get('/auth/me');
+    const maxId = memberMe.body.user.id;
+    const boxVor = await boxSumme();
+    const r = await agent.post('/admin/aufladung/einzahlung').send({
+      userId: maxId, betragCent: 700, vermerk: 'In die Box', methode: 'BAR', konto: 'BOX',
+    });
+    expect(r.status).toBe(201);
+    expect(r.body.kassenTransaktion).toMatchObject({ typ: 'EINZAHLUNG', konto: 'BOX', verwalterId: null, betragCent: 700 });
+    expect(await boxSumme()).toBe(boxVor + 700);
+  });
+
+  it('PAYPAL bucht AUFLADUNG_PAYPAL immer auf den Admin-Topf (konto-Wahl ignoriert)', async () => {
+    const adminMe = await agent.get('/auth/me');
+    const memberMe = await memberAgent.get('/auth/me');
+    const lauraId = adminMe.body.user.id;
+    const maxId = memberMe.body.user.id;
+    const topfVor = await topfSumme(lauraId);
+    // Selbst wenn konto=BOX mitgeschickt wird, erzwingt PAYPAL VERWALTER+Admin.
+    const r = await agent.post('/admin/aufladung/einzahlung').send({
+      userId: maxId, betragCent: 2000, vermerk: 'PayPal direkt', methode: 'PAYPAL', konto: 'BOX',
+    });
+    expect(r.status).toBe(201);
+    expect(r.body.transaktion).toMatchObject({ typ: 'AUFLADUNG_PAYPAL', userId: maxId, betragCent: 2000 });
+    expect(r.body.kassenTransaktion).toMatchObject({
+      typ: 'EINZAHLUNG', konto: 'VERWALTER', verwalterId: lauraId, betragCent: 2000,
+    });
+    expect(await topfSumme(lauraId)).toBe(topfVor + 2000);
+    // KEINE member-initiierte Anfrage wurde dabei erzeugt/berührt.
+    const anfrageVorhanden = await prisma.aufladungsAnfrage.findFirst({ where: { transaktionId: r.body.transaktion.id } });
+    expect(anfrageVorhanden).toBeNull();
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Bündel 3, Einheit 3: Kassen-Storno (Gegenbuchung; gekoppelt zieht Mitglied mit)
+// ──────────────────────────────────────────────────────────────────────────
+describe('Kassen-Storno (Bündel 3)', () => {
+  const anon = supertest(app);
+
+  async function topfSumme(verwalterId: string): Promise<number> {
+    const agg = await prisma.kassenTransaktion.aggregate({
+      _sum: { betragCent: true },
+      where: { konto: 'VERWALTER', verwalterId },
+    });
+    return agg._sum.betragCent ?? 0;
+  }
+  async function guthaben(userId: string): Promise<number> {
+    const agg = await prisma.transaktion.aggregate({ _sum: { betragCent: true }, where: { userId } });
+    return agg._sum.betragCent ?? 0;
+  }
+
+  it('weist Anon (401), Mitglied (403) und leere Notiz (400) ab', async () => {
+    // Eine frische Einzahlung, um eine echte ID zu haben.
+    const memberMe = await memberAgent.get('/auth/me');
+    const e = await agent.post('/admin/aufladung/einzahlung').send({
+      userId: memberMe.body.user.id, betragCent: 300, vermerk: 'für storno-guard', methode: 'BAR',
+    });
+    const kid = e.body.kassenTransaktion.id;
+    expect((await anon.post(`/admin/kasse/buchung/${kid}/storno`).send({ notiz: 'x' })).status).toBe(401);
+    expect((await memberAgent.post(`/admin/kasse/buchung/${kid}/storno`).send({ notiz: 'x' })).status).toBe(403);
+    const rLeer = await agent.post(`/admin/kasse/buchung/${kid}/storno`).send({ notiz: '   ' });
+    expect(rLeer.status).toBe(400);
+  });
+
+  it('storniert eine gekoppelte EINZAHLUNG → Gegenbuchung + Mitglieder-STORNO atomar', async () => {
+    const adminMe = await agent.get('/auth/me');
+    const memberMe = await memberAgent.get('/auth/me');
+    const lauraId = adminMe.body.user.id;
+    const maxId = memberMe.body.user.id;
+
+    const e = await agent.post('/admin/aufladung/einzahlung').send({
+      userId: maxId, betragCent: 1000, vermerk: 'Versehentlich', methode: 'BAR', konto: 'VERWALTER',
+    });
+    const kasseId = e.body.kassenTransaktion.id;
+    const txId = e.body.transaktion.id;
+    const topfNachEinzahlung = await topfSumme(lauraId);
+    const guthabenNachEinzahlung = await guthaben(maxId);
+
+    const r = await agent.post(`/admin/kasse/buchung/${kasseId}/storno`).send({ notiz: 'doppelt gebucht' });
+    expect(r.status).toBe(201);
+    expect(r.body.storno).toMatchObject({
+      typ: 'KORREKTUR', konto: 'VERWALTER', verwalterId: lauraId, betragCent: -1000, stornoVonId: kasseId,
+    });
+    expect(r.body.mitgliedStorno).toMatchObject({ typ: 'STORNO', stornoVonId: txId, userId: maxId, betragCent: -1000 });
+    expect(r.body.guthabenCent).toBe(guthabenNachEinzahlung - 1000);
+    expect(await topfSumme(lauraId)).toBe(topfNachEinzahlung - 1000);
+  });
+
+  it('lehnt Doppel-Storno und Storno einer Storno-Buchung ab', async () => {
+    const memberMe = await memberAgent.get('/auth/me');
+    const e = await agent.post('/admin/aufladung/einzahlung').send({
+      userId: memberMe.body.user.id, betragCent: 800, vermerk: 'einmal storno', methode: 'BAR',
+    });
+    const kasseId = e.body.kassenTransaktion.id;
+    const r1 = await agent.post(`/admin/kasse/buchung/${kasseId}/storno`).send({ notiz: 'erster storno' });
+    expect(r1.status).toBe(201);
+    const stornoId = r1.body.storno.id;
+    // Doppel-Storno derselben Buchung
+    const r2 = await agent.post(`/admin/kasse/buchung/${kasseId}/storno`).send({ notiz: 'nochmal' });
+    expect(r2.status).toBe(400);
+    expect(r2.body.error).toMatch(/bereits storniert/i);
+    // Storno der Storno-Buchung selbst
+    const r3 = await agent.post(`/admin/kasse/buchung/${stornoId}/storno`).send({ notiz: 'storno-storno' });
+    expect(r3.status).toBe(400);
+    expect(r3.body.error).toMatch(/storno-buchung/i);
+  });
+
+  it('storniert eine NICHT gekoppelte Buchung (SPENDE) ohne Mitglieder-Seite', async () => {
+    const adminMe = await agent.get('/auth/me');
+    const lauraId = adminMe.body.user.id;
+    const s = await agent.post('/admin/kasse/buchung').send({
+      typ: 'SPENDE', konto: 'VERWALTER', betragCent: 500, vermerk: 'Gast-Spende',
+    });
+    const spendeId = s.body.kassenTransaktion.id;
+    const topfVor = await topfSumme(lauraId);
+    const r = await agent.post(`/admin/kasse/buchung/${spendeId}/storno`).send({ notiz: 'Spende zurück' });
+    expect(r.status).toBe(201);
+    expect(r.body.storno).toMatchObject({ typ: 'KORREKTUR', betragCent: -500, stornoVonId: spendeId });
+    expect(r.body.mitgliedStorno).toBeNull();
+    expect(r.body.guthabenCent).toBeNull();
+    expect(await topfSumme(lauraId)).toBe(topfVor - 500);
+  });
+
+  it('EINLAGE_BOX ist nicht einzeln stornierbar (400)', async () => {
+    const einlage = await agent.post('/admin/kasse/einlage').send({ betragCent: 400, vermerk: 'in die Box' });
+    expect(einlage.status).toBe(201);
+    const verwalterZeileId = einlage.body.verwalterZeile.id;
+    const r = await agent.post(`/admin/kasse/buchung/${verwalterZeileId}/storno`).send({ notiz: 'versuch' });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/box-einlagen/i);
+  });
+
+  it('Cross-Schutz: nach Mitglieder-seitigem Storno blockt der Kassen-Storno', async () => {
+    const memberMe = await memberAgent.get('/auth/me');
+    const maxId = memberMe.body.user.id;
+    const e = await agent.post('/admin/aufladung/einzahlung').send({
+      userId: maxId, betragCent: 600, vermerk: 'cross-test', methode: 'BAR',
+    });
+    const kasseId = e.body.kassenTransaktion.id;
+    const txId = e.body.transaktion.id;
+    // Mitglieder-Seite stornieren (Admin storniert die Aufladung über buchen.ts)
+    const m = await agent.post(`/transaktionen/${txId}/storno`).send({ notiz: 'von Mitglied-Seite' });
+    expect(m.status).toBe(201);
+    // Die gekoppelte Kassen-Gegenbuchung trägt jetzt stornoVonId → Kassen-Storno blockt.
+    const r = await agent.post(`/admin/kasse/buchung/${kasseId}/storno`).send({ notiz: 'jetzt von Kasse' });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/bereits storniert/i);
+  });
+});

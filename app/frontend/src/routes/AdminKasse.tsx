@@ -247,7 +247,7 @@ export default function AdminKasse() {
       )}
 
       {/* Historie */}
-      <Historie historie={historie} />
+      <Historie historie={historie} canStorno={user.isAdmin} onChange={() => void load()} />
 
 
       {aktion && (
@@ -318,7 +318,15 @@ function StandRow({
   );
 }
 
-function Historie({ historie }: { historie: KassenHistorieEintrag[] | null }) {
+function Historie({
+  historie,
+  canStorno,
+  onChange,
+}: {
+  historie: KassenHistorieEintrag[] | null;
+  canStorno: boolean;
+  onChange: () => void;
+}) {
   return (
     <div style={{ marginTop: 26 }}>
       <div
@@ -341,7 +349,7 @@ function Historie({ historie }: { historie: KassenHistorieEintrag[] | null }) {
       ) : (
         <ScrollList>
           {historie.map((b) => (
-            <HistorieRow key={b.id} eintrag={b} />
+            <HistorieRow key={b.id} eintrag={b} canStorno={canStorno} onChange={onChange} />
           ))}
         </ScrollList>
       )}
@@ -349,12 +357,50 @@ function Historie({ historie }: { historie: KassenHistorieEintrag[] | null }) {
   );
 }
 
-function HistorieRow({ eintrag }: { eintrag: KassenHistorieEintrag }) {
+function HistorieRow({
+  eintrag,
+  canStorno,
+  onChange,
+}: {
+  eintrag: KassenHistorieEintrag;
+  canStorno: boolean;
+  onChange: () => void;
+}) {
   const positiv = eintrag.betragCent > 0;
   const kontoText =
     eintrag.konto === 'BOX' ? 'Box' : eintrag.verwalterName ?? 'Verwalter-Topf';
+  const istStorno = eintrag.stornoVonId !== null;
+  const [offen, setOffen] = useState(false);
+  const [notiz, setNotiz] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const stornieren = async () => {
+    const n = notiz.trim();
+    if (!n) {
+      setErr('Notiz ist beim Storno Pflicht — kurz, warum.');
+      return;
+    }
+    setErr(null);
+    setBusy(true);
+    try {
+      await api.adminKasseStorno(eintrag.id, n);
+      onChange();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Storno fehlgeschlagen.');
+      setBusy(false);
+    }
+  };
+
   return (
-    <Glass tone="dark" style={{ borderRadius: 16, padding: '12px 14px' }}>
+    <Glass
+      tone="dark"
+      style={{
+        borderRadius: 16,
+        padding: '12px 14px',
+        opacity: eintrag.storniert ? 0.6 : 1,
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div
@@ -368,6 +414,8 @@ function HistorieRow({ eintrag }: { eintrag: KassenHistorieEintrag }) {
           >
             {TYP_LABEL[eintrag.typ] ?? eintrag.typ}{' '}
             <span style={{ color: 'var(--bwza-ink-mute)', fontWeight: 500 }}>· {kontoText}</span>
+            {eintrag.storniert && <StatusTag text="storniert" />}
+            {istStorno && <StatusTag text="Storno" />}
           </div>
           <div style={{ marginTop: 2, fontSize: 11, color: 'var(--bwza-ink-mute)' }}>
             {formatZeit(eintrag.createdAt)}
@@ -384,12 +432,66 @@ function HistorieRow({ eintrag }: { eintrag: KassenHistorieEintrag }) {
             fontSize: 14,
             fontWeight: 600,
             color: positiv ? 'var(--bwza-ink)' : 'var(--bwza-rescue-soft)',
+            textDecoration: eintrag.storniert ? 'line-through' : undefined,
           }}
         >
           {formatSigned(eintrag.betragCent)}
         </div>
       </div>
+
+      {/* Storno — nur für Admins und nur bei stornierbaren Buchungen. */}
+      {canStorno && eintrag.stornierbar && !offen && (
+        <div style={{ marginTop: 10 }}>
+          <GlassButton variant="ghost" size="sm" onClick={() => { setOffen(true); setErr(null); }}>
+            Stornieren
+          </GlassButton>
+        </div>
+      )}
+
+      {canStorno && eintrag.stornierbar && offen && (
+        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 11.5, color: 'var(--bwza-ink-dim)', lineHeight: 1.45 }}>
+            Storno bucht eine Gegenbuchung (kein Löschen).
+            {eintrag.transaktionId
+              ? ' Die gekoppelte Mitglieder-Einzahlung wird ebenfalls zurückgenommen.'
+              : ''}
+          </div>
+          <GlassInput
+            label="Notiz (Pflicht)"
+            value={notiz}
+            onChange={(e) => setNotiz(e.target.value)}
+            placeholder="z.B. Versehentlich doppelt gebucht"
+            error={err}
+            autoFocus
+          />
+          <div style={{ display: 'flex', gap: 10 }}>
+            <GlassButton variant="ghost" full size="md" disabled={busy} onClick={() => { setOffen(false); setNotiz(''); setErr(null); }}>
+              Abbrechen
+            </GlassButton>
+            <GlassButton full size="md" disabled={busy} onClick={() => void stornieren()}>
+              {busy ? 'Storniere …' : 'Storno bestätigen'}
+            </GlassButton>
+          </div>
+        </div>
+      )}
     </Glass>
+  );
+}
+
+function StatusTag({ text }: { text: string }) {
+  return (
+    <span
+      style={{
+        marginLeft: 8,
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: 0.4,
+        textTransform: 'uppercase',
+        color: 'var(--bwza-ink-mute)',
+      }}
+    >
+      {text}
+    </span>
   );
 }
 

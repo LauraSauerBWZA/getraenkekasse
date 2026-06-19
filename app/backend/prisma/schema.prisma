@@ -129,6 +129,10 @@ model Transaktion {
 // String ohne `?` in Prisma required ist.
 // transaktionId: gekoppelte Mitglieder-Aufladung (bei EINZAHLUNG), sonst null.
 // einlageGegenId: bei EINLAGE_BOX die Gegenbuchung (reflexiv), sonst null.
+// stornoVonId: bei einer Storno-Gegenbuchung (Bündel 3, Einheit 3) die stornierte
+// Ursprungs-Buchung (reflexiv, nullable) — analog zu Transaktion.stornoVonId.
+// Markiert eine Zeile als Storno einer anderen; eine Buchung gilt als „bereits
+// storniert", sobald eine Zeile via stornoVonId auf sie zeigt. Kein Hard-Delete.
 // In B2e nur die EINZAHLUNG/VERWALTER-Schreibseite + KORREKTUR-Gegenbuchung
 // für Storno; die anderen Typen + BOX kommen ohne Migration in B2i.
 model KassenTransaktion {
@@ -144,6 +148,9 @@ model KassenTransaktion {
   einlageGegenId  String?            @unique
   einlageGegen    KassenTransaktion? @relation("EinlageGegen", fields: [einlageGegenId], references: [id])
   einlageDurch    KassenTransaktion? @relation("EinlageGegen")
+  stornoVonId     String?            @unique
+  stornoVon       KassenTransaktion? @relation("KassenStornoVerweis", fields: [stornoVonId], references: [id])
+  stornoDurch     KassenTransaktion? @relation("KassenStornoVerweis")
   erstelltVonId   String
   erstelltVon     User               @relation("ErstellerKassenTransaktionen", fields: [erstelltVonId], references: [id])
   createdAt       DateTime           @default(now())
