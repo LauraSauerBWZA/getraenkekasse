@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Banknote, Check, Smartphone } from 'lucide-react';
 import { EmptyState, Glass, GlassButton, GlassInput, Loading } from '../components/primitives';
 import { BackBar } from '../components/BackBar';
+import { OffeneAnfragen } from '../components/OffeneAnfragen';
 import {
   api,
   ApiError,
@@ -110,8 +111,8 @@ export default function AdminAufladungBargeld() {
         konto: methode === 'BAR' ? konto : 'VERWALTER',
       });
       setErfolg(`${selected.firstName} ${selected.lastName}: ${formatGuthaben(betragCent)} eingezahlt.`);
-      // Kurz anzeigen, dann zurück in den Admin-Bereich (Aufladungen-Rubrik).
-      window.setTimeout(() => navigate('/admin/aufladung-anfragen'), 1400);
+      // Kurz anzeigen, dann zurück in den Admin-Hub (Verwaltungs-Startseite).
+      window.setTimeout(() => navigate('/admin'), 1400);
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Einzahlung fehlgeschlagen.');
       setBusy(false);
@@ -149,17 +150,22 @@ export default function AdminAufladungBargeld() {
       </div>
 
       {phase === 'mitglied' && (
-        <MitgliederWahl
-          users={gefiltert}
-          loadError={loadError}
-          filter={filter}
-          setFilter={setFilter}
-          onPick={(u) => {
-            setSelected(u);
-            setErr(null);
-            setPhase('methode');
-          }}
-        />
+        <>
+          {/* Offene member-initiierte PayPal-Anfragen OBERHALB der Mitglieder-Auswahl
+              (Bündel 4, Einheit 1). Keine offen → der Abschnitt rendert nichts. */}
+          <OffeneAnfragen />
+          <MitgliederWahl
+            users={gefiltert}
+            loadError={loadError}
+            filter={filter}
+            setFilter={setFilter}
+            onPick={(u) => {
+              setSelected(u);
+              setErr(null);
+              setPhase('methode');
+            }}
+          />
+        </>
       )}
 
       {phase === 'methode' && (

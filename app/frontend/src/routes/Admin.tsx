@@ -59,8 +59,8 @@ export default function Admin() {
         icon={Inbox}
         kicker="Kasse"
         title="Aufladungen"
-        sub="PayPal-Anfragen bestätigen/ablehnen · Bargeld eintragen"
-        onClick={() => navigate('/admin/aufladung-anfragen')}
+        sub="Einzahlung eintragen (Bar/PayPal) · offene PayPal-Anfragen oben"
+        onClick={() => navigate('/admin/aufladung-bargeld')}
       />
       <HubButton
         icon={Landmark}

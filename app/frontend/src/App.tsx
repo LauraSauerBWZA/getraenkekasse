@@ -9,7 +9,6 @@ import Admin from './routes/Admin';
 import AdminEinladen from './routes/AdminEinladen';
 import AdminDrinks from './routes/AdminDrinks';
 import AdminAufladungBargeld from './routes/AdminAufladungBargeld';
-import AdminAufladungAnfragen from './routes/AdminAufladungAnfragen';
 import AdminMitglieder from './routes/AdminMitglieder';
 import AdminMitgliedDetail from './routes/AdminMitgliedDetail';
 import AdminKasse from './routes/AdminKasse';
@@ -140,16 +139,9 @@ export default function App() {
           </Protected>
         }
       />
-      <Route
-        path="/admin/aufladung-anfragen"
-        element={
-          <Protected>
-            <AdminOnly>
-              <AdminAufladungAnfragen />
-            </AdminOnly>
-          </Protected>
-        }
-      />
+      {/* Alt-Route (Bündel 4, Einheit 1): „Aufladungen" ist jetzt der Einzahlungs-Flow
+          mit den offenen Anfragen oben — Bookmarks/Deep-Links umleiten. */}
+      <Route path="/admin/aufladung-anfragen" element={<Navigate to="/admin/aufladung-bargeld" replace />} />
       <Route
         path="/admin/mitglieder"
         element={

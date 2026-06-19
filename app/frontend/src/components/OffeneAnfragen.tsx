@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { EmptyState, Glass, GlassButton, GlassInput, Loading } from '../components/primitives';
-import { BackBar } from '../components/BackBar';
-import { ScrollList } from '../components/ScrollList';
+import { Glass, GlassButton, GlassInput, Loading } from './primitives';
+import { ScrollList } from './ScrollList';
 import { api, ApiError, formatGuthaben, type AdminAnfrage } from '../lib/api';
-import { useAuth } from '../lib/auth';
 import { useRefreshOnFocus } from '../lib/useRefreshOnFocus';
+
+// Offene member-initiierte PayPal-Anfragen als Abschnitt (Bündel 4, Einheit 1):
+// aus dem früheren eigenständigen AdminAufladungAnfragen-Screen extrahiert, damit er
+// OBERHALB der Mitglieder-Auswahl im Einzahlungs-Flow erscheinen kann. Logik
+// (bestätigen mit echter Summe / ablehnen) ist UNVERÄNDERT — nur die Platzierung.
+//
+// Rendert nichts, solange (noch) keine offene Anfrage da ist und keine frische
+// Entscheidungs-Bestätigung ansteht → bei keinen Anfragen sieht man direkt die
+// Mitglieder-Auswahl darunter.
 
 function formatBetrag(cent: number): string {
   return (cent / 100).toLocaleString('de-DE', {
@@ -36,9 +42,7 @@ interface Erfolg {
   ton: 'gut' | 'neutral';
 }
 
-export default function AdminAufladungAnfragen() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
+export function OffeneAnfragen() {
   const [anfragen, setAnfragen] = useState<AdminAnfrage[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [erfolg, setErfolg] = useState<Erfolg | null>(null);
@@ -60,49 +64,40 @@ export default function AdminAufladungAnfragen() {
   // Beim Zurückkehren in die App die Liste frisch holen (Bündel-1-Muster).
   useRefreshOnFocus(() => void load());
 
-  // Nach einer Entscheidung die Anfrage aus der Liste nehmen (sie ist nicht mehr
-  // OFFEN) + kurze Bestätigung anzeigen.
-  const entfernen = (id: string, erfolg: Erfolg) => {
+  // Nach einer Entscheidung die Anfrage aus der Liste nehmen (nicht mehr OFFEN) +
+  // kurze Bestätigung.
+  const entfernen = (id: string, e: Erfolg) => {
     setAnfragen((prev) => (prev ? prev.filter((a) => a.id !== id) : prev));
-    setErfolg(erfolg);
+    setErfolg(e);
   };
 
-  if (!user) return null;
+  const hatAnfragen = (anfragen?.length ?? 0) > 0;
+
+  // Nichts anzeigen, solange weder offene Anfragen noch ein Fehler noch eine frische
+  // Bestätigung vorliegen — dann steht direkt die Mitglieder-Auswahl im Vordergrund.
+  // (anfragen === null = lädt noch → ebenfalls nichts, kein Spinner-Flackern.)
+  if (!hatAnfragen && !erfolg && !loadError) return null;
 
   return (
-    <div className="bwza-stage" style={{ padding: '0 var(--bwza-page-x) 40px' }}>
-      <BackBar />
-      <div style={{ paddingTop: 30, paddingBottom: 18 }}>
-        <div className="bwza-eyebrow">Phase B2f · Kasse</div>
-        <div
-          style={{
-            fontFamily: 'var(--bwza-font-display)',
-            fontSize: 30,
-            fontWeight: 600,
-            color: 'var(--bwza-ink)',
-            letterSpacing: -0.4,
-            marginTop: 4,
-          }}
-        >
-          Aufladungs-Anfragen
-        </div>
-        <div style={{ marginTop: 6, fontSize: 13, color: 'var(--bwza-ink-dim)' }}>
-          Offene PayPal-Anfragen. Bestätigen schreibt das Guthaben gut und bucht die
-          Kassen-Einzahlung auf deinen Topf.
-        </div>
+    <div style={{ marginBottom: 22 }}>
+      <div
+        style={{
+          fontFamily: 'var(--bwza-font-display)',
+          fontSize: 18,
+          fontWeight: 600,
+          color: 'var(--bwza-ink)',
+          letterSpacing: -0.2,
+          marginBottom: 4,
+        }}
+      >
+        Offene PayPal-Anfragen
       </div>
-
-      {/* Direkte Einzahlung (Bar ODER PayPal-direkt) — geführter Flow (Bündel 3,
-          Einheit 2). Die member-initiierten PayPal-Anfragen darunter bleiben davon
-          unberührt. */}
-      <div style={{ marginBottom: 16 }}>
-        <GlassButton variant="ghost" full size="md" onClick={() => navigate('/admin/aufladung-bargeld')}>
-          Einzahlung eintragen (Bar / PayPal)
-        </GlassButton>
+      <div style={{ fontSize: 12, color: 'var(--bwza-ink-dim)', marginBottom: 10, lineHeight: 1.45 }}>
+        Bestätigen schreibt das Guthaben gut und bucht die Einzahlung auf deinen Topf.
       </div>
 
       {erfolg && (
-        <Glass tone="amber" style={{ borderRadius: 16, padding: '12px 14px', marginBottom: 14 }}>
+        <Glass tone="amber" style={{ borderRadius: 16, padding: '12px 14px', marginBottom: 12 }}>
           <div
             style={{
               fontSize: 13,
@@ -121,16 +116,13 @@ export default function AdminAufladungAnfragen() {
         </Glass>
       ) : anfragen === null ? (
         <Loading />
-      ) : anfragen.length === 0 ? (
-        <EmptyState title="Keine offenen Anfragen" sub="Neue PayPal-Anfragen deiner Mitglieder erscheinen hier." />
-      ) : (
-        <ScrollList>
+      ) : hatAnfragen ? (
+        <ScrollList maxHeight={280}>
           {anfragen.map((a) => (
             <AnfrageCard key={a.id} anfrage={a} onEntschieden={entfernen} />
           ))}
         </ScrollList>
-      )}
-
+      ) : null}
     </div>
   );
 }
