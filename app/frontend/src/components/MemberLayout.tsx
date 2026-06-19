@@ -58,6 +58,13 @@ export function MemberLayout({ children }: PropsWithChildren) {
   const tabs = user?.isAdmin ? [...TABS, SPIEL_TAB] : TABS;
   const istTab = tabs.some((t) => t.to === location.pathname);
 
+  // Kompaktes Bottom-Padding der Nav (Bündel 6, Einheit 1). Statt des vollen
+  // Home-Indicator-Insets (~34px → zu großer Abstand unter den Labels) nur ein
+  // schmaler Reststreifen: env(inset) − 22px, mind. 6px. iPhone ~12px, Desktop 6px.
+  // Tabs dürfen damit leicht in den Indicator-Bereich ragen (gewollt kompakt); die
+  // Nav-Unterkante = Bildschirmkante (100dvh-Shell) → Hintergrund füllt bis unten.
+  const navBottomPad = 'max(6px, calc(env(safe-area-inset-bottom, 0px) - 22px))';
+
   return (
     <div
       style={{
@@ -160,10 +167,9 @@ export function MemberLayout({ children }: PropsWithChildren) {
       <nav
         style={{
           flexShrink: 0,
-          // Tab-Fläche behält die bisherige Höhe (--bwza-nav-h); der Inset kommt
-          // per border-box als paddingBottom unten dazu (identisch zum alten Modell,
-          // nur ohne position:fixed).
-          minHeight: 'calc(var(--bwza-nav-h) + env(safe-area-inset-bottom, 0px))',
+          // Tab-Fläche behält die bisherige Höhe (--bwza-nav-h); darunter nur noch der
+          // schmale navBottomPad statt des vollen Insets → kompakter (border-box).
+          minHeight: `calc(var(--bwza-nav-h) + ${navBottomPad})`,
           display: 'flex',
           background: 'var(--bwza-glass)',
           backdropFilter: 'var(--bwza-blur-nav)',
@@ -171,7 +177,7 @@ export function MemberLayout({ children }: PropsWithChildren) {
           borderTop: '1px solid var(--bwza-glass-line)',
           boxShadow: 'var(--bwza-shadow-nav)',
           zIndex: 40,
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          paddingBottom: navBottomPad,
           paddingLeft: 'env(safe-area-inset-left, 0px)',
           paddingRight: 'env(safe-area-inset-right, 0px)',
         }}
