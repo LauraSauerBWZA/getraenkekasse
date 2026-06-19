@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { EmptyState, Glass, GlassButton, KategorieMarker, Loading } from '../components/primitives';
+import { DrinkEtikett, EmptyState, Glass, GlassButton, Loading } from '../components/primitives';
 import {
   api,
   ApiError,
@@ -181,7 +181,7 @@ function DrinkRow({ drink, onPick }: { drink: Drink; onPick: () => void }) {
         cursor: 'pointer',
       }}
     >
-      <KategorieMarker kategorie={drink.kategorie} size={40} />
+      <DrinkEtikett drink={drink} size={40} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
           style={{
@@ -294,37 +294,68 @@ function ConfirmSheet({
         >
           <div>
             <div className="bwza-eyebrow">Buchung bestätigen</div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 14,
-                marginTop: 8,
-              }}
-            >
-              <KategorieMarker kategorie={drink.kategorie} size={56} />
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div
-                  style={{
-                    fontFamily: 'var(--bwza-font-display)',
-                    fontSize: 22,
-                    fontWeight: 600,
-                    color: 'var(--bwza-ink)',
-                    letterSpacing: -0.3,
-                  }}
-                >
-                  {drink.name}
-                </div>
-                {drinkSubzeile(drink) && (
-                  <div style={{ marginTop: 2, fontSize: 12.5, color: 'var(--bwza-ink-mute)' }}>
-                    {drinkSubzeile(drink)}
+            {drink.bildDataUrl ? (
+              // Mit Etikett: Bild groß oben, darunter Name/Subzeile/Preis (zentriert).
+              <div
+                style={{
+                  marginTop: 10,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 10,
+                  textAlign: 'center',
+                }}
+              >
+                <DrinkEtikett drink={drink} size={140} radius="var(--bwza-radius-md)" />
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontFamily: 'var(--bwza-font-display)',
+                      fontSize: 22,
+                      fontWeight: 600,
+                      color: 'var(--bwza-ink)',
+                      letterSpacing: -0.3,
+                    }}
+                  >
+                    {drink.name}
                   </div>
-                )}
-                <div style={{ marginTop: 2, fontSize: 14, color: 'var(--bwza-ink-dim)' }}>
-                  {formatPreis(drink.preisCent)}
+                  {drinkSubzeile(drink) && (
+                    <div style={{ marginTop: 2, fontSize: 12.5, color: 'var(--bwza-ink-mute)' }}>
+                      {drinkSubzeile(drink)}
+                    </div>
+                  )}
+                  <div style={{ marginTop: 2, fontSize: 14, color: 'var(--bwza-ink-dim)' }}>
+                    {formatPreis(drink.preisCent)}
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              // Fallback ohne Bild: bisheriges horizontales Layout (Akzent-Block).
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8 }}>
+                <DrinkEtikett drink={drink} size={56} />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div
+                    style={{
+                      fontFamily: 'var(--bwza-font-display)',
+                      fontSize: 22,
+                      fontWeight: 600,
+                      color: 'var(--bwza-ink)',
+                      letterSpacing: -0.3,
+                    }}
+                  >
+                    {drink.name}
+                  </div>
+                  {drinkSubzeile(drink) && (
+                    <div style={{ marginTop: 2, fontSize: 12.5, color: 'var(--bwza-ink-mute)' }}>
+                      {drinkSubzeile(drink)}
+                    </div>
+                  )}
+                  <div style={{ marginTop: 2, fontSize: 14, color: 'var(--bwza-ink-dim)' }}>
+                    {formatPreis(drink.preisCent)}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <Glass tone="dark" style={{ borderRadius: 14, padding: '12px 14px' }}>
@@ -442,7 +473,7 @@ function LastBookingCard({
         gap: 12,
       }}
     >
-      <KategorieMarker kategorie={booking.drink.kategorie} size={40} />
+      <DrinkEtikett drink={booking.drink} size={40} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
           style={{
