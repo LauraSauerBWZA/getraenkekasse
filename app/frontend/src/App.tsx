@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './lib/auth';
+import { useRepaintOnVisible } from './lib/useRepaintOnVisible';
 import { MemberLayout } from './components/MemberLayout';
 import Login from './routes/Login';
 import SetPassword from './routes/SetPassword';
@@ -57,6 +58,10 @@ function PublicOnly({ children }: { children: JSX.Element }) {
 }
 
 export default function App() {
+  // Globaler Repaint-Nudge gegen den „weißen Screen" beim Zurückwechseln in die
+  // iOS-PWA (Bündel 6, Einheit 2) — einmal im App-Root, kein Reload/State-Verlust.
+  useRepaintOnVisible();
+
   return (
     <Routes>
       <Route
