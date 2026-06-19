@@ -19,8 +19,18 @@ const TABS = [
 // d.h. auch per Direktlink für Nicht-Admins gesperrt.
 const SPIEL_TAB = { to: '/spiel', label: 'Spiel', icon: Gamepad2 };
 
-// Persistente Shell für die Member-Screens: sticky Top-Header (Avatar→Drawer,
-// Back-Pfeil auf Nicht-Tab-Routen wie /buchen) + persistente Bottom-Nav (3 Tabs).
+// Persistente Shell für die Member-Screens: Top-Header (Avatar→Drawer, Back-Pfeil
+// auf Nicht-Tab-Routen wie /buchen) + persistente Bottom-Nav (3 Tabs).
+//
+// Höhenmodell (Bündel 3, Einheit 1): Die Shell ist eine **fixierte Vollviewport-
+// Flex-Spalte** (`position:fixed; inset:0`), der mittlere Bereich ist der EINZIGE
+// Scroller, die Bottom-Nav ist die unterste **Flex-Zeile** — NICHT mehr
+// `position:fixed`. Grund: Eine `position:fixed`-Leiste über einem im Dokumentfluss
+// scrollenden Body sprang im iOS-Standalone beim ersten Laden, weil
+// `env(safe-area-inset-bottom)` (an dem Höhe + Padding der Leiste hingen) erst nach
+// dem ersten Reflow/Scroll auf den echten Home-Indicator-Wert auflöst. Als unterste
+// Flex-Zeile einer den Viewport exakt füllenden Shell sitzt die Nav sofort korrekt;
+// der Safe-Area-Inset wirkt nur noch als Padding INNERHALB der Leiste.
 export function MemberLayout({ children }: PropsWithChildren) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -32,12 +42,19 @@ export function MemberLayout({ children }: PropsWithChildren) {
   const istTab = tabs.some((t) => t.to === location.pathname);
 
   return (
-    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
-      {/* Sticky Top-Header */}
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Top-Header — oberste Flex-Zeile der Shell (nicht mehr sticky nötig). */}
       <header
         style={{
-          position: 'sticky',
-          top: 0,
+          flexShrink: 0,
           zIndex: 35,
           display: 'flex',
           alignItems: 'center',
@@ -100,21 +117,31 @@ export function MemberLayout({ children }: PropsWithChildren) {
         />
       </header>
 
-      {/* Inhalt — Platz für die fixierte Bottom-Nav (inkl. Home-Indicator-Inset) lassen */}
-      <div style={{ flex: 1, paddingBottom: 'calc(var(--bwza-nav-h) + env(safe-area-inset-bottom, 0px) + 8px)' }}>
+      {/* Inhalt — der EINZIGE Scroller. `min-height:0` lässt die Flex-Zeile unter
+          ihren Inhalt schrumpfen (sonst kein internes Scrollen). overscroll-contain
+          hält das Gummiband im Bereich, statt die ganze Shell zu wackeln. */}
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehaviorY: 'contain',
+        }}
+      >
         {children}
       </div>
 
-      {/* Bottom-Nav */}
+      {/* Bottom-Nav — unterste Flex-Zeile (kein position:fixed mehr). Das
+          Home-Indicator-Inset wirkt als paddingBottom INNERHALB der Leiste; sie
+          selbst sitzt durch das Flex-Layout sofort korrekt am unteren Rand. */}
       <nav
         style={{
-          position: 'fixed',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          // Höhe wächst um das Home-Indicator-Inset, damit das paddingBottom die
-          // Tab-Höhe nicht staucht (border-box). Seitliche Insets fürs Querformat.
-          height: 'calc(var(--bwza-nav-h) + env(safe-area-inset-bottom, 0px))',
+          flexShrink: 0,
+          // Tab-Fläche behält die bisherige Höhe (--bwza-nav-h); der Inset kommt
+          // per border-box als paddingBottom unten dazu (identisch zum alten Modell,
+          // nur ohne position:fixed).
+          minHeight: 'calc(var(--bwza-nav-h) + env(safe-area-inset-bottom, 0px))',
           display: 'flex',
           background: 'var(--bwza-glass)',
           backdropFilter: 'var(--bwza-blur-nav)',
