@@ -92,6 +92,49 @@ aufladungRouter.get('/aufladung/meine', async (req, res) => {
   return res.json({ anfragen });
 });
 
+// Gemeinsame Schreibseite jeder admin-eingetragenen Aufladung (Bargeld ODER
+// PayPal-direkt ODER PayPal-Anfrage-Bestätigung könnten das nutzen): zwei
+// wechselseitig verknüpfte Buchungen atomar (KONFIGURATION.md §6.4) — erst die
+// Kassen-EINZAHLUNG ohne FK, dann die Mitglieder-AUFLADUNG mit FK auf die Kasse,
+// dann die Kassen-Zeile um die Mitglieder-FK ergänzen. EINE $transaction.
+async function bucheGekoppelteEinzahlung(opts: {
+  empfaengerId: string;
+  betragCent: number;
+  vermerk: string;
+  typ: 'AUFLADUNG_BARGELD' | 'AUFLADUNG_PAYPAL';
+  konto: 'VERWALTER' | 'BOX';
+  verwalterId: string | null;
+  adminId: string;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const kasse = await tx.kassenTransaktion.create({
+      data: {
+        typ: 'EINZAHLUNG',
+        konto: opts.konto,
+        verwalterId: opts.verwalterId,
+        betragCent: opts.betragCent,
+        notiz: opts.vermerk,
+        erstelltVonId: opts.adminId,
+      },
+    });
+    const mitglied = await tx.transaktion.create({
+      data: {
+        typ: opts.typ,
+        userId: opts.empfaengerId,
+        erstelltVonId: opts.adminId,
+        betragCent: opts.betragCent,
+        notiz: opts.vermerk,
+        kassenTransaktionId: kasse.id,
+      },
+    });
+    const kasseVerkn = await tx.kassenTransaktion.update({
+      where: { id: kasse.id },
+      data: { transaktionId: mitglied.id },
+    });
+    return { mitglied, kasse: kasseVerkn };
+  });
+}
+
 // POST /admin/aufladung/bargeld — Verwalter trägt eine Bargeld-Einzahlung
 // eines Mitglieds ein. Erzeugt zwei wechselseitig verknüpfte Buchungen
 // atomar (KONFIGURATION.md §6.4):
@@ -134,35 +177,14 @@ aufladungRouter.post('/admin/aufladung/bargeld', requireAdmin, async (req, res) 
   // Topf des eingeloggten Admins.
   const verwalterId = konto === 'VERWALTER' ? adminId : null;
 
-  // Wechselseitige Verlinkung: erst die Kassen-Zeile ohne FK, dann die
-  // Mitglieder-Zeile mit FK auf die Kasse, dann die Kassen-Zeile um die
-  // Mitglieder-FK aktualisieren. Alles in einer atomaren $transaction.
-  const result = await prisma.$transaction(async (tx) => {
-    const kasse = await tx.kassenTransaktion.create({
-      data: {
-        typ: 'EINZAHLUNG',
-        konto,
-        verwalterId,
-        betragCent,
-        notiz: vermerk,
-        erstelltVonId: adminId,
-      },
-    });
-    const mitglied = await tx.transaktion.create({
-      data: {
-        typ: 'AUFLADUNG_BARGELD',
-        userId: empfaenger.id,
-        erstelltVonId: adminId,
-        betragCent,
-        notiz: vermerk,
-        kassenTransaktionId: kasse.id,
-      },
-    });
-    const kasseVerkn = await tx.kassenTransaktion.update({
-      where: { id: kasse.id },
-      data: { transaktionId: mitglied.id },
-    });
-    return { mitglied, kasse: kasseVerkn };
+  const result = await bucheGekoppelteEinzahlung({
+    empfaengerId: empfaenger.id,
+    betragCent,
+    vermerk,
+    typ: 'AUFLADUNG_BARGELD',
+    konto,
+    verwalterId,
+    adminId,
   });
 
   const guthabenCent = await computeGuthabenCent(empfaenger.id);
@@ -175,6 +197,85 @@ aufladungRouter.post('/admin/aufladung/bargeld', requireAdmin, async (req, res) 
       kassenTransaktionId: result.kasse.id,
     },
     'Bargeld-Aufladung gebucht.',
+  );
+
+  return res.status(201).json({
+    transaktion: result.mitglied,
+    kassenTransaktion: result.kasse,
+    guthabenCent,
+  });
+});
+
+// POST /admin/aufladung/einzahlung — admin-DIREKTE Einzahlung (Bündel 3,
+// Einheit 2). Ein geführter Admin-Flow trägt eine Einzahlung direkt ein, per
+// Methode BAR oder PAYPAL — OHNE member-initiierte AufladungsAnfrage. Betrag
+// Pflicht (Int > 0), Vermerk Pflicht. Bucht gekoppelt (EINE $transaction) über
+// bucheGekoppelteEinzahlung:
+//   - BAR:    typ=AUFLADUNG_BARGELD; Kassen-Konto frei (Verwalter-Topf ODER Box),
+//             verwalterId = eingeloggter Admin bei VERWALTER, null bei BOX.
+//   - PAYPAL: typ=AUFLADUNG_PAYPAL; Konto IMMER VERWALTER, verwalterId = der
+//             eintragende Admin (das Geld liegt auf dessen PayPal) — KEIN Box-Konto.
+// Die member-initiierte PayPal-Anfrage (zugewiesener Verwalter bestätigt mit echter
+// Summe) bleibt davon unberührt — das hier ist der zusätzliche admin-direkte Weg.
+const einzahlungSchema = z.object({
+  userId: z.string().min(1),
+  betragCent: z.number().int().positive(),
+  vermerk: z.string(),
+  methode: z.enum(['BAR', 'PAYPAL']),
+  // Nur für BAR relevant; bei PAYPAL ignoriert (immer VERWALTER). Default VERWALTER.
+  konto: z.enum(['VERWALTER', 'BOX']).default('VERWALTER'),
+});
+
+aufladungRouter.post('/admin/aufladung/einzahlung', requireAdmin, async (req, res) => {
+  const parsed = einzahlungSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res
+      .status(400)
+      .json({ error: 'Ungültige Eingaben.', details: parsed.error.flatten() });
+  }
+  const vermerk = parsed.data.vermerk.trim();
+  if (!vermerk) {
+    return res.status(400).json({ error: 'Vermerk ist Pflicht.' });
+  }
+
+  const empfaenger = await prisma.user.findUnique({ where: { id: parsed.data.userId } });
+  if (!empfaenger) return res.status(404).json({ error: 'Mitglied nicht gefunden.' });
+  if (!empfaenger.isActive) {
+    return res.status(400).json({ error: 'Mitglied ist deaktiviert — keine Einzahlung möglich.' });
+  }
+
+  const adminId = req.auth!.sub;
+  const betragCent = parsed.data.betragCent;
+  const methode = parsed.data.methode;
+
+  // PayPal-direkt liegt IMMER auf dem PayPal-Topf des eintragenden Admins
+  // (konto=VERWALTER, verwalterId=Admin) — Box-Wahl gibt es nur bei Bargeld.
+  const typ = methode === 'PAYPAL' ? 'AUFLADUNG_PAYPAL' : 'AUFLADUNG_BARGELD';
+  const konto = methode === 'PAYPAL' ? 'VERWALTER' : parsed.data.konto;
+  const verwalterId = konto === 'VERWALTER' ? adminId : null;
+
+  const result = await bucheGekoppelteEinzahlung({
+    empfaengerId: empfaenger.id,
+    betragCent,
+    vermerk,
+    typ,
+    konto,
+    verwalterId,
+    adminId,
+  });
+
+  const guthabenCent = await computeGuthabenCent(empfaenger.id);
+  logger.info(
+    {
+      empfaengerId: empfaenger.id,
+      adminId,
+      methode,
+      konto,
+      betragCent,
+      transaktionId: result.mitglied.id,
+      kassenTransaktionId: result.kasse.id,
+    },
+    'Admin-direkte Einzahlung gebucht.',
   );
 
   return res.status(201).json({

@@ -72,6 +72,12 @@ button { font-family: inherit; }
   100% { background-position: -200% 0; }
 }
 
+/* „Plop"-Auftritt fürs Erfolgs-Popup (Bündel 3, Einzahlung) — kurzes Aufploppen. */
+@keyframes bwza-pop {
+  0% { opacity: 0; transform: scale(0.92); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
 /* ScrollList: dauerhaft sichtbarer Scrollbalken (B5c-Feinschliff) —
    gestyltes ::-webkit-scrollbar erzwingt auch auf macOS einen klassischen,
    nicht-auto-hidenden Balken. Thumb in Teal. */

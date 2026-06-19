@@ -191,8 +191,17 @@ export interface KassenHistorieEintrag {
   notiz: string;
   transaktionId: string | null;
   einlageGegenId: string | null;
+  // Bündel 3, Einheit 3: Storno-Markierung. stornoVonId gesetzt = diese Zeile IST
+  // eine Storno-Gegenbuchung; storniert = eine andere Zeile storniert diese;
+  // stornierbar = darf per Storno-Button rückgebucht werden.
+  stornoVonId: string | null;
+  storniert: boolean;
+  stornierbar: boolean;
   createdAt: string;
 }
+
+// Methode der admin-direkten Einzahlung (Bündel 3, Einheit 2).
+export type EinzahlungMethode = 'BAR' | 'PAYPAL';
 
 // Einzeilige Kassen-Aktionen (EINLAGE_BOX hat einen eigenen Endpoint).
 export type KassenBuchungTyp = 'EINKAUF' | 'ENTNAHME' | 'SPENDE' | 'KORREKTUR';
@@ -450,6 +459,34 @@ export const api = {
     }>('/admin/aufladung/bargeld', {
       method: 'POST',
       body: JSON.stringify(input),
+    }),
+  // Admin: DIREKTE Einzahlung (Bündel 3) — Methode BAR (Topf/Box-Wahl) oder PAYPAL
+  // (immer auf den Topf des eintragenden Admins). Bucht gekoppelt; ohne Anfrage.
+  adminAufladungEinzahlung: (input: {
+    userId: string;
+    betragCent: number;
+    vermerk: string;
+    methode: EinzahlungMethode;
+    konto?: KassenKonto;
+  }) =>
+    request<{
+      transaktion: Transaktion;
+      kassenTransaktion: KassenTransaktion;
+      guthabenCent: number;
+    }>('/admin/aufladung/einzahlung', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  // Admin: eine Kassen-Buchung stornieren (Gegenbuchung; gekoppelte EINZAHLUNG zieht
+  // die Mitglieder-Seite mit). Pflicht-Notiz. guthabenCent != null nur bei gekoppelt.
+  adminKasseStorno: (id: string, notiz: string) =>
+    request<{
+      storno: KassenTransaktion;
+      mitgliedStorno: Transaktion | null;
+      guthabenCent: number | null;
+    }>(`/admin/kasse/buchung/${id}/storno`, {
+      method: 'POST',
+      body: JSON.stringify({ notiz }),
     }),
 
   // Mitglied: zuständigen Verwalter (Name + paypal.me-Link) für den Aufladen-Tab

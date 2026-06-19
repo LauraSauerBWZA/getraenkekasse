@@ -92,11 +92,12 @@ export default function AdminAufladungAnfragen() {
         </div>
       </div>
 
-      {/* Bargeld-Aufladung — von hier erreichbar (Bündel 2, Einheit 4: alle
-          Aufladungen an einer Stelle, kein eigener Hub-Button mehr). */}
+      {/* Direkte Einzahlung (Bar ODER PayPal-direkt) — geführter Flow (Bündel 3,
+          Einheit 2). Die member-initiierten PayPal-Anfragen darunter bleiben davon
+          unberührt. */}
       <div style={{ marginBottom: 16 }}>
         <GlassButton variant="ghost" full size="md" onClick={() => navigate('/admin/aufladung-bargeld')}>
-          Bargeld-Einzahlung eintragen
+          Einzahlung eintragen (Bar / PayPal)
         </GlassButton>
       </div>
 

@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check } from 'lucide-react';
-import { Eyebrow, EmptyState, Glass, GlassButton, GlassInput, Loading } from '../components/primitives';
+import { Banknote, Check, Smartphone } from 'lucide-react';
+import { EmptyState, Glass, GlassButton, GlassInput, Loading } from '../components/primitives';
 import { BackBar } from '../components/BackBar';
-import { api, ApiError, formatGuthaben, type AdminUser, type KassenKonto } from '../lib/api';
+import {
+  api,
+  ApiError,
+  formatGuthaben,
+  type AdminUser,
+  type EinzahlungMethode,
+  type KassenKonto,
+} from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 // Eingabe „1,50" / „1.50" / „2" → 150/150/200 Cent. Null bei ungültig/leer/negativ.
@@ -16,12 +23,15 @@ function parsePreisToCent(input: string): number | null {
   return Math.round(euro * 100);
 }
 
-type Phase = 'wahl' | 'formular' | 'erfolg';
+// Geführter Einzahlungs-Flow (Bündel 3, Einheit 2):
+//   mitglied → methode (Bar/PayPal) → betrag (+ bei Bar Topf/Box) → recap
+//   (Zusammenfassung) → Bestätigen → Erfolgs-Popup → zurück in den Admin-Bereich.
+type Phase = 'mitglied' | 'methode' | 'betrag' | 'recap';
 
-interface ErfolgsData {
-  empfaenger: AdminUser;
-  betragCent: number;
-  neuesGuthabenCent: number;
+// Zielkonto-Klartext für die Zusammenfassung.
+function zielkontoText(methode: EinzahlungMethode, konto: KassenKonto): string {
+  if (methode === 'PAYPAL') return 'Mein PayPal-Topf';
+  return konto === 'VERWALTER' ? 'Mein Topf' : 'Bar-Vereinskasse (Box)';
 }
 
 export default function AdminAufladungBargeld() {
@@ -30,15 +40,17 @@ export default function AdminAufladungBargeld() {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
+
+  const [phase, setPhase] = useState<Phase>('mitglied');
   const [selected, setSelected] = useState<AdminUser | null>(null);
+  const [methode, setMethode] = useState<EinzahlungMethode>('BAR');
+  const [konto, setKonto] = useState<KassenKonto>('VERWALTER');
   const [betragEuro, setBetragEuro] = useState('');
   const [vermerk, setVermerk] = useState('');
-  // Wohin fließt das Bargeld? Verwalter-Topf (wie bisher, Default) oder direkt in
-  // die Bar-Vereinskasse/Box (Bündel 2, Einheit 2).
-  const [konto, setKonto] = useState<KassenKonto>('VERWALTER');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [erfolg, setErfolg] = useState<ErfolgsData | null>(null);
+  // Erfolgs-Popup: plopt auf und navigiert nach kurzer Zeit zurück.
+  const [erfolg, setErfolg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -66,50 +78,46 @@ export default function AdminAufladungBargeld() {
     );
   }, [users, filter]);
 
-  const phase: Phase = erfolg ? 'erfolg' : selected ? 'formular' : 'wahl';
+  const betragCent = parsePreisToCent(betragEuro);
 
-  const submit = async (e: FormEvent) => {
+  // betrag → recap: Eingaben prüfen, dann zur Zusammenfassung.
+  const weiterZuRecap = (e: FormEvent) => {
     e.preventDefault();
-    if (!selected) return;
-    const betragCent = parsePreisToCent(betragEuro);
     if (betragCent === null) {
       setErr('Betrag bitte als z.B. „1,50" oder „10" angeben (positiv).');
       return;
     }
-    const vermerkTrim = vermerk.trim();
-    if (!vermerkTrim) {
+    if (!vermerk.trim()) {
       setErr('Vermerk ist Pflicht — kurzer Hinweis worauf sich die Einzahlung bezieht.');
       return;
     }
     setErr(null);
-    setBusy(true);
-    try {
-      const r = await api.adminAufladungBargeld({
-        userId: selected.id,
-        betragCent,
-        vermerk: vermerkTrim,
-        konto,
-      });
-      setErfolg({
-        empfaenger: selected,
-        betragCent,
-        neuesGuthabenCent: r.guthabenCent,
-      });
-    } catch (e2) {
-      setErr(e2 instanceof ApiError ? e2.message : 'Aufladung fehlgeschlagen.');
-    } finally {
-      setBusy(false);
-    }
+    setPhase('recap');
   };
 
-  const reset = () => {
-    setSelected(null);
-    setBetragEuro('');
-    setVermerk('');
-    setKonto('VERWALTER');
+  // recap → Bestätigen: buchen, dann Erfolgs-Popup, dann zurück.
+  const bestaetigen = async () => {
+    if (!selected || betragCent === null) return;
     setErr(null);
-    setErfolg(null);
-    void load(); // frisches guthabenCent
+    setBusy(true);
+    try {
+      await api.adminAufladungEinzahlung({
+        userId: selected.id,
+        betragCent,
+        vermerk: vermerk.trim(),
+        methode,
+        // konto ist nur bei BAR relevant; das Backend erzwingt bei PAYPAL VERWALTER.
+        konto: methode === 'BAR' ? konto : 'VERWALTER',
+      });
+      setErfolg(`${selected.firstName} ${selected.lastName}: ${formatGuthaben(betragCent)} eingezahlt.`);
+      // Kurz anzeigen, dann zurück in den Admin-Bereich (Aufladungen-Rubrik).
+      window.setTimeout(() => navigate('/admin/aufladung-anfragen'), 1400);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Einzahlung fehlgeschlagen.');
+      setBusy(false);
+      // Bei Fehler zurück auf die Eingabe, damit der Admin korrigieren kann.
+      setPhase('betrag');
+    }
   };
 
   if (!user) return null;
@@ -118,7 +126,7 @@ export default function AdminAufladungBargeld() {
     <div className="bwza-stage" style={{ padding: '0 var(--bwza-page-x) 40px' }}>
       <BackBar />
       <div style={{ paddingTop: 30, paddingBottom: 18 }}>
-        <div className="bwza-eyebrow">Phase B2e · Kasse</div>
+        <div className="bwza-eyebrow">Kasse · Einzahlung</div>
         <div
           style={{
             fontFamily: 'var(--bwza-font-display)',
@@ -129,37 +137,68 @@ export default function AdminAufladungBargeld() {
             marginTop: 4,
           }}
         >
-          Bargeld-Aufladung
+          Einzahlung
         </div>
         <div style={{ marginTop: 6, fontSize: 13, color: 'var(--bwza-ink-dim)' }}>
-          {phase === 'wahl' && 'Mitglied auswählen, dem du Bargeld gutschreiben möchtest.'}
-          {phase === 'formular' &&
+          {phase === 'mitglied' && 'Mitglied auswählen, dem du eine Einzahlung gutschreiben möchtest.'}
+          {phase === 'methode' &&
             `${selected!.firstName} ${selected!.lastName} · aktuelles Guthaben ${formatGuthaben(selected!.guthabenCent)}`}
-          {phase === 'erfolg' && 'Buchung gespeichert.'}
+          {phase === 'betrag' && (methode === 'BAR' ? 'Bargeld — Betrag, Vermerk und Zielkonto.' : 'PayPal — Betrag und Vermerk.')}
+          {phase === 'recap' && 'Bitte prüfen und bestätigen.'}
         </div>
       </div>
 
-      {phase === 'wahl' && (
+      {phase === 'mitglied' && (
         <MitgliederWahl
           users={gefiltert}
           loadError={loadError}
           filter={filter}
           setFilter={setFilter}
-          onPick={setSelected}
+          onPick={(u) => {
+            setSelected(u);
+            setErr(null);
+            setPhase('methode');
+          }}
         />
       )}
 
-      {phase === 'formular' && (
-        <form onSubmit={submit}>
+      {phase === 'methode' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <MethodeCard
+            icon={Banknote}
+            titel="Bargeld"
+            sub="Bar gegeben — auf deinen Topf oder direkt in die Bar-Vereinskasse (Box)."
+            onClick={() => {
+              setMethode('BAR');
+              setKonto('VERWALTER');
+              setErr(null);
+              setPhase('betrag');
+            }}
+          />
+          <MethodeCard
+            icon={Smartphone}
+            titel="PayPal"
+            sub="Direkt überwiesen — landet auf deinem PayPal-Topf. Ohne Anfrage."
+            onClick={() => {
+              setMethode('PAYPAL');
+              setKonto('VERWALTER');
+              setErr(null);
+              setPhase('betrag');
+            }}
+          />
+          <div style={{ marginTop: 4 }}>
+            <GlassButton variant="ghost" full size="md" onClick={() => setPhase('mitglied')}>
+              Anderes Mitglied
+            </GlassButton>
+          </div>
+        </div>
+      )}
+
+      {phase === 'betrag' && (
+        <form onSubmit={weiterZuRecap}>
           <Glass
             tone="dark"
-            style={{
-              borderRadius: 22,
-              padding: '18px 16px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12,
-            }}
+            style={{ borderRadius: 22, padding: '18px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}
           >
             <GlassInput
               label="Betrag (€)"
@@ -173,114 +212,205 @@ export default function AdminAufladungBargeld() {
               label="Vermerk (Pflicht)"
               value={vermerk}
               onChange={(e) => setVermerk(e.target.value)}
-              placeholder="z.B. Bar gegeben nach der Übung"
+              placeholder={methode === 'BAR' ? 'z.B. Bar gegeben nach der Übung' : 'z.B. PayPal überwiesen 19.06.'}
               error={err}
             />
 
-            {/* Konto-Wahl: wohin fließt das Bargeld? */}
-            <div>
-              <div
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: 0.3,
-                  color: 'var(--bwza-ink-dim)',
-                  paddingLeft: 2,
-                  marginBottom: 6,
-                }}
-              >
-                BARGELD GEHT IN
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <GlassButton
-                  type="button"
-                  variant={konto === 'VERWALTER' ? 'primary' : 'ghost'}
-                  size="sm"
-                  full
-                  onClick={() => setKonto('VERWALTER')}
+            {/* Konto-Wahl nur bei Bargeld — PayPal landet immer auf dem eigenen Topf. */}
+            {methode === 'BAR' && (
+              <div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: 0.3,
+                    color: 'var(--bwza-ink-dim)',
+                    paddingLeft: 2,
+                    marginBottom: 6,
+                  }}
                 >
-                  Mein Topf
-                </GlassButton>
-                <GlassButton
-                  type="button"
-                  variant={konto === 'BOX' ? 'primary' : 'ghost'}
-                  size="sm"
-                  full
-                  onClick={() => setKonto('BOX')}
-                >
-                  Vereinskasse/Box
-                </GlassButton>
+                  BARGELD GEHT IN
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <GlassButton
+                    type="button"
+                    variant={konto === 'VERWALTER' ? 'primary' : 'ghost'}
+                    size="sm"
+                    full
+                    onClick={() => setKonto('VERWALTER')}
+                  >
+                    Mein Topf
+                  </GlassButton>
+                  <GlassButton
+                    type="button"
+                    variant={konto === 'BOX' ? 'primary' : 'ghost'}
+                    size="sm"
+                    full
+                    onClick={() => setKonto('BOX')}
+                  >
+                    Vereinskasse/Box
+                  </GlassButton>
+                </div>
+                <div style={{ marginTop: 6, fontSize: 11, color: 'var(--bwza-ink-mute)', lineHeight: 1.45 }}>
+                  {konto === 'VERWALTER'
+                    ? 'Geld liegt bei dir (Verwalter-Topf).'
+                    : 'Geld liegt direkt in der gemeinsamen Bar-Kasse (Box).'}
+                </div>
               </div>
-              <div style={{ marginTop: 6, fontSize: 11, color: 'var(--bwza-ink-mute)', lineHeight: 1.45 }}>
-                {konto === 'VERWALTER'
-                  ? 'Geld liegt bei dir (Verwalter-Topf) — wie bisher.'
-                  : 'Geld liegt direkt in der gemeinsamen Bar-Kasse (Box).'}
-              </div>
-            </div>
+            )}
           </Glass>
 
           <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
-            <GlassButton variant="ghost" full size="lg" onClick={() => setSelected(null)}>
-              Anderes Mitglied
+            <GlassButton type="button" variant="ghost" full size="lg" onClick={() => { setErr(null); setPhase('methode'); }}>
+              Zurück
             </GlassButton>
-            <GlassButton type="submit" full size="lg" disabled={busy}>
-              {busy ? 'Buche …' : 'Buchen'}
+            <GlassButton type="submit" full size="lg">
+              Weiter
             </GlassButton>
           </div>
         </form>
       )}
 
-      {phase === 'erfolg' && erfolg && (
-        <Glass tone="amber" style={{ borderRadius: 22, padding: '18px 16px' }}>
-          <Eyebrow icon={Check} color="var(--bwza-success)">Aufladung gebucht</Eyebrow>
-          <div
-            style={{
-              marginTop: 6,
-              fontFamily: 'var(--bwza-font-display)',
-              fontSize: 22,
-              fontWeight: 600,
-              color: 'var(--bwza-ink)',
-              letterSpacing: -0.3,
-            }}
-          >
-            {erfolg.empfaenger.firstName} {erfolg.empfaenger.lastName}
-          </div>
-          <div
-            style={{
-              marginTop: 12,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 6,
-              fontSize: 13,
-              color: 'var(--bwza-ink-dim)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Aufgeladen</span>
-              <span style={{ color: 'var(--bwza-ink)', fontWeight: 600 }}>
-                + {formatGuthaben(erfolg.betragCent)}
-              </span>
+      {phase === 'recap' && selected && betragCent !== null && (
+        <>
+          <Glass tone="dark" style={{ borderRadius: 22, padding: '18px 16px' }}>
+            <div className="bwza-eyebrow">Zusammenfassung</div>
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <RecapRow label="Mitglied" value={`${selected.firstName} ${selected.lastName}`} />
+              <RecapRow label="Methode" value={methode === 'BAR' ? 'Bargeld' : 'PayPal'} />
+              <RecapRow label="Betrag" value={formatGuthaben(betragCent)} stark />
+              <RecapRow label="Zielkonto" value={zielkontoText(methode, konto)} />
+              <RecapRow label="Vermerk" value={vermerk.trim()} />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Neues Guthaben</span>
-              <span
-                style={{
-                  color: erfolg.neuesGuthabenCent < 0 ? 'var(--bwza-rescue-soft)' : 'var(--bwza-ink)',
-                  fontWeight: 600,
-                }}
-              >
-                {formatGuthaben(erfolg.neuesGuthabenCent)}
-              </span>
-            </div>
-          </div>
-          <div style={{ marginTop: 14 }}>
-            <GlassButton full size="md" onClick={reset}>
-              Weitere Aufladung
+          </Glass>
+
+          {err && <div style={{ marginTop: 10, fontSize: 12, color: 'var(--bwza-rescue-soft)' }}>{err}</div>}
+
+          <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
+            <GlassButton variant="ghost" full size="lg" disabled={busy} onClick={() => { setErr(null); setPhase('betrag'); }}>
+              Zurück
+            </GlassButton>
+            <GlassButton full size="lg" disabled={busy} onClick={() => void bestaetigen()}>
+              {busy ? 'Buche …' : 'Bestätigen'}
             </GlassButton>
           </div>
-        </Glass>
+        </>
       )}
 
+      {/* Erfolgs-Popup — plopt auf, verschwindet mit der Navigation zurück. */}
+      {erfolg && <ErfolgPopup text={erfolg} />}
+    </div>
+  );
+}
+
+function RecapRow({ label, value, stark }: { label: string; value: string; stark?: boolean }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+      <span style={{ fontSize: 12, color: 'var(--bwza-ink-mute)', flexShrink: 0 }}>{label}</span>
+      <span
+        style={{
+          fontSize: stark ? 16 : 13.5,
+          fontWeight: stark ? 700 : 600,
+          color: 'var(--bwza-ink)',
+          textAlign: 'right',
+          minWidth: 0,
+          overflowWrap: 'anywhere',
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function MethodeCard({
+  icon: Icon,
+  titel,
+  sub,
+  onClick,
+}: {
+  icon: typeof Banknote;
+  titel: string;
+  sub: string;
+  onClick: () => void;
+}) {
+  return (
+    <Glass
+      tone="dark"
+      onClick={onClick}
+      style={{ borderRadius: 18, padding: '16px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}
+    >
+      <div
+        style={{
+          flexShrink: 0,
+          width: 42,
+          height: 42,
+          borderRadius: 12,
+          background: 'var(--bwza-glass-line)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--bwza-teal)',
+        }}
+      >
+        <Icon size={22} strokeWidth={2} aria-hidden />
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            fontFamily: 'var(--bwza-font-display)',
+            fontSize: 17,
+            fontWeight: 600,
+            color: 'var(--bwza-ink)',
+            letterSpacing: -0.2,
+          }}
+        >
+          {titel}
+        </div>
+        <div style={{ marginTop: 2, fontSize: 11.5, color: 'var(--bwza-ink-mute)', lineHeight: 1.4 }}>{sub}</div>
+      </div>
+    </Glass>
+  );
+}
+
+function ErfolgPopup({ text }: { text: string }) {
+  return (
+    <div
+      role="status"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.45)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 'var(--bwza-page-x)',
+        zIndex: 60,
+        animation: 'bwza-pop 160ms ease-out',
+      }}
+    >
+      <Glass tone="amber" style={{ borderRadius: 22, padding: '22px 22px', maxWidth: 360, textAlign: 'center' }}>
+        <div
+          style={{
+            width: 52,
+            height: 52,
+            borderRadius: '50%',
+            background: 'var(--bwza-success)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 12px',
+          }}
+        >
+          <Check size={28} strokeWidth={3} color="#04210f" aria-hidden />
+        </div>
+        <div style={{ fontFamily: 'var(--bwza-font-display)', fontSize: 18, fontWeight: 600, color: 'var(--bwza-ink)' }}>
+          Eingezahlt
+        </div>
+        <div style={{ marginTop: 4, fontSize: 13, color: 'var(--bwza-ink-dim)' }}>{text}</div>
+      </Glass>
     </div>
   );
 }
