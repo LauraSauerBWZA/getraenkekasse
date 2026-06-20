@@ -58,12 +58,9 @@ export function MemberLayout({ children }: PropsWithChildren) {
   const tabs = user?.isAdmin ? [...TABS, SPIEL_TAB] : TABS;
   const istTab = tabs.some((t) => t.to === location.pathname);
 
-  // Kompaktes Bottom-Padding der Nav (Bündel 6, Einheit 1). Statt des vollen
-  // Home-Indicator-Insets (~34px → zu großer Abstand unter den Labels) nur ein
-  // schmaler Reststreifen: env(inset) − 22px, mind. 6px. iPhone ~12px, Desktop 6px.
-  // Tabs dürfen damit leicht in den Indicator-Bereich ragen (gewollt kompakt); die
-  // Nav-Unterkante = Bildschirmkante (100dvh-Shell) → Hintergrund füllt bis unten.
-  const navBottomPad = 'max(6px, calc(env(safe-area-inset-bottom, 0px) - 22px))';
+  // Nav-Höhe/-Padding kommen aus den Tokens (Bündel 7: eine Quelle, damit Member-
+  // Bottom-Sheets exakt über der Nav enden können). --bwza-nav-pad = kompaktes
+  // Home-Indicator-Padding (Bündel 6), --bwza-nav-total = Gesamthöhe inkl. Safe-Area.
 
   return (
     <div
@@ -167,9 +164,9 @@ export function MemberLayout({ children }: PropsWithChildren) {
       <nav
         style={{
           flexShrink: 0,
-          // Tab-Fläche behält die bisherige Höhe (--bwza-nav-h); darunter nur noch der
-          // schmale navBottomPad statt des vollen Insets → kompakter (border-box).
-          minHeight: `calc(var(--bwza-nav-h) + ${navBottomPad})`,
+          // Gesamthöhe inkl. Safe-Area aus den Tokens; darunter nur der schmale
+          // --bwza-nav-pad statt des vollen Insets (border-box, kompakt).
+          minHeight: 'var(--bwza-nav-total)',
           display: 'flex',
           background: 'var(--bwza-glass)',
           backdropFilter: 'var(--bwza-blur-nav)',
@@ -177,7 +174,7 @@ export function MemberLayout({ children }: PropsWithChildren) {
           borderTop: '1px solid var(--bwza-glass-line)',
           boxShadow: 'var(--bwza-shadow-nav)',
           zIndex: 40,
-          paddingBottom: navBottomPad,
+          paddingBottom: 'var(--bwza-nav-pad)',
           paddingLeft: 'env(safe-area-inset-left, 0px)',
           paddingRight: 'env(safe-area-inset-right, 0px)',
         }}

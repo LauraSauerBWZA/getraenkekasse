@@ -102,7 +102,12 @@
   --bwza-screen-w:   390px;
   --bwza-screen-h:   844px;
   --bwza-page-x:     18px;  /* horizontal padding */
-  --bwza-nav-h:      80px;  /* bottom-nav reserve */
+  --bwza-nav-h:      80px;  /* bottom-nav Tab-Fläche (ohne Safe-Area) */
+  /* Bottom-Nav: reduziertes Home-Indicator-Padding (Bündel 6) + Gesamthöhe inkl.
+     Safe-Area (Bündel 7). EINE Quelle für die Nav-Höhe — MemberLayout-Nav UND
+     Member-Bottom-Sheets (z.B. Buchen-Confirm) rechnen damit, statt Magie-Pixel. */
+  --bwza-nav-pad:    max(6px, calc(env(safe-area-inset-bottom, 0px) - 22px));
+  --bwza-nav-total:  calc(var(--bwza-nav-h) + var(--bwza-nav-pad));
 }
 
 /* Negative-balance utility for any numeric display */

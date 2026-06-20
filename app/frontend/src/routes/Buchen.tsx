@@ -266,8 +266,15 @@ function ConfirmSheet({
       aria-modal="true"
       onClick={onClose}
       style={{
+        // Bündel 7: Overlay endet an der Nav-Oberkante (bottom = Nav-Gesamthöhe aus
+        // den Tokens) statt inset:0 → Backdrop UND Karte liegen ÜBER der Bottom-Nav;
+        // die Nav bleibt frei darunter sichtbar/bedienbar, „Bestätigen" sitzt knapp
+        // darüber (kein Voll-Overlay über die Nav, kein Magie-Pixelwert).
         position: 'fixed',
-        inset: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 'var(--bwza-nav-total)',
         background: 'rgba(0,0,0,0.55)',
         backdropFilter: 'blur(6px)',
         WebkitBackdropFilter: 'blur(6px)',
