@@ -91,7 +91,7 @@ function rectTexture(scene, key, w, h, fill, opts = {}) {
 // Stand: Arme am Körper, Beine leicht gegrätscht.
 const ALPINIST_IDLE = [
   '...oooo....',
-  '..oyyyyo...',
+  '..oyyqyo...',
   '..oyYYyo...',
   '..oooooo...',
   '...okko....',
@@ -112,7 +112,7 @@ const ALPINIST_IDLE = [
 // angewinkelt hoch, linkes Bein gestreckt nach unten.
 const ALPINIST_CLIMB_A = [
   '...oooo....',
-  '..oyyyyo...',
+  '..oyyqyo...',
   '..oyYYyo...',
   '..oooooo...',
   '...okko....',
@@ -132,7 +132,7 @@ const ALPINIST_CLIMB_A = [
 // Kletter-Frame B = A horizontal gespiegelt (rechter Arm hoch, linkes Bein hoch).
 const ALPINIST_CLIMB_B = [
   '...oooo....',
-  '..oyyyyo...',
+  '..oyyqyo...',
   '..oyYYyo...',
   '..oooooo...',
   '...okko....',
@@ -149,10 +149,33 @@ const ALPINIST_CLIMB_B = [
   '...ob....oo',
 ];
 
+// Kletter-Zwischenframe (B_GAME6.5): neutrale Durchgangspose zwischen A und B —
+// beide Hände auf Schulterhöhe an der Wand, Beine zusammen. Eingeschoben als
+// Passing-Pose (climb = a → mid → b → mid) → flüssigerer, weicherer Kletter-
+// Zyklus ohne Größen-/Hitbox-Änderung (gleiches 11×16-Grid).
+const ALPINIST_CLIMB_MID = [
+  '...oooo....',
+  '..oyyqyo...',
+  '..oyYYyo...',
+  '..oooooo...',
+  '...okko....',
+  'k.orrrro.k.',
+  '.rorrrror..',
+  '.orwwwwro..',
+  '.orwxxwro..',
+  '.orwwwwro..',
+  '.ottattto..',
+  '..oRnnRo...',
+  '..obbbbo...',
+  '..obbbbo...',
+  '..oboobo...',
+  '..oo..oo...',
+];
+
 // Sprung: beide Arme hoch (Greifen nach oben), Beine zusammen.
 const ALPINIST_JUMP = [
   '.k.oooo.k..',
-  '.royyyyor..',
+  '.royyqyor..',
   '.royYYyor..',
   '.roooooor..',
   '..rokkor...',
@@ -172,7 +195,7 @@ const ALPINIST_JUMP = [
 // Fall: Arme + Beine ausgebreitet (Stabilisieren).
 const ALPINIST_FALL = [
   '...oooo....',
-  '..oyyyyo...',
+  '..oyyqyo...',
   '..oyYYyo...',
   '..oooooo...',
   '...okko....',
@@ -194,6 +217,7 @@ function alpinistGrid(pose) {
   if (pose === 'fall') return ALPINIST_FALL;
   if (pose === 'run_a') return ALPINIST_CLIMB_A;
   if (pose === 'run_b') return ALPINIST_CLIMB_B;
+  if (pose === 'run_mid') return ALPINIST_CLIMB_MID;
   return ALPINIST_IDLE;
 }
 
@@ -521,6 +545,7 @@ export function buildTextures(scene) {
   // Alpinist-Posen für die Animationen (B_GAME.3).
   playerTexture(scene, 'player_idle', 'idle');
   playerTexture(scene, 'player_run_a', 'run_a');
+  playerTexture(scene, 'player_run_mid', 'run_mid');
   playerTexture(scene, 'player_run_b', 'run_b');
   playerTexture(scene, 'player_jump', 'jump');
   playerTexture(scene, 'player_fall', 'fall');

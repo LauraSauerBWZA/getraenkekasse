@@ -33,8 +33,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (a.exists('climb')) return;
     a.create({
       key: 'climb',
-      frames: [{ key: 'player_run_a' }, { key: 'player_run_b' }],
-      frameRate: 10, // B_GAME5.2: etwas schneller → dynamischer Kletter-Zyklus
+      // B_GAME6.5: 4-Frame-Zyklus a → mid → b → mid (Passing-Pose dazwischen) →
+      // flüssigere Kletter-Animation. frameRate hoch genug für gleiche Kadenz.
+      frames: [
+        { key: 'player_run_a' },
+        { key: 'player_run_mid' },
+        { key: 'player_run_b' },
+        { key: 'player_run_mid' },
+      ],
+      frameRate: 12,
       repeat: -1,
     });
     a.create({ key: 'idle', frames: [{ key: 'player_idle' }], frameRate: 1, repeat: -1 });
