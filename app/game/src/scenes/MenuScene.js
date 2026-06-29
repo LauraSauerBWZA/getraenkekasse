@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { CSS, COLORS, SCENES } from '../constants.js';
 import { makeButton } from '../utils/ui.js';
-import { createMuteButton } from '../utils/audio.js';
+import { createMuteButton, getGameAudio } from '../utils/audio.js';
 import { fetchLeaderboard } from '../utils/api.js';
 
 // Startmenü: Titel, Emblem, Kurz-Erklärung, humorvoller Wochen-Spruch,
@@ -18,6 +18,13 @@ export class MenuScene extends Phaser.Scene {
 
     // Mute-Schalter (A.3) oben rechts, gut erreichbar.
     createMuteButton(this, width - 12, 12, { origin: 1 });
+
+    // Ruhigere Menü-Melodie (B_GAME6.3). Beim allerersten Besuch ist Web-Audio
+    // evtl. noch nicht entsperrt (Autoplay) → erst nach dem Unlock starten,
+    // Listener bei Szenenwechsel sauber entfernen.
+    this.audio = getGameAudio(this);
+    this.startMenuMusic();
+    this.events.once('shutdown', () => this.audio.stopMusic());
 
     this.add.image(cx, height * 0.13, 'emblem');
 
@@ -74,6 +81,20 @@ export class MenuScene extends Phaser.Scene {
         color: CSS.inkMute,
       })
       .setOrigin(0.5);
+  }
+
+  // Menü-Musik starten — sobald Web-Audio entsperrt ist. Verlässt der Spieler
+  // das Menü vor dem Unlock, wird der Listener wieder entfernt (kein Start nach
+  // Szenenwechsel).
+  startMenuMusic() {
+    const sm = this.sound;
+    if (sm && sm.locked) {
+      const onUnlock = () => this.audio.startMusic('menu');
+      sm.once('unlocked', onUnlock);
+      this.events.once('shutdown', () => sm.off('unlocked', onUnlock));
+    } else {
+      this.audio.startMusic('menu');
+    }
   }
 
   // Top 3 der Woche + humorvoller Spruch. Lädt asynchron.

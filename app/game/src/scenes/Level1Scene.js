@@ -46,6 +46,10 @@ export class Level1Scene extends Phaser.Scene {
     // Audio-Engine (B_GAME6.2): früh setzen, damit Player.startJump() darauf
     // zugreifen kann. Lebt über Szenenwechsel (Modul-Singleton).
     this.audio = getGameAudio(this);
+    // Hintergrundmusik (B_GAME6.3): Context läuft hier (Klick „spielen" war die
+    // Geste). Stop bei Szenenende → Win/GameOver-Jingle hat freie Bahn.
+    this.audio.startMusic('game');
+    this.events.once('shutdown', () => this.audio.stopMusic());
 
     this.physics.world.setBounds(0, 0, GAME.width, GAME.worldHeight);
     this.cameras.main.setBounds(0, 0, GAME.width, GAME.worldHeight);

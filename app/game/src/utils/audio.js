@@ -15,6 +15,39 @@ const MASTER_VOL = 0.5;
 const MUSIC_VOL = 0.32;
 const SFX_VOL = 0.55;
 
+// ─── Chiptune-Musik (A.2) ───────────────────────────────────────────────────
+// Schlichte, loopende GBC-Melodie: Lead (square) + Bass (triangle). Akkordfolge
+// C–Am–F–G (I–vi–IV–V), 16 Steps. Menü-Variante = langsamer/sparsamer/leiser.
+const N = {
+  D3: 146.83, E3: 164.81, F3: 174.61, G3: 196.0, A3: 220.0, C3: 130.81,
+  F4: 349.23, G4: 392.0, A4: 440.0, B4: 493.88,
+  C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99,
+};
+const MUSIC = {
+  game: {
+    stepDur: 0.15, // ~100 BPM Achtel — flott, aber nicht hektisch
+    lead: [
+      N.C5, N.E5, N.G5, N.E5, N.A4, N.C5, N.E5, N.C5,
+      N.F4, N.A4, N.C5, N.A4, N.G4, N.B4, N.D5, N.G4,
+    ],
+    bass: [
+      N.C3, null, N.G3, null, N.A3, null, N.E3, null,
+      N.F3, null, N.C3, null, N.G3, null, N.D3, null,
+    ],
+  },
+  menu: {
+    stepDur: 0.3, // halbes Tempo, ruhiger
+    lead: [
+      N.C5, null, N.E5, null, N.A4, null, N.C5, null,
+      N.F4, null, N.A4, null, N.G4, null, N.B4, null,
+    ],
+    bass: [
+      N.C3, null, null, null, N.A3, null, null, null,
+      N.F3, null, null, null, N.G3, null, null, null,
+    ],
+  },
+};
+
 function loadMuted() {
   try {
     return localStorage.getItem(MUTE_KEY) === '1';
@@ -159,6 +192,62 @@ class GameAudio {
       { freq: 784, at: 0.12, dur: 0.06, vol: 0.6 },
       { freq: 1047, at: 0.18, dur: 0.28, vol: 0.65 },
     ]);
+  }
+
+  // ─── Hintergrund-Musik (A.2) ────────────────────────────────────────────────
+  // Lookahead-Scheduler: plant Noten auf der Context-Clock voraus (kein
+  // setInterval-Jitter). Mute lässt den Loop weiterlaufen, baut aber keine Nodes
+  // (master ist ohnehin 0 — wir sparen zusätzlich CPU).
+  _musicNote(time, freq, type, dur, vol) {
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, time);
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(vol, time + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+    osc.connect(g);
+    g.connect(this.musicGain);
+    osc.start(time);
+    osc.stop(time + dur + 0.02);
+  }
+
+  _scheduleStep(cfg, step, time) {
+    const lead = cfg.lead[step];
+    if (lead) this._musicNote(time, lead, 'square', cfg.stepDur * 0.9, 0.5);
+    const bass = cfg.bass[step];
+    if (bass) this._musicNote(time, bass, 'triangle', cfg.stepDur * 1.7, 0.6);
+  }
+
+  startMusic(name = 'game') {
+    if (!this.enabled || !MUSIC[name]) return;
+    this.ensureRunning();
+    if (this.musicPlaying) this.stopMusic();
+    this.musicPlaying = true;
+    this.musicName = name;
+    this.step = 0;
+    this.nextNoteTime = this.ctx.currentTime + 0.1;
+    this._musicLoop();
+  }
+
+  _musicLoop() {
+    if (!this.musicPlaying) return;
+    const cfg = MUSIC[this.musicName];
+    // Bis 0.25 s vorausplanen, dann in 60 ms wieder nachlegen.
+    while (this.nextNoteTime < this.ctx.currentTime + 0.25) {
+      if (!this.muted) this._scheduleStep(cfg, this.step, this.nextNoteTime);
+      this.nextNoteTime += cfg.stepDur;
+      this.step = (this.step + 1) % cfg.lead.length;
+    }
+    this.musicTimer = setTimeout(() => this._musicLoop(), 60);
+  }
+
+  stopMusic() {
+    this.musicPlaying = false;
+    if (this.musicTimer) {
+      clearTimeout(this.musicTimer);
+      this.musicTimer = null;
+    }
   }
 }
 
