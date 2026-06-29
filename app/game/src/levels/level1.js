@@ -73,3 +73,8 @@ export const BONUS_SPOTS = [
   { x: GAME.width / 2, y: WALL.startY - 2600, motion: 'pendulum' },
   { x: GAME.width / 2, y: WALL.startY - 6800, motion: 'drift' },
 ];
+
+// Superhelden-Power-up (B_GAME6.8, D.4): selten — 1 fester Spawn pro Lauf,
+// mittig (riskante Brocken-Bahn) auf ~220 m Höhe, wo Geröll + Eiszapfen aktiv
+// sind. Bewusst dort, wo die 5 s Unverwundbarkeit am meisten wert sind.
+export const POWERUP_SPOTS = [{ x: GAME.width / 2, y: WALL.startY - 4800 }];

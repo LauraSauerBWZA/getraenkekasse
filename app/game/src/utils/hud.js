@@ -86,6 +86,28 @@ export class Hud {
       })
       .setScrollFactor(0)
       .setDepth(100);
+
+    // Power-up-Countdown (B_GAME6.8): prominent oben mittig, nur sichtbar während
+    // der 5 s Unverwundbarkeit.
+    this.powerupText = scene.add
+      .text(GAME.width / 2, pad + 2, '', {
+        fontFamily: CSS.fontUi,
+        fontSize: '16px',
+        color: '#aef0ff',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5, 0)
+      .setScrollFactor(0)
+      .setDepth(102)
+      .setVisible(false);
+  }
+
+  setPowerup(secs) {
+    this.powerupText.setText(`★ UNVERWUNDBAR ${secs}`).setVisible(true);
+  }
+
+  clearPowerup() {
+    this.powerupText.setVisible(false);
   }
 
   update({ lives, score, heightM, timeMs, secured = false }) {

@@ -402,6 +402,26 @@ function emblemItemTexture(scene) {
   drawPixels(scene, 'emblem_item', EMBLEM_ITEM_GRID, 2);
 }
 
+// Superhelden-Power-up (22x22 = 11x11 ×2, B_GAME6.8): leuchtender goldener Stern
+// mit hellem Rand — auffällig und klar als seltenes Spezial-Item lesbar (anderes
+// Sprite als das Emblem-Bonus-Item).
+const POWERUP_GRID = [
+  '.....q.....',
+  '....qaq....',
+  '.qqqqaqqqq.',
+  '..qaaaaaq..',
+  '...qaaaq...',
+  '..qaaaaaq..',
+  '..qaq.qaq..',
+  '.qaq...qaq.',
+  '.qq.....qq.',
+  '...........',
+  '...........',
+];
+function powerupTexture(scene) {
+  drawPixels(scene, 'powerup', POWERUP_GRID, 2);
+}
+
 // Durchgehende Felswand-Kachel (256x256, B_GAME3.5): dunkle, kühle Pixel-Rock-
 // Struktur auf 8px-Raster (blockiger GBC-Look). Bewusst dunkel/dezent, damit die
 // bunten Vordergrund-Sprites davor klar lesbar bleiben. Vertikal kachelbar.
@@ -588,6 +608,7 @@ export function buildTextures(scene) {
   ropeTexture(scene);
   drinkTexture(scene);
   emblemItemTexture(scene);
+  powerupTexture(scene); // Superhelden-Power-up (B_GAME6.8)
 
   // HUD (B_GAME.6).
   heartTexture(scene);

@@ -15,9 +15,17 @@ import {
   WALL_METERS,
   EXE,
   BONUS,
+  POWERUP,
   START_GRACE_MS,
 } from '../constants.js';
-import { WALL, OVERHANGS, COLLECTIBLES, EXES, BONUS_SPOTS } from '../levels/level1.js';
+import {
+  WALL,
+  OVERHANGS,
+  COLLECTIBLES,
+  EXES,
+  BONUS_SPOTS,
+  POWERUP_SPOTS,
+} from '../levels/level1.js';
 import { Player } from '../sprites/Player.js';
 import { Collectible } from '../sprites/Collectible.js';
 import { Hud } from '../utils/hud.js';
@@ -39,6 +47,7 @@ export class Level1Scene extends Phaser.Scene {
     this.collectiblesFound = 0;
     this.enemiesDefeated = 0; // bleibt 0 (Walker entfallen) — Feld additiv erhalten
     this.invulnerable = false;
+    this.powerup = false; // B_GAME6.8: Superhelden-Unverwundbarkeit (eigenes Flag)
     this.finished = false;
     this.reachedTop = false;
     this.wasSecured = false; // B_GAME4B.7: für Warnsignal beim Übergang gesichert→ungesichert
@@ -73,6 +82,7 @@ export class Level1Scene extends Phaser.Scene {
     this.buildAnchorVisuals();
     this.buildCollectibles();
     this.buildBonus();
+    this.buildPowerup();
 
     this.touch = new TouchControls(this);
     this.hud = new Hud(this, { onMenu: () => this.scene.start(SCENES.menu) });
@@ -405,6 +415,80 @@ export class Level1Scene extends Phaser.Scene {
     });
   }
 
+  // Superhelden-Power-up (B_GAME6.8, D.4). Item + leuchtende Aura (versteckt bis
+  // aktiv). Wird NACH spawnPlayer aufgerufen (Aura referenziert den Spieler).
+  buildPowerup() {
+    this.powerup = false;
+    this.powerAura = this.add
+      .image(this.player.x, this.player.y, 'aura')
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setTint(0x8fe8ff) // kühl-leuchtend, klar anders als die amber Sicherungs-Aura
+      .setDepth(51) // über Sicherungs-Aura (49) + Seil (48)
+      .setScale(1.3)
+      .setVisible(false);
+    this.powerItems = this.physics.add.group();
+    for (const spot of POWERUP_SPOTS) {
+      const it = this.powerItems.create(spot.x, spot.y, 'powerup');
+      it.body.setAllowGravity(false);
+      it.body.setImmovable(true);
+      this.tweens.add({ targets: it, angle: 360, duration: 1800, repeat: -1 });
+      this.tweens.add({
+        targets: it,
+        scale: 1.25,
+        duration: 500,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.inOut',
+      });
+    }
+    this.physics.add.overlap(this.player, this.powerItems, (_p, it) => {
+      it.destroy();
+      this.activatePowerup();
+    });
+  }
+
+  // „Immun" = kurzzeitige Treffer-Unverwundbarkeit (Stun) ODER aktives Power-up.
+  // Alle Schadens-Pfade prüfen isImmune() → bei aktivem Power-up wird das
+  // Hindernis nicht zerstört (fliegt weiter) = Spieler fliegt durch; Rausdrücken
+  // am unteren Rand ist ebenfalls ausgesetzt.
+  isImmune() {
+    return this.invulnerable || this.powerup;
+  }
+
+  // Power-up aktivieren (D.4): 5 s komplett unverwundbar. Eigenes Flag +
+  // eigener Timer → der Post-Treffer-Stun-delayedCall (setzt nur invulnerable
+  // zurück) kann das Power-up NICHT vorzeitig beenden.
+  activatePowerup() {
+    this.audio.powerup();
+    this.powerup = true;
+    this.powerupUntil = this.time.now + POWERUP.durationMs;
+    if (this.powerupTimer) this.powerupTimer.remove();
+    this.powerupTimer = this.time.delayedCall(POWERUP.durationMs, () => this.endPowerup());
+    this.powerAura.setVisible(true).setAlpha(0.5).setScale(1.2);
+    if (this.powerBlink) this.powerBlink.stop();
+    this.powerBlink = this.tweens.add({
+      targets: this.powerAura,
+      alpha: { from: 0.35, to: 0.85 },
+      scale: { from: 1.1, to: 1.6 },
+      duration: 220,
+      yoyo: true,
+      repeat: -1,
+    });
+    this.popup(this.player.x, this.player.y - 30, '★ SUPERHELD!', '#aef0ff');
+  }
+
+  endPowerup() {
+    this.powerup = false;
+    if (this.powerBlink) {
+      this.powerBlink.stop();
+      this.powerBlink = null;
+    }
+    this.powerAura.setVisible(false).setAlpha(0.5).setScale(1.3);
+    this.hud.clearPowerup();
+    // Danach gilt wieder normal: die zuletzt passierte Exe entscheidet
+    // (isSecured greift automatisch) — nichts zurückzusetzen.
+  }
+
   buildCollectibles() {
     this.collectibles = this.add.group();
     for (const c of COLLECTIBLES) {
@@ -473,7 +557,7 @@ export class Level1Scene extends Phaser.Scene {
   }
 
   handleBrockenHit(b) {
-    if (this.invulnerable) return;
+    if (this.isImmune()) return;
     const big = b.getData('big');
     b.destroy();
     // Kleiner Stein bleibt harmloser Rückwurf ohne Leben-Verlust (Q1) — auch ohne
@@ -542,7 +626,7 @@ export class Level1Scene extends Phaser.Scene {
   }
 
   handleIcicleHit(ic) {
-    if (this.invulnerable) return;
+    if (this.isImmune()) return;
     ic.destroy();
     this.audio.hit();
     // Eiszapfen wie großer Brocken: gesichert → −1 Leben + Sturz, ungesichert →
@@ -611,7 +695,7 @@ export class Level1Scene extends Phaser.Scene {
   }
 
   handleGeroellHit(g) {
-    if (this.invulnerable) return;
+    if (this.isImmune()) return;
     g.destroy();
     this.audio.hit();
     // Wie großer Brocken: gesichert → −1 Leben + Sturz, ungesichert → Game Over.
@@ -723,7 +807,7 @@ export class Level1Scene extends Phaser.Scene {
 
   // Großer Brocken: −1 Leben mit Unverwundbarkeits-Fenster (Blink).
   hitPlayer() {
-    if (this.invulnerable) return;
+    if (this.isImmune()) return;
     this.lives -= 1;
     this.invulnerable = true;
     this.player.setAlpha(0.4);
@@ -780,7 +864,7 @@ export class Level1Scene extends Phaser.Scene {
   // −1 Leben + Position-Reset in die Ausschnitt-Mitte (KEIN Höhen-Reset) + kurze
   // Unverwundbarkeit. 0 Leben → GameOver.
   checkPushOut() {
-    if (this.invulnerable) return;
+    if (this.isImmune()) return;
     const cam = this.cameras.main;
     if (this.player.y <= cam.scrollY + GAME.height) return; // noch im Bild
 
@@ -820,6 +904,13 @@ export class Level1Scene extends Phaser.Scene {
     this.wasSecured = secured;
 
     this.updateAnchorVisuals();
+
+    // Power-up aktiv (B_GAME6.8): Aura folgt dem Spieler, HUD zählt herunter.
+    if (this.powerup) {
+      this.powerAura.setPosition(this.player.x, this.player.y);
+      const remain = Math.max(0, Math.ceil((this.powerupUntil - this.time.now) / 1000));
+      this.hud.setPowerup(remain);
+    }
 
     const heightM = this.currentHeightM();
     if (heightM > this.maxHeightM) this.maxHeightM = heightM;

@@ -192,6 +192,14 @@ export const BONUS = {
   driftMs: 1900, // Drift-Periode
 };
 
+// Superhelden-Power-up (B_GAME6.8, D.4): seltenes Item → 5 s komplett
+// unverwundbar (kein Leben-Verlust, kein Game Over auch ungesichert, fliegt durch
+// Hindernisse, Rausdrücken am unteren Rand ausgesetzt). Selten: 1 fester Spawn
+// pro Lauf an riskanter Stelle (POWERUP_SPOTS in level1.js).
+export const POWERUP = {
+  durationMs: 5000,
+};
+
 // Punkte pro Collectible (Spec §4.2).
 export const SCORE = {
   karabiner: 50,
