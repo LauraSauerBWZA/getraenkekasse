@@ -21,6 +21,7 @@ import { Player } from '../sprites/Player.js';
 import { Collectible } from '../sprites/Collectible.js';
 import { Hud } from '../utils/hud.js';
 import { TouchControls } from '../utils/mobile.js';
+import { getGameAudio } from '../utils/audio.js';
 
 // Forced-Scroll-Felswand (Phase B_GAME2_KLETTERN, NACHSCHLAG2). Die Kamera
 // scrollt eigenständig nach oben (Speed steigt mit der Höhe); der Spieler bewegt
@@ -42,6 +43,9 @@ export class Level1Scene extends Phaser.Scene {
     this.wasSecured = false; // B_GAME4B.7: für Warnsignal beim Übergang gesichert→ungesichert
     this.maxHeightM = 0;
     this.startedAt = this.time.now;
+    // Audio-Engine (B_GAME6.2): früh setzen, damit Player.startJump() darauf
+    // zugreifen kann. Lebt über Szenenwechsel (Modul-Singleton).
+    this.audio = getGameAudio(this);
 
     this.physics.world.setBounds(0, 0, GAME.width, GAME.worldHeight);
     this.cameras.main.setBounds(0, 0, GAME.width, GAME.worldHeight);
@@ -207,6 +211,7 @@ export class Level1Scene extends Phaser.Scene {
     }
     nearest.setData('clipped', true);
     nearest.setTint(0x88e0a0); // geklippt-Indikator (grünlich)
+    this.audio.clip();
     this.score += EXE.clipScore;
     // B_GAME4B.6: Seil-Polyline VERLÄNGERN (neuer Stützpunkt, kein Reset).
     this.clippedPath.push(nearest);
@@ -312,6 +317,7 @@ export class Level1Scene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.bonus, (_p, item) => {
       this.score += BONUS.score;
       this.collectiblesFound += 1;
+      this.audio.pickupDrink();
       this.popup(item.x, item.y, `+${BONUS.score}!`, CSS.amberGlow);
       item.destroy();
     });
@@ -325,6 +331,8 @@ export class Level1Scene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.collectibles, (_player, item) => {
       this.score += item.value;
       this.collectiblesFound += 1;
+      if (item.kind === 'drink') this.audio.pickupDrink();
+      else this.audio.pickup();
       this.popup(item.x, item.y, `+${item.value}`, CSS.amberGlow);
       item.destroy();
     });
@@ -389,9 +397,11 @@ export class Level1Scene extends Phaser.Scene {
     // Kleiner Stein bleibt harmloser Rückwurf ohne Leben-Verlust (Q1) — auch ohne
     // Anker, als „Stolper"-Hindernis.
     if (!big) {
+      this.audio.bump();
       this.hitPlayerSmall();
       return;
     }
+    this.audio.hit();
     // Großer Brocken: GESICHERT → −1 Leben + Sturz bis zur letzten Exe;
     // UNGESICHERT (zuletzt passierte Exe nicht geclippt) → sofort Game Over.
     if (this.isSecured()) this.fallToAnchor();
@@ -452,6 +462,7 @@ export class Level1Scene extends Phaser.Scene {
   handleIcicleHit(ic) {
     if (this.invulnerable) return;
     ic.destroy();
+    this.audio.hit();
     // Eiszapfen wie großer Brocken: gesichert → −1 Leben + Sturz, ungesichert →
     // Totalabsturz.
     if (this.isSecured()) this.fallToAnchor();
@@ -623,6 +634,7 @@ export class Level1Scene extends Phaser.Scene {
     const cam = this.cameras.main;
     if (this.player.y <= cam.scrollY + GAME.height) return; // noch im Bild
 
+    this.audio.hit();
     this.lives -= 1;
     if (this.lives <= 0) {
       this.gameOver('lives');
@@ -677,3 +689,5 @@ export class Level1Scene extends Phaser.Scene {
     if (timeMs >= TIMEOUT_MS) this.gameOver('timeout');
   }
 }
+
+// sync-bust B_GAME6.2

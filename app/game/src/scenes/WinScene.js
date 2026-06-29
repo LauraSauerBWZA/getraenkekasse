@@ -3,6 +3,7 @@ import { COLORS, CSS, SCENES } from '../constants.js';
 import { formatTime } from '../utils/hud.js';
 import { makeButton } from '../utils/ui.js';
 import { postScore, fetchLeaderboard } from '../utils/api.js';
+import { getGameAudio } from '../utils/audio.js';
 
 // Level geschafft (Spec §7): Abflug-Animation (Haken + Alpinist werden zur
 // Kabine gezogen, Hubschrauber fliegt weg), danach Score-Summary + Buttons.
@@ -29,6 +30,8 @@ export class WinScene extends Phaser.Scene {
   create() {
     const { width, height } = this.scale;
     this.cameras.main.setBackgroundColor(COLORS.bg);
+
+    getGameAudio(this).win();
 
     this.add
       .text(width / 2, height * 0.1, 'ABGEFLOGEN! 🚁', {

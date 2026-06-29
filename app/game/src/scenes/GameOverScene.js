@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, CSS, SCENES } from '../constants.js';
 import { formatTime } from '../utils/hud.js';
 import { makeButton } from '../utils/ui.js';
+import { getGameAudio } from '../utils/audio.js';
 
 // Game Over (Spec §7): kein Leben mehr ODER Timeout. Zeigt den Grund + den
 // erreichten Score (KEIN Speichern — nur die WinScene speichert) und bietet
@@ -27,6 +28,8 @@ export class GameOverScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const cx = width / 2;
     this.cameras.main.setBackgroundColor(COLORS.bg);
+
+    getGameAudio(this).gameOver();
 
     this.add
       .text(cx, height * 0.22, 'GAME OVER', {

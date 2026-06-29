@@ -78,6 +78,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.jumping = true;
     this.body.setAllowGravity(true);
     this.setVelocityY(MOVE.jumpVy);
+    if (this.scene.audio) this.scene.audio.jump();
   }
 
   endJump() {
