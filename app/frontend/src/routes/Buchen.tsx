@@ -16,6 +16,23 @@ import { useAuth } from '../lib/auth';
 // Spiegel der Backend-Konstante (routes/buchen.ts). Reine UI-Anzeige —
 // Backend bleibt die Wahrheit (lehnt Stornos nach Ablauf serverseitig ab).
 const STORNO_FENSTER_MS = 5 * 60 * 1000;
+const LAST_BOOKING_KEY = 'bwza_last_booking';
+
+function loadLastBookingFromStorage(): LastBooking | null {
+  try {
+    const raw = sessionStorage.getItem(LAST_BOOKING_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as LastBooking;
+    const createdAtMs = new Date(saved.transaktion.createdAt).getTime();
+    if (Date.now() >= createdAtMs + STORNO_FENSTER_MS) {
+      sessionStorage.removeItem(LAST_BOOKING_KEY);
+      return null;
+    }
+    return saved;
+  } catch {
+    return null;
+  }
+}
 
 const KATEGORIE_LABEL: Record<DrinkKategorie, string> = {
   alkoholfrei: 'Alkoholfrei',
@@ -40,7 +57,23 @@ export default function Buchen() {
   const [drinks, setDrinks] = useState<Drink[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pending, setPending] = useState<Drink | null>(null);
-  const [lastBooking, setLastBooking] = useState<LastBooking | null>(null);
+  const [lastBooking, setLastBooking] = useState<LastBooking | null>(
+    () => loadLastBookingFromStorage(),
+  );
+
+  const saveLastBooking = useCallback((booking: LastBooking) => {
+    try {
+      sessionStorage.setItem(LAST_BOOKING_KEY, JSON.stringify(booking));
+    } catch {
+      // sessionStorage nicht verfügbar (z.B. Private-Mode-Limit) — kein Problem
+    }
+    setLastBooking(booking);
+  }, []);
+
+  const clearLastBooking = useCallback(() => {
+    sessionStorage.removeItem(LAST_BOOKING_KEY);
+    setLastBooking(null);
+  }, []);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -105,9 +138,9 @@ export default function Buchen() {
           booking={lastBooking}
           onUndone={(newGuthaben) => {
             setUser({ ...user, guthabenCent: newGuthaben });
-            setLastBooking(null);
+            clearLastBooking();
           }}
-          onWindowExpired={() => setLastBooking(null)}
+          onWindowExpired={clearLastBooking}
         />
       )}
 
@@ -158,7 +191,7 @@ export default function Buchen() {
           onClose={() => setPending(null)}
           onBooked={(newGuthaben, transaktion) => {
             setUser({ ...user, guthabenCent: newGuthaben });
-            setLastBooking({ transaktion, drink: pending });
+            saveLastBooking({ transaktion, drink: pending });
             setPending(null);
           }}
         />
@@ -415,11 +448,11 @@ function ConfirmSheet({
   );
 }
 
-// „Letzte Buchung"-Karte mit Rückgängig-Affordance. Bleibt nur sichtbar,
-// solange das Storno-Fenster offen ist — danach blendet sich die Karte
-// selbst aus (via onWindowExpired). Backend bleibt die Wahrheit und würde
-// ein zu spätes Storno serverseitig abweisen. Bei Navigation weg + zurück
-// ist die Karte weg — vollständiger Verlauf-Screen folgt B4.
+// „Letzte Buchung"-Karte mit Rückgängig-Affordance. Übersteht Navigations-
+// wechsel (sessionStorage-Persistenz), solange das 5-Min-Fenster noch läuft.
+// Ein laufender Sekundentimer blendet die Karte aus, wenn das Fenster
+// währenddessen abläuft. Backend bleibt die Wahrheit — zu späte Stornos
+// werden serverseitig abgewiesen.
 function LastBookingCard({
   booking,
   onUndone,
