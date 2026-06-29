@@ -67,7 +67,9 @@ export const COLLECTIBLES = buildCollectibles();
 
 // Emblem-Bonus-Item (B_GAME4.5): selten (2× pro Level), an unterschiedlichen
 // Höhen, mittig in der Brocken-Bahn = riskant. Pendelt horizontal (Scene).
+// B_GAME6.7: zwei Bewegungsmuster — #1 pendelt horizontal (wie bisher), #2
+// driftet diagonal (neues Muster, schwerer mitzunehmen).
 export const BONUS_SPOTS = [
-  { x: GAME.width / 2, y: WALL.startY - 2600 },
-  { x: GAME.width / 2, y: WALL.startY - 6800 },
+  { x: GAME.width / 2, y: WALL.startY - 2600, motion: 'pendulum' },
+  { x: GAME.width / 2, y: WALL.startY - 6800, motion: 'drift' },
 ];

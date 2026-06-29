@@ -127,6 +127,20 @@ export const ICICLE = {
   rateMinMs: 1600, // ganz oben dicht
 };
 
+// Geröll-Brocken (B_GAME6.7): dritter Gefahr-Typ. Kommt von oben NAHE einer Seite
+// und driftet diagonal Richtung Mitte (seitliche Bewegung = neues Ausweich-
+// Muster, anders als die rein vertikal fallenden Brocken/Eiszapfen). Fairer
+// Telegraph wie beim Eiszapfen. Treffer = wie großer Brocken (gesichert → Sturz,
+// ungesichert → Game Over). Gestaffelt ab introHeightM eingeführt.
+export const GEROELL = {
+  fallSpeed: 150, // px/s vertikal (langsamer als Brocken — dafür seitlich)
+  driftSpeed: 120, // px/s horizontal (Richtung Bildmitte)
+  warnMs: 420, // Telegraph-Glitzern am Eintrittspunkt
+  introHeightM: 90, // erscheint ab ~90 m (zwischen Brocken-Start und Eiszapfen)
+  rateStartMs: 4200, // anfangs selten
+  rateMinMs: 2200, // ganz oben dichter
+};
+
 // ─── B_GAME4B Sturzhöhe-Balancing (finale Start-Werte, Playtest-tunbar) ──────
 // Mechanik:        Sturzhöhe statt Zeitfenster. „Gesichert" = in die ZULETZT
 //                  PASSIERTE Exe eingeclippt (B_GAME4B.7). An einer Exe ohne
@@ -172,6 +186,10 @@ export const BONUS = {
   score: 250, // deutlich wertvoller als normale Collectibles
   pendulumPx: 95, // horizontale Pendel-Amplitude
   pendulumMs: 1700, // Pendel-Periode (hin/zurück)
+  // B_GAME6.7: zweites Bewegungsmuster — diagonale Drift (hin/zurück), schwerer
+  // einzusammeln als reines Pendeln.
+  driftPx: 80, // diagonale Drift-Amplitude (x und y)
+  driftMs: 1900, // Drift-Periode
 };
 
 // Punkte pro Collectible (Spec §4.2).

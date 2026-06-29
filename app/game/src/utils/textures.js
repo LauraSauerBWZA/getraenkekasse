@@ -31,6 +31,9 @@ const PALETTE = {
   c: 0x12101a, // Riss
   i: 0x9ec6e0, // Eis hell (B_GAME5.4)
   I: 0x5f8fb5, // Eis dunkel/Kern
+  m: 0x9c6a3e, // Geröll erdig-braun mittel (B_GAME6.7)
+  M: 0x5f3d22, // Geröll dunkelbraun (Schatten)
+  u: 0xc08a52, // Geröll hellbraun (Kante)
   // Collectibles
   s: 0xcdd2dc, // Silber hell
   S: 0x8a90a0, // Silber dunkel
@@ -278,6 +281,25 @@ const ICICLE_GRID = [
 ];
 function icicleTexture(scene) {
   drawPixels(scene, 'icicle', ICICLE_GRID, 2);
+}
+
+// Geröll-Brocken (24x20 = 12x10 ×2, B_GAME6.7): kantiger, erdig-brauner Block.
+// Bewusst andere Farbe (braun) als der dunkel-violette Großbrocken und der helle
+// kleine Stein → als neues, diagonal driftendes Gefahr-Muster klar lesbar.
+const GEROELL_GRID = [
+  '...uuuu.....',
+  '..ummmmuu...',
+  '.ummmMmMu...',
+  'ummmmmMMmu..',
+  'ummMmmmmmu..',
+  'umMMmmmMmu..',
+  '.ummmMMmu...',
+  '.uummmmuu...',
+  '..uummuu....',
+  '...uuuu.....',
+];
+function geroellTexture(scene) {
+  drawPixels(scene, 'geroell', GEROELL_GRID, 2);
 }
 
 // Karabiner (20x24 = 10x12 ×2, Optik überarbeitet B_GAME5.3): klare
@@ -556,6 +578,9 @@ export function buildTextures(scene) {
 
   // Eiszapfen (B_GAME5.4): fallender Eis-Dorn, neuer Hindernis-Typ.
   icicleTexture(scene);
+
+  // Geröll-Brocken (B_GAME6.7): diagonal driftendes Hindernis.
+  geroellTexture(scene);
 
   // Collectibles (B_GAME.5) + Emblem-Item (B_GAME3.4, Mechanik in B_GAME4).
   carabinerTexture(scene);

@@ -11,6 +11,7 @@ import {
   HIT,
   BROCKEN,
   ICICLE,
+  GEROELL,
   WALL_METERS,
   EXE,
   BONUS,
@@ -67,6 +68,7 @@ export class Level1Scene extends Phaser.Scene {
     this.buildGoal();
     this.buildBrocken();
     this.buildIcicles();
+    this.buildGeroell();
     this.buildExes();
     this.buildAnchorVisuals();
     this.buildCollectibles();
@@ -336,32 +338,63 @@ export class Level1Scene extends Phaser.Scene {
     this.popup(this.player.x, this.player.y - 30, 'ungesichert!', CSS.rescue);
   }
 
-  // Emblem-Bonus-Item (B_GAME4.5): seltenes, pendelndes, riskant platziertes
-  // Extra-Item (+BONUS.score). Einsammeln per Berührung wie andere Collectibles.
+  // Emblem-Bonus-Item (B_GAME4.5, Bewegung erweitert B_GAME6.7): seltenes,
+  // bewegliches, riskant platziertes Extra-Item (+BONUS.score). Zwei Muster:
+  // 'pendulum' = horizontal pendeln (wie bisher), 'drift' = diagonal driften
+  // (neues, schwerer mitzunehmendes Muster). Einsammeln per Berührung.
   buildBonus() {
     this.bonus = this.physics.add.group();
     for (const spot of BONUS_SPOTS) {
-      const item = this.bonus.create(spot.x - BONUS.pendulumPx / 2, spot.y, 'emblem_item');
-      item.body.setAllowGravity(false);
-      item.body.setImmovable(true);
-      // Horizontales Pendeln → beweglich + schwer mitzunehmen.
-      this.tweens.add({
-        targets: item,
-        x: spot.x + BONUS.pendulumPx / 2,
-        duration: BONUS.pendulumMs,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.inOut',
-      });
-      // Dezentes Pulsieren (auffällig, „begehrenswert").
-      this.tweens.add({
-        targets: item,
-        scale: 1.18,
-        duration: 600,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.inOut',
-      });
+      const motion = spot.motion || 'pendulum';
+      if (motion === 'drift') {
+        const item = this.bonus.create(
+          spot.x - BONUS.driftPx / 2,
+          spot.y - BONUS.driftPx / 2,
+          'emblem_item',
+        );
+        item.body.setAllowGravity(false);
+        item.body.setImmovable(true);
+        // Diagonale Drift (x UND y hin/zurück).
+        this.tweens.add({
+          targets: item,
+          x: spot.x + BONUS.driftPx / 2,
+          y: spot.y + BONUS.driftPx / 2,
+          duration: BONUS.driftMs,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.inOut',
+        });
+        this.tweens.add({
+          targets: item,
+          scale: 1.18,
+          duration: 600,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.inOut',
+        });
+      } else {
+        const item = this.bonus.create(spot.x - BONUS.pendulumPx / 2, spot.y, 'emblem_item');
+        item.body.setAllowGravity(false);
+        item.body.setImmovable(true);
+        // Horizontales Pendeln → beweglich + schwer mitzunehmen.
+        this.tweens.add({
+          targets: item,
+          x: spot.x + BONUS.pendulumPx / 2,
+          duration: BONUS.pendulumMs,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.inOut',
+        });
+        // Dezentes Pulsieren (auffällig, „begehrenswert").
+        this.tweens.add({
+          targets: item,
+          scale: 1.18,
+          duration: 600,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.inOut',
+        });
+      }
     }
     this.physics.add.overlap(this.player, this.bonus, (_p, item) => {
       this.score += BONUS.score;
@@ -514,6 +547,74 @@ export class Level1Scene extends Phaser.Scene {
     this.audio.hit();
     // Eiszapfen wie großer Brocken: gesichert → −1 Leben + Sturz, ungesichert →
     // Totalabsturz.
+    if (this.isSecured()) this.fallToAnchor();
+    else this.gameOver('absturz');
+  }
+
+  // Geröll-Brocken (B_GAME6.7): dritter Gefahr-Typ, kommt seitlich-oben rein und
+  // driftet diagonal Richtung Mitte. Eigener Spawn-Akkumulator + Höhen-Gate.
+  buildGeroell() {
+    this.geroell = this.physics.add.group();
+    this.geroellAccum = 0;
+    this.physics.add.overlap(this.player, this.geroell, (_p, g) => this.handleGeroellHit(g));
+  }
+
+  // Telegraph an der Eintrittsstelle (nahe einer Seite, oben) → erst danach
+  // kommt der Brocken und driftet zur Mitte (Fairness: kein Tod aus dem Nichts).
+  spawnGeroell() {
+    const fromLeft = Math.random() < 0.5;
+    const x = fromLeft ? 36 : GAME.width - 36;
+    const warnY = this.cameras.main.scrollY + 16;
+    const warn = this.add.image(x, warnY, 'geroell').setAlpha(0);
+    this.tweens.add({
+      targets: warn,
+      alpha: 0.8,
+      duration: GEROELL.warnMs / 2,
+      yoyo: true,
+      onComplete: () => {
+        warn.destroy();
+        if (this.finished) return;
+        const g = this.geroell.create(x, this.cameras.main.scrollY + 8, 'geroell');
+        g.body.setAllowGravity(false);
+        g.setVelocity(fromLeft ? GEROELL.driftSpeed : -GEROELL.driftSpeed, GEROELL.fallSpeed);
+        g.body.setSize(18, 18);
+        // Rollende Drehung (rollt in Drift-Richtung).
+        this.tweens.add({
+          targets: g,
+          angle: fromLeft ? 360 : -360,
+          duration: 1400,
+          repeat: -1,
+        });
+      },
+    });
+  }
+
+  updateGeroell(delta) {
+    // Gestaffelt ab introHeightM; Dichte steigt bis zum Wand-Ende.
+    if (this.maxHeightM < GEROELL.introHeightM) return;
+    const frac = Phaser.Math.Clamp(
+      (this.maxHeightM - GEROELL.introHeightM) / (WALL_METERS - GEROELL.introHeightM),
+      0,
+      1,
+    );
+    const interval = Phaser.Math.Linear(GEROELL.rateStartMs, GEROELL.rateMinMs, frac);
+    this.geroellAccum += delta;
+    if (this.geroellAccum >= interval) {
+      this.geroellAccum = 0;
+      this.spawnGeroell();
+    }
+    const camBottom = this.cameras.main.scrollY + GAME.height;
+    this.geroell.children.iterate((g) => {
+      if (g && (g.y > camBottom + 80 || g.x < -40 || g.x > GAME.width + 40)) g.destroy();
+      return true;
+    });
+  }
+
+  handleGeroellHit(g) {
+    if (this.invulnerable) return;
+    g.destroy();
+    this.audio.hit();
+    // Wie großer Brocken: gesichert → −1 Leben + Sturz, ungesichert → Game Over.
     if (this.isSecured()) this.fallToAnchor();
     else this.gameOver('absturz');
   }
@@ -710,6 +811,7 @@ export class Level1Scene extends Phaser.Scene {
     this.checkPushOut();
     this.updateBrocken(delta);
     this.updateIcicles(delta);
+    this.updateGeroell(delta);
 
     // Sicherungs-Status + Warnsignal beim Übergang gesichert → ungesichert
     // (z.B. an einer Exe ohne Clippen vorbeigeklettert).
