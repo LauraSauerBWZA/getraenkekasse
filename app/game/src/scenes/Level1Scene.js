@@ -62,6 +62,7 @@ export class Level1Scene extends Phaser.Scene {
 
     this.buildBackground();
     this.buildWall();
+    this.buildWallTint();
     this.spawnPlayer();
     this.buildGoal();
     this.buildBrocken();
@@ -111,6 +112,50 @@ export class Level1Scene extends Phaser.Scene {
     for (const o of OVERHANGS) {
       const x = o.side === 'left' ? 85 : GAME.width - 85; // 170px breit, flush am Rand
       this.overhangs.create(x, o.y, 'overhang');
+    }
+  }
+
+  // Felswand-Farbverlauf mit der Höhe (B_GAME6.4, B.1): dezenter Overlay über die
+  // Wand, der unten erdig/braun → Mitte gräulich-felsig → oben kühl eisig-blau
+  // (Gipfel) verläuft. Bewusst dunkel + niedrige Deckkraft → Spieler/Hindernisse/
+  // Items davor bleiben klar lesbar (Lesbarkeit vor Effekt). Wird direkt NACH der
+  // Wand und VOR den Spiel-Sprites erzeugt → liegt per Insertion-Order zwischen
+  // Wand und Vordergrund (keine Depth-Eingriffe nötig). y=0 oben (Gipfel),
+  // y=worldHeight unten (Boden).
+  buildWallTint() {
+    // Farbstützpunkte nach t = y / worldHeight (0 = Gipfel, 1 = Boden).
+    const stops = [
+      { t: 0.0, c: 0x35536b }, // Gipfel: kühl eisig-blau
+      { t: 0.35, c: 0x2b3340 }, // oberer Fels: blaugrau
+      { t: 0.6, c: 0x2c2c34 }, // Mitte: felsig grau
+      { t: 0.8, c: 0x33291f }, // unten: warm-erdig
+      { t: 1.0, c: 0x3a2a1c }, // Boden: erdig/braun
+    ];
+    const colorAt = (t) => {
+      let lo = stops[0];
+      let hi = stops[stops.length - 1];
+      for (let i = 0; i < stops.length - 1; i++) {
+        if (t >= stops[i].t && t <= stops[i + 1].t) {
+          lo = stops[i];
+          hi = stops[i + 1];
+          break;
+        }
+      }
+      const span = hi.t - lo.t || 1;
+      const frac = Phaser.Math.Clamp((t - lo.t) / span, 0, 1);
+      const c = Phaser.Display.Color.Interpolate.ColorWithColor(
+        Phaser.Display.Color.IntegerToColor(lo.c),
+        Phaser.Display.Color.IntegerToColor(hi.c),
+        100,
+        Math.round(frac * 100),
+      );
+      return Phaser.Display.Color.GetColor(c.r, c.g, c.b);
+    };
+    const g = this.add.graphics().setScrollFactor(1);
+    const bandH = 160; // weicher Verlauf in schmalen Bändern
+    for (let y = 0; y < GAME.worldHeight; y += bandH) {
+      g.fillStyle(colorAt(y / GAME.worldHeight), 0.22); // dezent: Vordergrund lesbar
+      g.fillRect(0, y, GAME.width, bandH + 1);
     }
   }
 
