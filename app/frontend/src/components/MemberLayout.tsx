@@ -14,9 +14,7 @@ const TABS = [
   { to: '/verlauf', label: 'Verlauf', icon: History },
 ];
 
-// 🎮-Spiel-Tab (B_GAME_INTEGRATION) — nur für Admins. Wird unten an die Tab-Liste
-// gehängt, wenn isAdmin. Die Route /spiel ist zusätzlich admin-gegateet (App.tsx),
-// d.h. auch per Direktlink für Nicht-Admins gesperrt.
+// 🎮-Spiel-Tab (Bündel 8): für alle eingeloggten Mitglieder sichtbar.
 const SPIEL_TAB = { to: '/spiel', label: 'Spiel', icon: Gamepad2 };
 
 // Persistente Shell für die Member-Screens: Top-Header (Avatar→Drawer, Back-Pfeil
@@ -54,8 +52,7 @@ export function MemberLayout({ children }: PropsWithChildren) {
     return () => root.classList.remove('bwza-app-locked');
   }, []);
 
-  // Admins sehen einen zusätzlichen 🎮-Tab; Mitglieder die unveränderten 3 Tabs.
-  const tabs = user?.isAdmin ? [...TABS, SPIEL_TAB] : TABS;
+  const tabs = [...TABS, SPIEL_TAB];
   const istTab = tabs.some((t) => t.to === location.pathname);
 
   // Nav-Höhe/-Padding kommen aus den Tokens (Bündel 7: eine Quelle, damit Member-

@@ -219,20 +219,18 @@ export default function App() {
         path="/spiel"
         element={
           <Protected>
-            <AdminOnly>
-              <Suspense
-                fallback={
-                  <div
-                    className="bwza-stage"
-                    style={{ padding: '60px var(--bwza-page-x)', color: 'var(--bwza-ink-mute)' }}
-                  >
-                    Spiel lädt …
-                  </div>
-                }
-              >
-                <Spiel />
-              </Suspense>
-            </AdminOnly>
+            <Suspense
+              fallback={
+                <div
+                  className="bwza-stage"
+                  style={{ padding: '60px var(--bwza-page-x)', color: 'var(--bwza-ink-mute)' }}
+                >
+                  Spiel lädt …
+                </div>
+              }
+            >
+              <Spiel />
+            </Suspense>
           </Protected>
         }
       />
