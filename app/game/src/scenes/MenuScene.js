@@ -67,7 +67,12 @@ export class MenuScene extends Phaser.Scene {
 
     this.renderLeaderboardPreview(height * 0.54);
 
-    makeButton(this, cx, height * 0.74, '🏆  Alle Highscores', () => this.scene.start(SCENES.highscore), {
+    makeButton(this, cx, height * 0.67, 'ℹ️  So spielst du', () => this.openInstructions(), {
+      bg: '#241a12',
+      fontSize: '14px',
+    });
+
+    makeButton(this, cx, height * 0.755, '🏆  Alle Highscores', () => this.scene.start(SCENES.highscore), {
       bg: '#241a12',
       fontSize: '14px',
     });
@@ -95,6 +100,87 @@ export class MenuScene extends Phaser.Scene {
     } else {
       this.audio.startMusic('menu');
     }
+  }
+
+  // Bedienungs-Anleitung (B_GAME6.6, C.1): kompaktes Overlay-Panel. Erkennt
+  // Touch vs. Desktop und zeigt die passende Steuerungs-Variante; Spielziel +
+  // Sicherungs-Regel gelten für beide. Wird einmal gebaut und ein-/ausgeblendet.
+  openInstructions() {
+    if (this.instr) {
+      this.instr.setVisible(true);
+      return;
+    }
+    const { width, height } = this.scale;
+    const cx = width / 2;
+    const isTouch = this.sys.game.device.input.touch;
+    const c = this.add.container(0, 0).setDepth(200).setScrollFactor(0);
+
+    const shade = this.add
+      .rectangle(cx, height / 2, width, height, 0x0c0a08, 0.86)
+      .setInteractive(); // absorbiert Klicks hinter dem Panel
+    const panelH = 430;
+    const panelW = width - 36;
+    const panel = this.add
+      .rectangle(cx, height / 2, panelW, panelH, 0x241a12, 0.98)
+      .setStrokeStyle(2, 0xe3a857, 0.9);
+    const left = cx - panelW / 2 + 20;
+    let y = height / 2 - panelH / 2 + 22;
+
+    const title = this.add
+      .text(cx, y, 'So spielst du', { fontFamily: CSS.fontDisplay, fontSize: '22px', color: CSS.amberGlow })
+      .setOrigin(0.5);
+    c.add([shade, panel, title]);
+    y += 40;
+
+    const head = (text) => {
+      const t = this.add.text(left, y, text, { fontFamily: CSS.fontUi, fontSize: '14px', color: CSS.amber });
+      c.add(t);
+      y += 24;
+    };
+    const line = (text) => {
+      const t = this.add.text(left + 8, y, text, {
+        fontFamily: CSS.fontUi,
+        fontSize: '13px',
+        color: CSS.inkDim,
+        wordWrap: { width: panelW - 56 },
+      });
+      c.add(t);
+      y += t.height + 8;
+    };
+    const iconLine = (key, text) => {
+      const img = this.add.image(left + 10, y + 8, key).setScale(0.85);
+      const t = this.add.text(left + 28, y, text, {
+        fontFamily: CSS.fontUi,
+        fontSize: '13px',
+        color: CSS.inkDim,
+        wordWrap: { width: panelW - 76 },
+      });
+      c.add([img, t]);
+      y += Math.max(t.height, 22) + 8;
+    };
+
+    head(isTouch ? '📱 Steuerung (Handy)' : '⌨️ Steuerung (Tastatur)');
+    if (isTouch) {
+      line('Joystick unten halten & ziehen — bewegen (weiter ziehen = schneller)');
+      line('Tippen — springen');
+      line('Button unten links — an Exe einklippen (sichern)');
+    } else {
+      line('Pfeiltasten — bewegen');
+      line('Leertaste — springen');
+      line('Taste E — an Exe einklippen (sichern)');
+    }
+    y += 6;
+    head('Ziel & Regeln');
+    iconLine('windenhaken', 'Den Windenhaken ganz oben greifen 🚁');
+    iconLine('exe', 'Exen einklippen sichert dich — ungesichert + Treffer = Game Over');
+    iconLine('drink', 'Items sammeln = Punkte');
+
+    const close = makeButton(this, cx, height / 2 + panelH / 2 - 28, 'Verstanden', () =>
+      this.instr.setVisible(false),
+    );
+    c.add(close);
+
+    this.instr = c;
   }
 
   // Top 3 der Woche + humorvoller Spruch. Lädt asynchron.
