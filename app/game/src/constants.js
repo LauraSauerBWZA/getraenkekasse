@@ -52,6 +52,20 @@ export const CSS = {
 //   = Browser-Test-Checkliste (Mobile-Kurztest).
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── B_GAME6 Ausbau-Balancing (finale Start-Werte, Playtest-tunbar) ──────────
+// Audio (nested gains): master 0.5 → music 0.32 / sfx 0.55, je Note vol 0.4–0.65.
+//   Moderat, kurze Töne; Mute = master 0 (persistiert in localStorage).
+// Felswand-Verlauf: Overlay-Deckkraft 0.22 (dunkel → Vordergrund bleibt lesbar).
+// Geröll (3. Gefahr): ab 110 m, Intervall 4500→2400 ms, Fall 150 + Drift 120
+//   (diagonal), 420 ms Telegraph. Bewusst sparsamer als Brocken/Eiszapfen, damit
+//   die Drei-Gefahren-Dichte oben fair bleibt (Kern-Schwierigkeit unverändert).
+// Bonus-Item: zweites Muster 'drift' (diagonal, ±80 px, 1,9 s) neben 'pendulum'.
+// Power-up: 1 fester Spawn/Lauf (~220 m, mittig/riskant), 5000 ms voll immun
+//   (isImmune = invulnerable || powerup; eigener Timer, Stun beendet es nicht).
+// Mobile (statischer Review): Canvas FIT 480×800 unverändert; neue Sprites/HUD
+//   (Mute-Button, Power-up-Countdown mittig) innerhalb 480 px; Touch unverändert.
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Portrait-Canvas — passt zu Climber-Gameplay (vertikales Hochklettern) und
 // Mobile. Welt ist mehrere Screens hoch; Kamera scrollt vertikal.
 export const GAME = {
@@ -136,9 +150,9 @@ export const GEROELL = {
   fallSpeed: 150, // px/s vertikal (langsamer als Brocken — dafür seitlich)
   driftSpeed: 120, // px/s horizontal (Richtung Bildmitte)
   warnMs: 420, // Telegraph-Glitzern am Eintrittspunkt
-  introHeightM: 90, // erscheint ab ~90 m (zwischen Brocken-Start und Eiszapfen)
-  rateStartMs: 4200, // anfangs selten
-  rateMinMs: 2200, // ganz oben dichter
+  introHeightM: 110, // erscheint ab ~110 m (gestaffelt nach Brocken, vor Eiszapfen)
+  rateStartMs: 4500, // anfangs selten
+  rateMinMs: 2400, // ganz oben dichter (mit Brocken+Eiszapfen zusammen fair)
 };
 
 // ─── B_GAME4B Sturzhöhe-Balancing (finale Start-Werte, Playtest-tunbar) ──────
