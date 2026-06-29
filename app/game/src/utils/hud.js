@@ -1,4 +1,5 @@
 import { GAME, CSS, START_LIVES } from '../constants.js';
+import { createMuteButton } from './audio.js';
 
 // mm:ss aus Millisekunden.
 export function formatTime(ms) {
@@ -32,6 +33,9 @@ export class Hud {
         .setInteractive({ useHandCursor: true });
       this.menuBtn.on('pointerup', onMenu);
     }
+
+    // Mute-Schalter (A.3) links neben dem Menü-Button, gut erreichbar im Spiel.
+    this.muteBtn = createMuteButton(scene, GAME.width - pad - 66, pad, { origin: 1, depth: 101 });
 
     this.hearts = [];
     for (let i = 0; i < START_LIVES; i++) {

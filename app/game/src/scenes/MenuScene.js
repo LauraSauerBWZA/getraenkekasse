@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CSS, COLORS, SCENES } from '../constants.js';
 import { makeButton } from '../utils/ui.js';
+import { createMuteButton } from '../utils/audio.js';
 import { fetchLeaderboard } from '../utils/api.js';
 
 // Startmenü: Titel, Emblem, Kurz-Erklärung, humorvoller Wochen-Spruch,
@@ -14,6 +15,9 @@ export class MenuScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const cx = width / 2;
     this.cameras.main.setBackgroundColor(COLORS.bg);
+
+    // Mute-Schalter (A.3) oben rechts, gut erreichbar.
+    createMuteButton(this, width - 12, 12, { origin: 1 });
 
     this.add.image(cx, height * 0.13, 'emblem');
 
