@@ -154,7 +154,7 @@ export default function Aufladen() {
       {/* Bargeld-Hinweis */}
       <Glass tone="dark" style={{ borderRadius: 18, padding: '14px 16px', marginTop: 14 }}>
         <Eyebrow icon={Banknote}>Bargeld</Eyebrow>
-        <div style={{ marginTop: 4, fontSize: 13, color: 'var(--bwza-ink)', fontWeight: 600 }}>
+        <div style={{ marginTop: 6, fontFamily: 'var(--bwza-font-display)', fontSize: 18, fontWeight: 600, color: 'var(--bwza-ink)', letterSpacing: -0.2 }}>
           Lieber bar?
         </div>
         <div style={{ marginTop: 2, fontSize: 12, color: 'var(--bwza-ink-mute)', lineHeight: 1.45 }}>
